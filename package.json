@@ -1,0 +1,22 @@
+{
+  "name": "onekit-js",
+  "version": "2.0.0",
+  "description": "Javascript lib",
+  "main": "easyjs.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hidecard/Easy-JS.git"
+  },
+  "author": "Arkar Yan",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/hidecard/Easy-JS/issues"
+  },
+  "homepage": "https://github.com/hidecard/Easy-JS#readme",
+  "dependencies": {
+    "hidecard-easyjs": "^1.0.0"
+  }
+}
