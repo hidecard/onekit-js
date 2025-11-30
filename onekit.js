@@ -2,19 +2,27 @@
  * OneKit - A lightweight, modern JavaScript library for DOM manipulation,
  * animations, reactive state, and API integration.
  *
- * Version: 5.0.0
+ * Version: 6.0.0
  * Author: OneKit Team
  */
 
 (function(global) {
   'use strict';
 
-  // Core OneKit function - ultra-short selector
-  function _(selector) {
+  // Core OneKit function
+  function ok(selector) {
     return new OneKit(selector);
   }
 
-  // OneKit class with unified compact syntax
+  // Module registry for tree-shaking support
+  const modules = {};
+  
+  // Register a module
+  ok.module = function(name, factory) {
+    modules[name] = factory;
+  };
+
+  // OneKit class with intuitive compact syntax
   class OneKit {
     constructor(selector) {
       this.elements = [];
@@ -48,7 +56,7 @@
         return this;
       }
 
-      // Handle arrays or EasyJS objects
+      // Handle arrays or OneKit objects
       if (selector.length !== undefined) {
         for (let i = 0; i < selector.length; i++) {
           this.elements.push(selector[i]);
@@ -62,17 +70,17 @@
     // Get the first element
     first() {
       if (this.elements.length > 0) {
-        return new EasyJS(this.elements[0]);
+        return new OneKit(this.elements[0]);
       }
-      return new EasyJS();
+      return new OneKit();
     }
 
     // Get the last element
     last() {
       if (this.elements.length > 0) {
-        return new EasyJS(this.elements[this.elements.length - 1]);
+        return new OneKit(this.elements[this.elements.length - 1]);
       }
-      return new EasyJS();
+      return new OneKit();
     }
 
     // Iterate over elements
@@ -83,8 +91,20 @@
       return this;
     }
 
+    // Find descendant elements
+    find(selector) {
+      const elements = [];
+      this.each(function() {
+        const found = this.querySelectorAll(selector);
+        for (let i = 0; i < found.length; i++) {
+          elements.push(found[i]);
+        }
+      });
+      return new OneKit(elements);
+    }
+
     // Add class to elements
-    cls(className) {
+    class(className) {
       return this.each(function() {
         if (this.classList) {
           this.classList.add(className);
@@ -95,7 +115,7 @@
     }
 
     // Remove class from elements
-    uncls(className) {
+    unclass(className) {
       return this.each(function() {
         if (this.classList) {
           this.classList.remove(className);
@@ -106,7 +126,7 @@
     }
 
     // Toggle class on elements
-    tgl(className) {
+    toggleClass(className) {
       return this.each(function() {
         if (this.classList) {
           this.classList.toggle(className);
@@ -125,7 +145,7 @@
     }
 
     // Get or set HTML content
-    h(content) {
+    html(content) {
       if (content === undefined) {
         return this.elements.length > 0 ? this.elements[0].innerHTML : null;
       }
@@ -135,7 +155,7 @@
     }
 
     // Get or set text content
-    t(content) {
+    text(content) {
       if (content === undefined) {
         return this.elements.length > 0 ? this.elements[0].textContent : null;
       }
@@ -145,7 +165,7 @@
     }
 
     // Get or set attribute
-    at(name, value) {
+    attr(name, value) {
       if (typeof name === 'object') {
         return this.each(function() {
           for (const key in name) {
@@ -163,14 +183,14 @@
     }
 
     // Remove attribute
-    unat(name) {
+    unattr(name) {
       return this.each(function() {
         this.removeAttribute(name);
       });
     }
 
     // Get or set CSS properties
-    s(prop, value) {
+    css(prop, value) {
       if (typeof prop === 'object') {
         return this.each(function() {
           for (const key in prop) {
@@ -206,14 +226,14 @@
     }
 
     // Toggle visibility
-    togVis() {
+    toggle() {
       return this.each(function() {
         this.style.display = this.style.display === 'none' ? '' : 'none';
       });
     }
 
     // Clone elements
-    cln() {
+    clone() {
       const elements = [];
       this.each(function() {
         elements.push(this.cloneNode(true));
@@ -222,15 +242,15 @@
     }
 
     // Get parent element
-    up() {
+    parent() {
       if (this.elements.length > 0) {
-        return new EasyJS(this.elements[0].parentNode);
+        return new OneKit(this.elements[0].parentNode);
       }
-      return new EasyJS();
+      return new OneKit();
     }
 
     // Get children elements
-    down(selector) {
+    kids(selector) {
       const elements = [];
       this.each(function() {
         const children = selector ?
@@ -245,7 +265,7 @@
     }
 
     // Get sibling elements
-    side(selector) {
+    sibs(selector) {
       const elements = [];
       this.each(function() {
         const siblings = this.parentNode.children;
@@ -256,7 +276,46 @@
           }
         }
       });
-      return new EasyJS(elements);
+      return new OneKit(elements);
+    }
+
+    // Append elements
+    append(content) {
+      return this.each(function() {
+        if (typeof content === 'string') {
+          this.insertAdjacentHTML('beforeend', content);
+        } else if (content.nodeType) {
+          this.appendChild(content);
+        } else if (content.elements) {
+          for (let i = 0; i < content.elements.length; i++) {
+            this.appendChild(content.elements[i]);
+          }
+        }
+      });
+    }
+
+    // Prepend elements
+    prepend(content) {
+      return this.each(function() {
+        if (typeof content === 'string') {
+          this.insertAdjacentHTML('afterbegin', content);
+        } else if (content.nodeType) {
+          this.insertBefore(content, this.firstChild);
+        } else if (content.elements) {
+          for (let i = content.elements.length - 1; i >= 0; i--) {
+            this.insertBefore(content.elements[i], this.firstChild);
+          }
+        }
+      });
+    }
+
+    // Remove elements
+    remove() {
+      return this.each(function() {
+        if (this.parentNode) {
+          this.parentNode.removeChild(this);
+        }
+      });
     }
 
     // Add event listener
@@ -304,7 +363,7 @@
     }
 
     // Fade in animation
-    fin(duration, callback) {
+    fade_in(duration, callback) {
       duration = duration || 400;
       return this.each(function() {
         const element = this;
@@ -331,7 +390,7 @@
     }
 
     // Fade out animation
-    fout(duration, callback) {
+    fade_out(duration, callback) {
       duration = duration || 400;
       return this.each(function() {
         const element = this;
@@ -358,7 +417,7 @@
     }
 
     // Slide up animation
-    sup(duration, callback) {
+    slide_up(duration, callback) {
       duration = duration || 400;
       return this.each(function() {
         const element = this;
@@ -384,7 +443,7 @@
     }
 
     // Slide down animation
-    sdown(duration, callback) {
+    slide_down(duration, callback) {
       duration = duration || 400;
       return this.each(function() {
         const element = this;
@@ -410,7 +469,7 @@
     }
 
     // Custom animation
-    go(props, duration, callback) {
+    animate(props, duration, callback) {
       duration = duration || 400;
       return this.each(function() {
         const element = this;
@@ -447,7 +506,7 @@
     }
 
     // Serialize form data
-    val() {
+    form_data() {
       if (this.elements.length === 0) return {};
       
       const form = this.elements[0];
@@ -487,118 +546,194 @@
     }
 
     // Validate form
-    chk(rules) {
-      if (this.elements.length === 0 || this.elements[0].tagName !== 'FORM') return false;
+    validateForm(rules, options = {}) {
+      const {
+        errorClass = 'error',
+        errorElement = 'span',
+        errorContainer = null,
+        showError = true,
+        hideError = true
+      } = options;
       
-      const form = this.elements[0];
+      const formEl = this.elements[0];
+      if (!formEl || formEl.tagName !== 'FORM') return false;
+      
       const errors = {};
       let isValid = true;
       
+      // Clear previous errors
+      if (hideError) {
+        formEl.querySelectorAll(`.${errorClass}`).forEach(el => {
+          el.classList.remove(errorClass);
+        });
+        
+        formEl.querySelectorAll(`${errorElement}.${errorClass}-message`).forEach(el => {
+          el.remove();
+        });
+      }
+      
+      // Validate each field
       for (const field in rules) {
-        const input = form.querySelector(`[name="${field}"]`);
+        const input = formEl.querySelector(`[name="${field}"]`);
         if (!input) continue;
         
         const value = input.value.trim();
         const fieldRules = rules[field].split('|');
+        let fieldErrors = [];
         
         for (const rule of fieldRules) {
           if (rule === 'required' && !value) {
-            errors[field] = `${field} is required`;
-            isValid = false;
-            break;
+            fieldErrors.push(`${field} is required`);
+            continue;
           }
           
           if (rule === 'email' && value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
-            errors[field] = `${field} must be a valid email`;
-            isValid = false;
-            break;
+            fieldErrors.push(`${field} must be a valid email`);
+            continue;
           }
           
           if (rule.startsWith('min:')) {
             const min = parseInt(rule.split(':')[1]);
             if (value.length < min) {
-              errors[field] = `${field} must be at least ${min} characters`;
-              isValid = false;
-              break;
+              fieldErrors.push(`${field} must be at least ${min} characters`);
+              continue;
             }
           }
           
           if (rule.startsWith('max:')) {
             const max = parseInt(rule.split(':')[1]);
             if (value.length > max) {
-              errors[field] = `${field} must be at most ${max} characters`;
-              isValid = false;
-              break;
+              fieldErrors.push(`${field} must be at most ${max} characters`);
+              continue;
             }
+          }
+          
+          if (rule.startsWith('match:')) {
+            const matchField = rule.split(':')[1];
+            const matchInput = formEl.querySelector(`[name="${matchField}"]`);
+            if (matchInput && value !== matchInput.value.trim()) {
+              fieldErrors.push(`${field} must match ${matchField}`);
+              continue;
+            }
+          }
+        }
+        
+        if (fieldErrors.length) {
+          errors[field] = fieldErrors;
+          isValid = false;
+          
+          // Show errors
+          if (showError) {
+            input.classList.add(errorClass);
+            
+            fieldErrors.forEach(error => {
+              const errorEl = document.createElement(errorElement);
+              errorEl.className = `${errorClass}-message`;
+              errorEl.textContent = error;
+              
+              if (errorContainer) {
+                const container = input.closest(errorContainer);
+                if (container) {
+                  container.appendChild(errorEl);
+                }
+              } else {
+                input.parentNode.insertBefore(errorEl, input.nextSibling);
+              }
+            });
           }
         }
       }
       
       // Store errors on the form element
-      form._validationErrors = errors;
+      formEl._validationErrors = errors;
       
       return isValid;
     }
 
-    // Render template with data
-    tpl(template, data) {
-      if (this.elements.length === 0) return this;
+    // Apply input mask
+    applyMask(maskName) {
+      const mask = ok.form.masks[maskName];
+      if (!mask) return this;
       
-      const element = this.elements[0];
-      let html = '';
+      return this.each(function() {
+        const el = this;
+        if (el.tagName !== 'INPUT') return;
+        
+        // Format on input
+        el.addEventListener('input', function() {
+          const formattedValue = mask.format(this.value);
+          this.value = formattedValue;
+        });
+        
+        // Set placeholder
+        if (mask.pattern) {
+          el.placeholder = mask.pattern;
+        }
+      });
+    }
+
+    // Enable gestures
+    gesture() {
+      return this.each(function() {
+        ok.gesture.addGestures(this);
+      });
+    }
+
+    // Check if element is visible
+    isVisible() {
+      if (this.elements.length === 0) return false;
+      const el = this.elements[0];
+      const style = window.getComputedStyle(el);
+      return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
+    }
+
+    // Check if element is in viewport
+    inViewport(threshold = 0) {
+      if (this.elements.length === 0) return false;
+      const el = this.elements[0];
+      const rect = el.getBoundingClientRect();
+      const windowHeight = window.innerHeight || document.documentElement.clientHeight;
+      const windowWidth = window.innerWidth || document.documentElement.clientWidth;
       
-      if (Array.isArray(data)) {
-        data.forEach(item => {
-          html += template.replace(/\{\{(\w+)\}\}/g, (match, key) => {
-            return item[key] !== undefined ? item[key] : '';
-          });
-        });
-      } else {
-        html = template.replace(/\{\{(\w+)\}\}/g, (match, key) => {
-          return data[key] !== undefined ? data[key] : '';
-        });
+      const vertInView = (rect.top <= windowHeight * (1 - threshold)) && ((rect.top + rect.height) >= windowHeight * threshold);
+      const horInView = (rect.left <= windowWidth * (1 - threshold)) && ((rect.left + rect.width) >= windowWidth * threshold);
+      
+      return vertInView && horInView;
+    }
+
+    // Get element dimensions
+    getDimensions() {
+      if (this.elements.length === 0) return { width: 0, height: 0 };
+      const el = this.elements[0];
+      return {
+        width: el.offsetWidth,
+        height: el.offsetHeight,
+        innerWidth: el.clientWidth,
+        innerHeight: el.clientHeight,
+        top: el.offsetTop,
+        left: el.offsetLeft
+      };
+    }
+
+    // Announce to screen readers
+    announce(message, priority = 'polite') {
+      if (this.elements.length > 0) {
+        ok.a11y.announce(message, priority);
       }
-      
-      element.innerHTML = html;
       return this;
     }
 
-    // Append elements
-    add(content) {
+    // Trap focus
+    trapFocus() {
       return this.each(function() {
-        if (typeof content === 'string') {
-          this.insertAdjacentHTML('beforeend', content);
-        } else if (content.nodeType) {
-          this.appendChild(content);
-        } else if (content.elements) {
-          for (let i = 0; i < content.elements.length; i++) {
-            this.appendChild(content.elements[i]);
-          }
-        }
+        ok.a11y.trapFocus(this);
       });
     }
 
-    // Prepend elements
-    pre(content) {
+    // Remove focus trap
+    removeFocusTrap() {
       return this.each(function() {
-        if (typeof content === 'string') {
-          this.insertAdjacentHTML('afterbegin', content);
-        } else if (content.nodeType) {
-          this.insertBefore(content, this.firstChild);
-        } else if (content.elements) {
-          for (let i = content.elements.length - 1; i >= 0; i--) {
-            this.insertBefore(content.elements[i], this.firstChild);
-          }
-        }
-      });
-    }
-
-    // Remove elements
-    del() {
-      return this.each(function() {
-        if (this.parentNode) {
-          this.parentNode.removeChild(this);
-        }
+        ok.a11y.removeFocusTrap(this);
       });
     }
 
@@ -625,213 +760,717 @@
     }
   }
 
-  // Static methods
-  _.reactive = function(obj) {
-    const handlers = {};
-    const reactiveObj = {};
+  // ==================== MODULES ====================
 
-    for (const key in obj) {
-      let value = obj[key];
+  // Component System Module
+  ok.module('component', function() {
+    const components = {};
+    const componentInstances = new Map();
+    
+    function register(name, definition) {
+      components[name] = definition;
+    }
+    
+    function create(name, props = {}) {
+      if (!components[name]) {
+        console.error(`Component "${name}" not found`);
+        return null;
+      }
       
-      Object.defineProperty(reactiveObj, key, {
-        get() {
-          return value;
-        },
-        set(newValue) {
-          if (value !== newValue) {
-            value = newValue;
-            
-            // Call all handlers for this property
-            if (handlers[key]) {
-              handlers[key].forEach(handler => handler(newValue));
+      const definition = components[name];
+      const instance = {
+        name,
+        props,
+        state: definition.data ? JSON.parse(JSON.stringify(definition.data)) : {},
+        element: null,
+        mounted: false,
+        listeners: []
+      };
+      
+      // Add methods
+      if (definition.methods) {
+        Object.keys(definition.methods).forEach(method => {
+          instance[method] = function(...args) {
+            return definition.methods[method].call(instance, ...args);
+          };
+        });
+      }
+      
+      // Create element
+      if (definition.template) {
+        const html = definition.template.replace(/\{\{(\w+)\}\}/g, (match, key) => {
+          return instance.state[key] !== undefined ? instance.state[key] : '';
+        });
+        instance.element = ok(html).first().elements[0];
+      } else if (definition.render) {
+        const html = definition.render.call(instance);
+        instance.element = ok(html).first().elements[0];
+      }
+      
+      // Add lifecycle hooks
+      if (definition.created) {
+        definition.created.call(instance);
+      }
+      
+      // Store instance
+      componentInstances.set(instance.element, instance);
+      
+      return instance;
+    }
+    
+    function mount(component, target) {
+      if (typeof component === 'string') {
+        component = create(component);
+      }
+      
+      if (!component || !component.element) {
+        console.error('Invalid component');
+        return;
+      }
+      
+      const targetElement = ok(target).first().elements[0];
+      if (!targetElement) {
+        console.error('Invalid target element');
+        return;
+      }
+      
+      targetElement.appendChild(component.element);
+      component.mounted = true;
+      
+      // Call mounted hook
+      const definition = components[component.name];
+      if (definition && definition.mounted) {
+        definition.mounted.call(component);
+      }
+      
+      return component;
+    }
+    
+    function getInstance(element) {
+      return componentInstances.get(element);
+    }
+    
+    function destroy(component) {
+      if (!component || !component.element) return;
+      
+      // Call beforeDestroy hook
+      const definition = components[component.name];
+      if (definition && definition.beforeDestroy) {
+        definition.beforeDestroy.call(component);
+      }
+      
+      // Remove element
+      if (component.element.parentNode) {
+        component.element.parentNode.removeChild(component.element);
+      }
+      
+      // Remove event listeners
+      component.listeners.forEach(({ element, event, handler }) => {
+        element.removeEventListener(event, handler);
+      });
+      
+      // Remove from instances
+      componentInstances.delete(component.element);
+      
+      component.mounted = false;
+    }
+    
+    ok.component = { register, create, mount, getInstance, destroy };
+  });
+
+  // Reactive State Management Module
+  ok.module('reactive', function() {
+    const state = {};
+    const watchers = {};
+    
+    function reactive(obj) {
+      const reactiveObj = {};
+      
+      for (const key in obj) {
+        let value = obj[key];
+        
+        Object.defineProperty(reactiveObj, key, {
+          get() {
+            return value;
+          },
+          set(newValue) {
+            if (value !== newValue) {
+              const oldValue = value;
+              value = newValue;
+              
+              // Notify watchers
+              if (watchers[key]) {
+                watchers[key].forEach(watcher => {
+                  watcher(newValue, oldValue);
+                });
+              }
             }
           }
-        }
-      });
-    }
-
-    // Method to subscribe to changes
-    reactiveObj.sub = function(key, handler) {
-      if (!handlers[key]) {
-        handlers[key] = [];
+        });
       }
-      handlers[key].push(handler);
       
-      // Return unsubscribe function
+      return reactiveObj;
+    }
+    
+    function watch(key, callback) {
+      if (!watchers[key]) {
+        watchers[key] = [];
+      }
+      watchers[key].push(callback);
+      
+      // Return unwatch function
       return function() {
-        const index = handlers[key].indexOf(handler);
+        const index = watchers[key].indexOf(callback);
         if (index > -1) {
-          handlers[key].splice(index, 1);
+          watchers[key].splice(index, 1);
         }
       };
-    };
-
-    return reactiveObj;
-  };
-
-  // Storage utilities
-  _.store = {
-    set(key, value) {
-      if (typeof value === 'object') {
-        value = JSON.stringify(value);
-      }
-      localStorage.setItem(key, value);
-    },
-    
-    get(key) {
-      const value = localStorage.getItem(key);
-      try {
-        return JSON.parse(value);
-      } catch (e) {
-        return value;
-      }
-    },
-    
-    del(key) {
-      localStorage.removeItem(key);
     }
-  };
+    
+    function bind(element, stateKey, attribute = 'value') {
+      const el = ok(element).first().elements[0];
+      if (!el) return;
+      
+      // Initial sync
+      if (state[stateKey] !== undefined) {
+        el[attribute] = state[stateKey];
+      }
+      
+      // Update state when element changes
+      el.addEventListener('input', function() {
+        state[stateKey] = el[attribute];
+      });
+      
+      // Update element when state changes
+      watch(stateKey, function(newValue) {
+        el[attribute] = newValue;
+      });
+    }
+    
+    ok.reactive = { reactive, watch, bind };
+  });
 
-  // API utilities
-  _.api = {
-    req(config) {
-      return new Promise((resolve, reject) => {
-        const {
-          url,
-          method = 'GET',
-          data = null,
-          headers = {},
-          timeout = 5000,
-          loader = null
-        } = config;
-
-        // Show loader if specified
-        if (loader) {
-          _(loader).show();
-        }
-
-        const xhr = new XMLHttpRequest();
-        xhr.timeout = timeout;
-
-        xhr.open(method, url, true);
-
-        // Set headers
-        for (const key in headers) {
-          xhr.setRequestHeader(key, headers[key]);
-        }
-
-        // Set default content type for POST/PUT
-        if ((method === 'POST' || method === 'PUT') && !headers['Content-Type']) {
-          xhr.setRequestHeader('Content-Type', 'application/json');
-        }
-
-        xhr.onload = function() {
-          if (loader) {
-            _(loader).hide();
-          }
-
-          if (xhr.status >= 200 && xhr.status < 300) {
-            let response;
-            try {
-              response = JSON.parse(xhr.responseText);
-            } catch (e) {
-              response = xhr.responseText;
-            }
-            resolve(response);
+  // Virtual DOM Module
+  ok.module('vdom', function() {
+    function h(tag, props = {}, children = []) {
+      return {
+        tag,
+        props,
+        children: Array.isArray(children) ? children : [children]
+      };
+    }
+    
+    function createElement(vnode) {
+      if (typeof vnode === 'string') {
+        return document.createTextNode(vnode);
+      }
+      
+      const element = document.createElement(vnode.tag);
+      
+      // Set properties
+      if (vnode.props) {
+        Object.keys(vnode.props).forEach(key => {
+          if (key === 'className') {
+            element.className = vnode.props[key];
+          } else if (key.startsWith('on') && key.length > 2) {
+            const event = key.substring(2).toLowerCase();
+            element.addEventListener(event, vnode.props[key]);
           } else {
-            reject(new Error(`Request failed with status ${xhr.status}`));
+            element.setAttribute(key, vnode.props[key]);
           }
-        };
+        });
+      }
+      
+      // Add children
+      if (vnode.children) {
+        vnode.children.forEach(child => {
+          element.appendChild(createElement(child));
+        });
+      }
+      
+      return element;
+    }
+    
+    ok.vdom = { h, createElement };
+  });
 
-        xhr.onerror = function() {
-          if (loader) {
-            _(loader).hide();
-          }
-          reject(new Error('Network error'));
-        };
+  // Animation Module
+  ok.module('animation', function() {
+    const animations = {
+      scaleIn(duration = 300, callback) {
+        return this.each(function() {
+          const element = this;
+          element.style.transform = 'scale(0)';
+          element.style.opacity = '0';
+          element.style.transition = `transform ${duration}ms ease-out, opacity ${duration}ms ease-out`;
+          
+          element.offsetHeight; // Force reflow
+          
+          element.style.transform = 'scale(1)';
+          element.style.opacity = '1';
+          
+          setTimeout(() => {
+            element.style.transition = '';
+            if (callback) callback.call(element);
+          }, duration);
+        });
+      },
+      
+      scaleOut(duration = 300, callback) {
+        return this.each(function() {
+          const element = this;
+          element.style.transform = 'scale(1)';
+          element.style.opacity = '1';
+          element.style.transition = `transform ${duration}ms ease-in, opacity ${duration}ms ease-in`;
+          
+          element.offsetHeight; // Force reflow
+          
+          element.style.transform = 'scale(0)';
+          element.style.opacity = '0';
+          
+          setTimeout(() => {
+            element.style.transition = '';
+            if (callback) callback.call(element);
+          }, duration);
+        });
+      },
+      
+      rotateIn(duration = 500, callback) {
+        return this.each(function() {
+          const element = this;
+          element.style.transform = 'rotate(-180deg) scale(0)';
+          element.style.opacity = '0';
+          element.style.transition = `transform ${duration}ms ease-out, opacity ${duration}ms ease-out`;
+          
+          element.offsetHeight; // Force reflow
+          
+          element.style.transform = 'rotate(0) scale(1)';
+          element.style.opacity = '1';
+          
+          setTimeout(() => {
+            element.style.transition = '';
+            if (callback) callback.call(element);
+          }, duration);
+        });
+      },
+      
+      rotateOut(duration = 500, callback) {
+        return this.each(function() {
+          const element = this;
+          element.style.transform = 'rotate(0) scale(1)';
+          element.style.opacity = '1';
+          element.style.transition = `transform ${duration}ms ease-in, opacity ${duration}ms ease-in`;
+          
+          element.offsetHeight; // Force reflow
+          
+          element.style.transform = 'rotate(180deg) scale(0)';
+          element.style.opacity = '0';
+          
+          setTimeout(() => {
+            element.style.transition = '';
+            if (callback) callback.call(element);
+          }, duration);
+        });
+      },
+      
+      bounce(duration = 1000, callback) {
+        return this.each(function() {
+          const element = this;
+          element.style.animation = `bounce ${duration}ms ease-in-out`;
+          
+          setTimeout(() => {
+            element.style.animation = '';
+            if (callback) callback.call(element);
+          }, duration);
+        });
+      },
+      
+      shake(duration = 500, callback) {
+        return this.each(function() {
+          const element = this;
+          element.style.animation = `shake ${duration}ms ease-in-out`;
+          
+          setTimeout(() => {
+            element.style.animation = '';
+            if (callback) callback.call(element);
+          }, duration);
+        });
+      }
+    };
+    
+    // Add CSS for animations
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes bounce { 0%, 20%, 53%, 80%, 100% { transform: translate3d(0, 0, 0); } 40%, 43% { transform: translate3d(0, -30px, 0); } 70% { transform: translate3d(0, -15px, 0); } 90% { transform: translate3d(0, -4px, 0); } }
+      @keyframes shake { 0%, 100% { transform: translate3d(0, 0, 0); } 10%, 30%, 50%, 70%, 90% { transform: translate3d(-10px, 0, 0); } 20%, 40%, 60%, 80% { transform: translate3d(10px, 0, 0); } }
+    `;
+    document.head.appendChild(style);
+    
+    // Add animation methods to OneKit prototype
+    Object.keys(animations).forEach(name => {
+      OneKit.prototype[name] = animations[name];
+    });
+  });
 
-        xhr.ontimeout = function() {
-          if (loader) {
-            _(loader).hide();
+  // Gesture Module
+  ok.module('gesture', function() {
+    const touchState = { startX: 0, startY: 0, endX: 0, endY: 0, startTime: 0, endTime: 0, longPressTimer: null, pinchDistance: 0, isPinching: false };
+    
+    function addGestures(element) {
+      const el = ok(element).first().elements[0];
+      if (!el) return;
+      
+      el.addEventListener('touchstart', function(e) {
+        touchState.startX = e.touches[0].clientX;
+        touchState.startY = e.touches[0].clientY;
+        touchState.startTime = Date.now();
+        
+        touchState.longPressTimer = setTimeout(() => {
+          const event = new CustomEvent('longpress', { detail: { x: touchState.startX, y: touchState.startY }, bubbles: true, cancelable: true });
+          el.dispatchEvent(event);
+        }, 500);
+        
+        if (e.touches.length === 2) {
+          touchState.isPinching = true;
+          const dx = e.touches[0].clientX - e.touches[1].clientX;
+          const dy = e.touches[0].clientY - e.touches[1].clientY;
+          touchState.pinchDistance = Math.sqrt(dx * dx + dy * dy);
+          
+          const event = new CustomEvent('pinchstart', { detail: { distance: touchState.pinchDistance, centerX: (e.touches[0].clientX + e.touches[1].clientX) / 2, centerY: (e.touches[0].clientY + e.touches[1].clientY) / 2 }, bubbles: true, cancelable: true });
+          el.dispatchEvent(event);
+        }
+      }, { passive: true });
+      
+      el.addEventListener('touchmove', function(e) {
+        if (touchState.longPressTimer) { clearTimeout(touchState.longPressTimer); touchState.longPressTimer = null; }
+        
+        if (touchState.isPinching && e.touches.length === 2) {
+          const dx = e.touches[0].clientX - e.touches[1].clientX;
+          const dy = e.touches[0].clientY - e.touches[1].clientY;
+          const distance = Math.sqrt(dx * dx + dy * dy);
+          const scale = distance / touchState.pinchDistance;
+          
+          const event = new CustomEvent('pinchmove', { detail: { distance, scale, centerX: (e.touches[0].clientX + e.touches[1].clientX) / 2, centerY: (e.touches[0].clientY + e.touches[1].clientY) / 2 }, bubbles: true, cancelable: true });
+          el.dispatchEvent(event);
+        }
+      }, { passive: true });
+      
+      el.addEventListener('touchend', function(e) {
+        touchState.endX = e.changedTouches[0].clientX;
+        touchState.endY = e.changedTouches[0].clientY;
+        touchState.endTime = Date.now();
+        
+        if (touchState.longPressTimer) { clearTimeout(touchState.longPressTimer); touchState.longPressTimer = null; }
+        
+        if (touchState.isPinching) {
+          touchState.isPinching = false;
+          const event = new CustomEvent('pinchend', { detail: { distance: touchState.pinchDistance }, bubbles: true, cancelable: true });
+          el.dispatchEvent(event);
+          return;
+        }
+        
+        const deltaX = touchState.endX - touchState.startX;
+        const deltaY = touchState.endY - touchState.startY;
+        const deltaTime = touchState.endTime - touchState.startTime;
+        
+        if (deltaTime < 500) {
+          if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 50) {
+            const direction = deltaX > 0 ? 'right' : 'left';
+            const event = new CustomEvent('swipe', { detail: { direction, startX: touchState.startX, startY: touchState.startY, endX: touchState.endX, endY: touchState.endY, velocity: Math.abs(deltaX) / deltaTime }, bubbles: true, cancelable: true });
+            el.dispatchEvent(event);
+            el.dispatchEvent(new CustomEvent(`swipe${direction}`, { detail: { startX: touchState.startX, startY: touchState.startY, endX: touchState.endX, endY: touchState.endY, velocity: Math.abs(deltaX) / deltaTime }, bubbles: true, cancelable: true }));
+          } else if (Math.abs(deltaY) > Math.abs(deltaX) && Math.abs(deltaY) > 50) {
+            const direction = deltaY > 0 ? 'down' : 'up';
+            const event = new CustomEvent('swipe', { detail: { direction, startX: touchState.startX, startY: touchState.startY, endX: touchState.endX, endY: touchState.endY, velocity: Math.abs(deltaY) / deltaTime }, bubbles: true, cancelable: true });
+            el.dispatchEvent(event);
+            el.dispatchEvent(new CustomEvent(`swipe${direction}`, { detail: { startX: touchState.startX, startY: touchState.startY, endX: touchState.endX, endY: touchState.endY, velocity: Math.abs(deltaY) / deltaTime }, bubbles: true, cancelable: true }));
           }
-          reject(new Error('Request timed out'));
-        };
+        }
+        
+        if (Math.abs(deltaX) < 10 && Math.abs(deltaY) < 10 && deltaTime < 300) {
+          const event = new CustomEvent('tap', { detail: { x: touchState.endX, y: touchState.endY }, bubbles: true, cancelable: true });
+          el.dispatchEvent(event);
+        }
+      }, { passive: true });
+    }
+    
+    ok.gesture = { addGestures };
+  });
 
-        // Send request
-        if (data) {
-          if (typeof data === 'object') {
-            data = JSON.stringify(data);
+  // API Module
+  ok.module('api', function() {
+    const cache = {};
+    
+    function request(url, options = {}) {
+      const { method = 'GET', headers = {}, body = null, timeout = 5000, retries = 3, cache: useCache = false, cacheTime = 300000, loader = null } = options;
+      
+      if (useCache && method === 'GET') {
+        const cacheKey = `${method}:${url}`;
+        const cached = cache[cacheKey];
+        if (cached && Date.now() - cached.timestamp < cacheTime) { return Promise.resolve(cached.data); }
+      }
+      
+      if (loader) { ok(loader).show(); }
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeout);
+      
+      const makeRequest = (attempt = 0) => {
+        return fetch(url, { method, headers, body, signal: controller.signal })
+        .then(response => {
+          clearTimeout(timeoutId);
+          if (loader) { ok(loader).hide(); }
+          if (!response.ok) { throw new Error(`Request failed with status ${response.status}`); }
+          return response.json();
+        })
+        .then(data => {
+          if (useCache && method === 'GET') {
+            const cacheKey = `${method}:${url}`;
+            cache[cacheKey] = { data, timestamp: Date.now() };
           }
-          xhr.send(data);
-        } else {
-          xhr.send();
+          return data;
+        })
+        .catch(error => {
+          clearTimeout(timeoutId);
+          if (loader) { ok(loader).hide(); }
+          if (attempt < retries && error.name !== 'AbortError') {
+            return new Promise(resolve => { setTimeout(() => resolve(makeRequest(attempt + 1)), 1000 * Math.pow(2, attempt)); });
+          }
+          throw error;
+        });
+      };
+      
+      return makeRequest();
+    }
+    
+    function websocket(url, options = {}) {
+      const { protocols = [], reconnect = true, reconnectInterval = 3000, maxReconnectAttempts = 5 } = options;
+      let ws, reconnectAttempts = 0, messageQueue = [], eventHandlers = {};
+      
+      function connect() {
+        try {
+          ws = new WebSocket(url, protocols);
+          ws.onopen = function(event) {
+            reconnectAttempts = 0;
+            while (messageQueue.length) { ws.send(messageQueue.shift()); }
+            if (eventHandlers.open) { eventHandlers.open.forEach(h => h(event)); }
+          };
+          ws.onmessage = function(event) {
+            try { const data = JSON.parse(event.data); if (eventHandlers.message) { eventHandlers.message.forEach(h => h(data)); } }
+            catch (e) { if (eventHandlers.message) { eventHandlers.message.forEach(h => h(event.data)); } }
+          };
+          ws.onclose = function(event) {
+            if (eventHandlers.close) { eventHandlers.close.forEach(h => h(event)); }
+            if (reconnect && event.code !== 1000 && reconnectAttempts < maxReconnectAttempts) {
+              reconnectAttempts++; setTimeout(connect, reconnectInterval);
+            }
+          };
+          ws.onerror = function(event) {
+            if (eventHandlers.error) { eventHandlers.error.forEach(h => h(event)); }
+            if (reconnect && reconnectAttempts < maxReconnectAttempts) {
+              reconnectAttempts++; setTimeout(connect, reconnectInterval);
+            }
+          };
+        } catch (e) {
+          console.error('WebSocket connection error:', e);
+          if (reconnect && reconnectAttempts < maxReconnectAttempts) {
+            reconnectAttempts++; setTimeout(connect, reconnectInterval);
+          }
+        }
+      }
+      
+      connect();
+      
+      return {
+        send(data) {
+          const message = typeof data === 'string' ? data : JSON.stringify(data);
+          if (ws && ws.readyState === WebSocket.OPEN) { ws.send(message); } else { messageQueue.push(message); }
+        },
+        close() { reconnect = false; if (ws) { ws.close(); } },
+        on(event, handler) {
+          if (!eventHandlers[event]) { eventHandlers[event] = []; }
+          eventHandlers[event].push(handler);
+          return () => { const h = eventHandlers[event]; const i = h.indexOf(handler); if (i > -1) { h.splice(i, 1); } };
+        },
+        get readyState() { return ws ? ws.readyState : WebSocket.CONNECTING; }
+      };
+    }
+    
+    function upload(url, file, options = {}) {
+      const { method = 'POST', headers = {}, data = {}, timeout = 0, onProgress = null, loader = null } = options;
+      return new Promise((resolve, reject) => {
+        if (loader) { ok(loader).show(); }
+        const formData = new FormData();
+        formData.append('file', file);
+        Object.keys(data).forEach(k => formData.append(k, data[k]));
+        
+        const xhr = new XMLHttpRequest();
+        if (timeout > 0) { xhr.timeout = timeout; }
+        if (onProgress && xhr.upload) {
+          xhr.upload.onprogress = function (e) {
+            if (e.lengthComputable) {
+              const percentComplete = (e.loaded / e.total) * 100;
+              onProgress(percentComplete, e.loaded, e.total);
+            }
+          };
+        }
+        xhr.onload = function () {
+          if (loader) { ok(loader).hide(); }
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try { resolve(JSON.parse(xhr.responseText)); } catch (e) { resolve(xhr.responseText); }
+          } else { reject(new Error(`Upload failed with status ${xhr.status}`)); }
+        };
+        xhr.onerror = function () {
+          if (loader) { ok(loader).hide(); reject(new Error('Upload failed')); };
+          xhr.ontimeout = function () {
+            if (loader) { ok(loader).hide(); reject(new Error('Upload timed out')); };
+        
+            xhr.open(method, url, true);
+            Object.keys(headers).forEach(k => xhr.setRequestHeader(k, headers[k]));
+            xhr.send(formData);
+          }
+        }
+      })
+    }
+    
+    ok.http = { request, get: (url, o) => request(url, { ...o, method: 'GET' }), post: (url, d, o) => request(url, { ...o, method: 'POST', body: JSON.stringify(d) }), put: (url, d, o) => request(url, { ...o, method: 'PUT', body: JSON.stringify(d) }), delete: (url, o) => request(url, { ...o, method: 'DELETE' }), websocket, upload };
+  });
+
+  // Utility Module
+  ok.module('utils', function() {
+    function debounce(func, delay) { let timeout; return function() { const context = this; const args = arguments; clearTimeout(timeout); timeout = setTimeout(() => func.apply(context, args), delay); }; }
+    function throttle(func, limit) { let inThrottle; return function() { const context = this; const args = arguments; if (!inThrottle) { func.apply(context, args); inThrottle = true; setTimeout(() => inThrottle = false, limit); } }; }
+    function deepClone(obj) { if (obj === null || typeof obj !== 'object') return obj; if (obj instanceof Date) return new Date(obj.getTime()); if (obj instanceof Array) return obj.map(i => deepClone(i)); if (typeof obj === 'object') { const o = {}; Object.keys(obj).forEach(k => o[k] = deepClone(obj[k])); return o; } }
+    function deepMerge(target, source) { if (typeof target !== 'object' || typeof source !== 'object') return source; const result = { ...target }; Object.keys(source).forEach(k => { if (typeof source[k] === 'object' && typeof result[k] === 'object') { result[k] = deepMerge(result[k], source[k]); } else { result[k] = source[k]; } }); return result; }
+    function url(url, params = {}) { const u = new URL(url, window.location.origin); Object.keys(params).forEach(k => u.searchParams.set(k, params[k])); return u.toString(); }
+    function parseQuery(queryString = window.location.search) { const p = {}; const u = new URLSearchParams(queryString); for (const [k, v] of u) { p[k] = v; } return p; }
+    function formatDate(date, format = 'YYYY-MM-DD') { const d = new Date(date); const y = d.getFullYear(); const m = String(d.getMonth() + 1).padStart(2, '0'); const day = String(d.getDate()).padStart(2, '0'); const h = String(d.getHours()).padStart(2, '0'); const min = String(d.getMinutes()).padStart(2, '0'); const s = String(d.getSeconds()).padStart(2, '0'); return format.replace('YYYY', y).replace('MM', m).replace('DD', day).replace('HH', h).replace('mm', min).replace('ss', s); }
+    
+    ok.utils = { debounce, throttle, deepClone, deepMerge, url, parseQuery, formatDate };
+  });
+
+  // Form Module
+  ok.module('form', function() {
+    const masks = {
+      phone: { pattern: '(___) ___-____', format: v => { const n = v.replace(/\D/g, '').substring(0, 10); let f = ''; for (let i = 0; i < n.length; i++) { if (i === 0) f += '('; if (i === 3) f += ') '; if (i === 6) f += '-'; f += n[i]; } return f; } },
+      date: { pattern: '__/__/____', format: v => { const n = v.replace(/\D/g, '').substring(0, 8); let f = ''; for (let i = 0; i < n.length; i++) { if (i === 2 || i === 4) f += '/'; f += n[i]; } return f; } },
+      creditCard: { pattern: '____ ____ ____ ____', format: v => { const n = v.replace(/\D/g, '').substring(0, 16); let f = ''; for (let i = 0; i < n.length; i++) { if (i > 0 && i % 4 === 0) f += ' '; f += n[i]; } return f; } }
+    };
+    ok.form = { masks };
+  });
+
+  // Plugin Module
+  ok.module('plugin', function() {
+    const plugins = {};
+    function register(name, plugin, namespace = 'default') {
+      if (!plugins[namespace]) { plugins[namespace] = {}; }
+      plugins[namespace][name] = plugin;
+      if (typeof plugin === 'function') { OneKit.prototype[name] = plugin; }
+    }
+    ok.plugin = { register };
+  });
+
+  // Accessibility Module
+  ok.module('a11y', function() {
+    function announce(message, priority = 'polite') {
+      const a = document.createElement('div'); a.setAttribute('aria-live', priority); a.setAttribute('aria-atomic', 'true'); a.className = 'sr-only'; a.style.position = 'absolute'; a.style.left = '-10000px'; a.style.width = '1px'; a.style.height = '1px'; a.style.overflow = 'hidden';
+      document.body.appendChild(a); a.textContent = message;
+      setTimeout(() => { document.body.removeChild(a); }, 1000);
+    }
+    
+    function trapFocus(element) {
+      const el = ok(element).first().elements[0]; if (!el) return;
+      const f = el.querySelectorAll('a[href], button, textarea, input[type="text"], input[type="radio"], input[type="checkbox"], select');
+      const first = f[0]; const last = f[f.length - 1];
+      el.addEventListener('keydown', function(e) {
+        if (e.key === 'Tab') {
+          if (e.shiftKey) { if (document.activeElement === first) { last.focus(); e.preventDefault(); } }
+          else { if (document.activeElement === last) { first.focus(); e.preventDefault(); } }
         }
       });
-    },
-
-    get(url, options = {}) {
-      return this.req({ ...options, url, method: 'GET' });
-    },
-
-    post(url, data, options = {}) {
-      return this.req({ ...options, url, method: 'POST', data });
-    },
-
-    put(url, data, options = {}) {
-      return this.req({ ...options, url, method: 'PUT', data });
-    },
-
-    del(url, options = {}) {
-      return this.req({ ...options, url, method: 'DELETE' });
+      if (first) { first.focus(); }
     }
+    
+    function removeFocusTrap(element) {
+      const el = ok(element).first().elements[0]; if (!el) return;
+      const newEl = el.cloneNode(true); el.parentNode.replaceChild(newEl, el);
+    }
+    
+    ok.a11y = { announce, trapFocus, removeFocusTrap };
+  });
+
+  // Theme Module
+  ok.module('theme', function() {
+    const defaultTheme = { primary: '#3498db', secondary: '#2ecc71', accent: '#e74c3c', background: '#ffffff', surface: '#f5f5f5', text: '#333333', textSecondary: '#666666', border: '#dddddd', dark: false };
+    let currentTheme = { ...defaultTheme };
+    
+    function applyTheme(theme) {
+      currentTheme = { ...defaultTheme, ...theme };
+      const root = document.documentElement;
+      root.style.setProperty('--ok-primary', currentTheme.primary);
+      root.style.setProperty('--ok-secondary', currentTheme.secondary);
+      root.style.setProperty('--ok-accent', currentTheme.accent);
+      root.style.setProperty('--ok-background', currentTheme.background);
+      root.style.setProperty('--ok-surface', currentTheme.surface);
+      root.style.setProperty('--ok-text', currentTheme.text);
+      root.style.setProperty('--ok-text-secondary', currentTheme.textSecondary);
+      root.style.setProperty('--ok-border', currentTheme.border);
+      
+      if (currentTheme.dark) { document.body.classList.add('ok-dark'); } else { document.body.classList.remove('ok-dark'); }
+      localStorage.setItem('ok-theme', JSON.stringify(currentTheme));
+      return currentTheme;
+    }
+    
+    function toggleDarkMode() {
+      return applyTheme({
+        dark: !currentTheme.dark,
+        background: currentTheme.dark ? '#ffffff' : '#121212',
+        surface: currentTheme.dark ? '#f5f5f5' : '#1e1e1e',
+        text: currentTheme.dark ? '#333333' : '#ffffff',
+        textSecondary: currentTheme.dark ? '#666666' : '#cccccc',
+        border: currentTheme.dark ? '#dddddd' : '#333333'
+      });
+    }
+    
+    function loadTheme() {
+      try { const saved = localStorage.getItem('ok-theme'); if (saved) { return applyTheme(JSON.parse(saved)); } } catch (e) { console.error('Failed to load theme:', e); }
+      return applyTheme({});
+    }
+    
+    ok.theme = { apply: applyTheme, toggleDark: toggleDarkMode, load: loadTheme, current: () => ({ ...currentTheme }) };
+  });
+
+  // ==================== INITIALIZATION ====================
+
+  // Initialize modules
+  const moduleNames = ['component', 'reactive', 'vdom', 'animation', 'gesture', 'api', 'utils', 'form', 'plugin', 'a11y', 'theme'];
+  moduleNames.forEach(name => {
+    if (modules[name]) {
+      modules[name]();
+    }
+  });
+
+  // Storage utilities
+  ok.store = {
+    set(key, value) { if (typeof value === 'object') { value = JSON.stringify(value); } localStorage.setItem(key, value); },
+    get(key) { const v = localStorage.getItem(key); try { return JSON.parse(v); } catch (e) { return v; } },
+    del(key) { localStorage.removeItem(key); }
   };
 
-  // Utility functions
-  _.wait = function(func, delay) {
-    let timeout;
-    return function() {
-      const context = this;
-      const args = arguments;
-      clearTimeout(timeout);
-      timeout = setTimeout(() => func.apply(context, args), delay);
-    };
-  };
+  // Utility functions (legacy)
+  ok.wait = ok.utils.debounce;
+  ok.flow = ok.utils.throttle;
 
-  _.flow = function(func, limit) {
-    let inThrottle;
-    return function() {
-      const context = this;
-      const args = arguments;
-      if (!inThrottle) {
-        func.apply(context, args);
-        inThrottle = true;
-        setTimeout(() => inThrottle = false, limit);
-      }
-    };
-  };
-
-  // Plugin architecture
-  _.plug = function(name, fn) {
-    OneKit.prototype[name] = fn;
-  };
+  // Plugin architecture (legacy)
+  ok.plug = function(name, fn) { OneKit.prototype[name] = fn; };
 
   // Export to global
-  global._ = _;
+  global.ok = ok;
   global.OneKit = OneKit;
 
-  // Auto-bind reactive elements
+  // Auto-initialize on DOM ready
   document.addEventListener('DOMContentLoaded', function() {
-    // Find all elements with data-bind attribute
-    const boundElements = document.querySelectorAll('[data-bind]');
-    
-    boundElements.forEach(element => {
-      const binding = element.getAttribute('data-bind');
-      const [stateName, property] = binding.split('.');
-      
-      // This is a simplified implementation
-      // In a real app, you'd need a way to access the reactive state
-      // This could be a global state registry or context system
-    });
+    if (ok.theme && ok.theme.load) { ok.theme.load(); }
   });
 
 })(typeof window !== 'undefined' ? window : this);

@@ -1,2430 +1,695 @@
 
 
-# OneKid Library - Complete Documentation
+# OneKit 2.0.2 - Complete Documentation & Usage Guide
+
+OneKit is a lightweight, modern JavaScript library for DOM manipulation, animations, reactive state management, and API integration. This guide covers all features of OneKit 2.0.2.
 
 ## Table of Contents
 1. [Getting Started](#getting-started)
-2. [Element Selection](#element-selection)
-3. [Class Manipulation](#class-manipulation)
-4. [Content Manipulation](#content-manipulation)
-5. [Attribute Manipulation](#attribute-manipulation)
-6. [CSS Styling](#css-styling)
-7. [Visibility Control](#visibility-control)
-8. [DOM Traversal](#dom-traversal)
-9. [Event Handling](#event-handling)
-10. [Animations](#animations)
-11. [Form Handling](#form-handling)
-12. [Template Rendering](#template-rendering)
-13. [Element Manipulation](#element-manipulation)
-14. [Reactive State](#reactive-state)
-15. [Storage Utilities](#storage-utilities)
-16. [API Integration](#api-integration)
-17. [Utility Functions](#utility-functions)
-18. [Advanced Examples](#advanced-examples)
-19. [Best Practices](#best-practices)
+2. [Core API](#core-api)
+3. [DOM Manipulation](#dom-manipulation)
+4. [Event Handling](#event-handling)
+5. [Animations](#animations)
+6. [Form Handling](#form-handling)
+7. [Component System](#component-system)
+8. [Reactive State Management](#reactive-state-management)
+9. [API & HTTP Requests](#api--http-requests)
+10. [Gesture Support](#gesture-support)
+11. [Utilities](#utilities)
+12. [Accessibility](#accessibility)
+13. [Theme System](#theme-system)
+14. [Storage](#storage)
+15. [Plugin Development](#plugin-development)
 
----
-
-## Getting Started {#getting-started}
+## Getting Started
 
 ### Installation
+
 Include OneKit in your HTML file:
+
 ```html
-<script src="onekit.js"></script>
+<script src="path/to/onekit.js"></script>
 ```
 
 ### Basic Usage
-OneKit uses the underscore `_` as its main selector function:
+
+OneKit uses the `ok` function as its main entry point:
+
 ```javascript
-// Select an element by ID
-_('#myElement')
+// Select elements by CSS selector
+const elements = ok('.my-class');
 
-// Select elements by class
-_('.myClass')
-
-// Select elements by tag
-_('div')
+// Create DOM elements from HTML string
+const newElement = ok('<div class="new">Content</div>');
 
 // Chain methods
-_('#myElement').cls('active').show().s('color', 'red')
+ok('.button').class('active').css('color', 'blue');
 ```
 
----
+## Core API
 
-## Element Selection {#element-selection}
+### Selection
 
-### `_()` - Element Selector
-Selects DOM elements using CSS selectors, DOM elements, or HTML strings.
+OneKit supports multiple selection methods:
 
-#### Syntax
 ```javascript
-_(selector)
+// CSS selector
+ok('.my-class');
+
+// DOM element
+ok(document.getElementById('my-id'));
+
+// HTML string
+ok('<div>Hello</div>');
+
+// Array of elements
+ok([element1, element2]);
+
+// Another OneKit object
+ok(otherOneKitObject);
 ```
 
-#### Parameters
-- `selector` (String|Element|NodeList|Array): CSS selector, DOM element, or HTML string
+### Iteration
 
-#### Return Value
-Returns an EasyJS object containing the matched elements.
-
-#### Examples
+Use the `each` method to iterate over elements:
 
 ```javascript
-// Select by ID
-const header = _('#header')
-
-// Select by class
-const buttons = _('.button')
-
-// Select by tag
-const paragraphs = _('p')
-
-// Select with complex CSS
-const menuItems = _('#nav ul li.active')
-
-// Select DOM element directly
-const element = document.getElementById('content')
-const $element = _(element)
-
-// Create elements from HTML
-const newDiv = _('<div class="new-element">Content</div>')
-_('#container').add(newDiv)
-
-// Select multiple elements
-const elements = _(['#el1', '#el2', '#el3'])
+ok('li').each(function(index, element) {
+  // 'this' refers to the current element
+  console.log(index, element);
+});
 ```
 
----
+### Navigation
 
-## Class Manipulation {#class-manipulation}
-
-### `.cls()` - Add Class
-Adds one or more CSS classes to selected elements.
-
-#### Syntax
 ```javascript
-_(selector).cls(className)
-```
+// Get the first element
+ok('.item').first();
 
-#### Parameters
-- `className` (String): One or more space-separated class names
+// Get the last element
+ok('.item').last();
 
-#### Return Value
-Returns the EasyJS object for chaining.
+// Find descendant elements
+ok('.container').find('.child');
 
-#### Examples
-```javascript
-// Add single class
-_('#element').cls('highlight')
-
-// Add multiple classes
-_('.box').cls('highlight border rounded')
-
-// Chain with other methods
-_('#button').cls('active').s('background-color', 'blue')
-
-// Add class to multiple elements
-_('.item').cls('selected')
-```
-
-### `.uncls()` - Remove Class
-Removes one or more CSS classes from selected elements.
-
-#### Syntax
-```javascript
-_(selector).uncls(className)
-```
-
-#### Parameters
-- `className` (String): One or more space-separated class names
-
-#### Return Value
-Returns the EasyJS object for chaining.
-
-#### Examples
-```javascript
-// Remove single class
-_('#element').uncls('highlight')
-
-// Remove multiple classes
-_('.box').uncls('highlight border rounded')
-
-// Remove all classes
-_('#element').uncls()
-
-// Chain with other methods
-_('#button').uncls('active').hide()
-```
-
-### `.tgl()` - Toggle Class
-Toggles the presence of one or more CSS classes on selected elements.
-
-#### Syntax
-```javascript
-_(selector).tgl(className)
-```
-
-#### Parameters
-- `className` (String): One or more space-separated class names
-
-#### Return Value
-Returns the EasyJS object for chaining.
-
-#### Examples
-```javascript
-// Toggle single class
-_('#button').tgl('active')
-
-// Toggle multiple classes
-_('.item').tgl('selected expanded')
-
-// Use in event handlers
-_('#toggle').click(() => {
-  _('.menu').tgl('open')
-})
-
-// Check if class exists after toggle
-const hasClass = _('#element')[0].classList.contains('active')
-```
-
----
-
-## Content Manipulation {#content-manipulation}
-
-### `.h()` - HTML Content
-Gets or sets the HTML content of selected elements.
-
-#### Syntax
-```javascript
-// Get HTML content
-_(selector).h()
-
-// Set HTML content
-_(selector).h(content)
-```
-
-#### Parameters
-- `content` (String|Function): HTML string or function returning HTML
-
-#### Return Value
-- When getting: Returns the HTML content of the first element
-- When setting: Returns the EasyJS object for chaining
-
-#### Examples
-```javascript
-// Get HTML content
-const content = _('#container').h()
-console.log(content)
-
-// Set HTML content
-_('#container').h('<div>New content</div>')
-
-// Set HTML with function
-_('.item').h((index) => {
-  return `<span>Item ${index + 1}</span>`
-})
-
-// Append HTML
-const current = _('#container').h()
-_('#container').h(current + '<div>Additional content</div>')
-
-// Set complex HTML
-_('#content').h(`
-  <div class="card">
-    <h3>Title</h3>
-    <p>Description</p>
-    <button>Action</button>
-  </div>
-`)
-```
-
-### `.t()` - Text Content
-Gets or sets the text content of selected elements, without HTML tags.
-
-#### Syntax
-```javascript
-// Get text content
-_(selector).t()
-
-// Set text content
-_(selector).t(content)
-```
-
-#### Parameters
-- `content` (String|Function): Text string or function returning text
-
-#### Return Value
-- When getting: Returns the combined text content of all elements
-- When setting: Returns the EasyJS object for chaining
-
-#### Examples
-```javascript
-// Get text content
-const text = _('#container').t()
-console.log(text)
-
-// Set text content
-_('#container').t('Plain text content')
-
-// Set text with function
-_('.item').t((index) => {
-  return `Item number ${index + 1}`
-})
-
-// Safely set text (escapes HTML)
-_('#safe-content').t('<script>alert("XSS")</script>')
-
-// Get text from multiple elements
-const allText = _('.description').t()
-```
-
----
-
-## Attribute Manipulation {#attribute-manipulation}
-
-### `.at()` - Attribute
-Gets or sets attributes on selected elements.
-
-#### Syntax
-```javascript
-// Get single attribute
-_(selector).at(attributeName)
-
-// Set single attribute
-_(selector).at(attributeName, value)
-
-// Set multiple attributes
-_(selector).at(attributesObject)
-```
-
-#### Parameters
-- `attributeName` (String): Name of the attribute
-- `value` (String|Function): Value to set or function returning value
-- `attributesObject` (Object): Key-value pairs of attributes
-
-#### Return Value
-- When getting: Returns the attribute value of the first element
-- When setting: Returns the EasyJS object for chaining
-
-#### Examples
-```javascript
-// Get an attribute
-const src = _('img').at('src')
-console.log('Image source:', src)
-
-// Set single attribute
-_('img').at('alt', 'Description of image')
-
-// Set multiple attributes
-_('a').at({
-  'href': 'https://example.com',
-  'target': '_blank',
-  'title': 'Visit Example'
-})
-
-// Set attribute with function
-_('.item').at('data-index', (index) => index)
-
-// Set boolean attributes
-_('input').at('disabled', true)
-_('input').at('disabled', false)
-
-// Get custom data attribute
-const userId = _('#user').at('data-user-id')
-```
-
-### `.unat()` - Remove Attribute
-Removes attributes from selected elements.
-
-#### Syntax
-```javascript
-_(selector).unat(attributeName)
-```
-
-#### Parameters
-- `attributeName` (String): Name of the attribute to remove
-
-#### Return Value
-Returns the EasyJS object for chaining.
-
-#### Examples
-```javascript
-// Remove single attribute
-_('img').unat('title')
-
-// Remove multiple attributes
-_('input').unat('disabled readonly')
-
-// Use in form validation
-_('.error').unat('data-error')
-
-// Remove data attributes
-_('#element').unat('data-temp')
-```
-
----
-
-## CSS Styling {#css-styling}
-
-### `.s()` - Style
-Gets or sets CSS styles on selected elements.
-
-#### Syntax
-```javascript
-// Get CSS property
-_(selector).s(propertyName)
-
-// Set single CSS property
-_(selector).s(propertyName, value)
-
-// Set multiple CSS properties
-_(selector).s(propertiesObject)
-```
-
-#### Parameters
-- `propertyName` (String): Name of the CSS property
-- `value` (String|Number|Function): Value to set or function returning value
-- `propertiesObject` (Object): Key-value pairs of CSS properties
-
-#### Return Value
-- When getting: Returns the computed value of the first element
-- When setting: Returns the EasyJS object for chaining
-
-#### Examples
-```javascript
-// Get CSS property
-const color = _('#element').s('color')
-console.log('Text color:', color)
-
-// Set single CSS property
-_('#element').s('background-color', '#ff0000')
-
-// Set multiple CSS properties
-_('#element').s({
-  'background-color': '#ff0000',
-  'color': '#ffffff',
-  'font-size': '16px',
-  'padding': '10px'
-})
-
-// Set CSS with function
-_('.item').s('font-size', (index) => {
-  return 12 + (index * 2) + 'px'
-})
-
-// Use CSS units
-_('#element').s('width', '100px')
-_('#element').s('height', '50%')
-_('#element').s('margin', '10px 20px')
-
-// Set CSS with camelCase or kebab-case
-_('#element').s('backgroundColor', '#ff0000')
-_('#element').s('background-color', '#ff0000')
-
-// Get computed styles
-const display = _('#element').s('display')
-const opacity = _('#element').s('opacity')
-```
-
----
-
-## Visibility Control {#visibility-control}
-
-### `.show()` - Show Element
-Makes selected elements visible by setting their display property to default.
-
-#### Syntax
-```javascript
-_(selector).show()
-```
-
-#### Return Value
-Returns the EasyJS object for chaining.
-
-#### Examples
-```javascript
-// Show an element
-_('#hidden-element').show()
-
-// Show multiple elements
-_('.hidden').show()
-
-// Chain with other methods
-_('#element').show().cls('visible').s('opacity', '1')
-
-// Use in event handlers
-_('#show-button').click(() => {
-  _('#content').show()
-})
-
-// Show with animation
-_('#element').show().fin(300)
-```
-
-### `.hide()` - Hide Element
-Hides selected elements by setting their display property to 'none'.
-
-#### Syntax
-```javascript
-_(selector).hide()
-```
-
-#### Return Value
-Returns the EasyJS object for chaining.
-
-#### Examples
-```javascript
-// Hide an element
-_('#element').hide()
-
-// Hide multiple elements
-_('.temporary').hide()
-
-// Chain with other methods
-_('#element').hide().uncls('visible')
-
-// Use in event handlers
-_('#close-button').click(() => {
-  _('#modal').hide()
-})
-
-// Hide with animation
-_('#element').fout(300).hide()
-```
-
-### `.togVis()` - Toggle Visibility
-Toggles the visibility of selected elements between shown and hidden.
-
-#### Syntax
-```javascript
-_(selector).togVis()
-```
-
-#### Return Value
-Returns the EasyJS object for chaining.
-
-#### Examples
-```javascript
-// Toggle visibility
-_('#element').togVis()
-
-// Toggle multiple elements
-_('.toggleable').togVis()
-
-// Use in event handlers
-_('#toggle-button').click(() => {
-  _('.menu').togVis()
-})
-
-// Toggle based on condition
-const isVisible = _('#element').s('display') !== 'none'
-if (someCondition) {
-  _('#element').togVis()
-}
-
-// Toggle with class
-_('#element').togVis().tgl('active')
-```
-
----
-
-## DOM Traversal {#dom-traversal}
-
-### `.up()` - Parent Element
-Gets the parent of each element in the current selection.
-
-#### Syntax
-```javascript
-_(selector).up()
-```
-
-#### Return Value
-Returns an EasyJS object containing the parent elements.
-
-#### Examples
-```javascript
 // Get parent element
-const parent = _('#child').up()
-parent.cls('highlight')
+ok('.child').parent();
 
-// Use with chaining
-_('.remove-button').click(function() {
-  _(this).up().del()
-})
+// Get children elements
+ok('.parent').kids();
 
-// Chain with other traversal methods
-_('#element').up().up().cls('grandparent')
-
-// Get parent and modify it
-_('#child').up().s('border', '1px solid red')
-
-// Get parent of multiple elements
-_('.item').up().cls('parent-of-item')
+// Get sibling elements
+ok('.item').sibs();
 ```
 
-### `.down()` - Children Elements
-Gets the children of each element in the current selection.
+## DOM Manipulation
 
-#### Syntax
+### Content
+
 ```javascript
-_(selector).down()
-_(selector).down(filterSelector)
+// Get or set HTML content
+ok('.element').html('<span>New content</span>');
+const html = ok('.element').html();
+
+// Get or set text content
+ok('.element').text('New text');
+const text = ok('.element').text();
 ```
 
-#### Parameters
-- `filterSelector` (String, optional): CSS selector to filter children
+### Attributes
 
-#### Return Value
-Returns an EasyJS object containing the child elements.
-
-#### Examples
 ```javascript
-// Get all children
-const children = _('#container').down()
-children.s('margin', '5px')
+// Set single attribute
+ok('.element').attr('title', 'Tooltip');
 
-// Get filtered children
-const listItems = _('#menu').down('li')
-listItems.cls('menu-item')
+// Set multiple attributes
+ok('.element').attr({
+  'title': 'Tooltip',
+  'data-id': '123'
+});
 
-// Get first child
-const firstChild = _('#container').down().first()
+// Get attribute
+const title = ok('.element').attr('title');
 
-// Use with each()
-_('#container').down().each(function(index) {
-  _(this).at('data-index', index)
-})
-
-// Get children with specific class
-const activeChildren = _('#parent').down('.active')
+// Remove attribute
+ok('.element').unattr('title');
 ```
 
-### `.side()` - Siblings Elements
-Gets the siblings of each element in the current selection.
+### CSS
 
-#### Syntax
 ```javascript
-_(selector).side()
-_(selector).side(filterSelector)
+// Set single CSS property
+ok('.element').css('color', 'red');
+
+// Set multiple CSS properties
+ok('.element').css({
+  'color': 'red',
+  'font-size': '16px'
+});
+
+// Get CSS property
+const color = ok('.element').css('color');
 ```
 
-#### Parameters
-- `filterSelector` (String, optional): CSS selector to filter siblings
+### Classes
 
-#### Return Value
-Returns an EasyJS object containing the sibling elements.
-
-#### Examples
 ```javascript
-// Get all siblings
-const siblings = _('#active').side()
-siblings.uncls('active')
+// Add class
+ok('.element').class('active');
 
-// Get filtered siblings
-const otherTabs = _('.tab.active').side('.tab')
-otherTabs.s('opacity', '0.7')
+// Remove class
+ok('.element').unclass('active');
 
-// Use in navigation
-_('.menu-item').click(function() {
-  _(this).side().uncls('active')
-  _(this).cls('active')
-})
-
-// Get siblings with specific class
-const activeSiblings = _('#item').side('.highlight')
+// Toggle class
+ok('.element').toggleClass('active');
 ```
 
-### `.first()` - First Element
-Reduces the selection to the first element.
+### Visibility
 
-#### Syntax
 ```javascript
-_(selector).first()
+// Show elements
+ok('.element').show();
+
+// Hide elements
+ok('.element').hide();
+
+// Toggle visibility
+ok('.element').toggle();
 ```
 
-#### Return Value
-Returns an EasyJS object containing only the first element.
+### DOM Structure
 
-#### Examples
 ```javascript
-// Get first element
-const firstBox = _('.box').first()
-firstBox.cls('first')
+// Append content
+ok('.container').append('<div>New element</div>');
+ok('.container').append(otherElement);
 
-// Use with chaining
-_('.item').first().s('font-weight', 'bold')
+// Prepend content
+ok('.container').prepend('<div>First element</div>');
 
-// Get first element's content
-const firstTitle = _('.title').first().t()
+// Clone elements
+ok('.element').clone();
 
-// Use in navigation
-_('.carousel-item').first().cls('active')
+// Remove elements
+ok('.element').remove();
 ```
 
-### `.last()` - Last Element
-Reduces the selection to the last element.
+## Event Handling
 
-#### Syntax
+### Basic Events
+
 ```javascript
-_(selector).last()
+// Add event listener
+ok('.button').on('click', function(e) {
+  console.log('Button clicked');
+});
+
+// Remove event listener
+ok('.button').off('click', handler);
+
+// Event shortcuts
+ok('.button').click(function() {
+  console.log('Clicked');
+});
+
+ok('.element').hover(
+  function() { console.log('Mouse entered'); },
+  function() { console.log('Mouse left'); }
+);
+
+ok('.input').focus(function() {
+  console.log('Input focused');
+});
 ```
 
-#### Return Value
-Returns an EasyJS object containing only the last element.
+### Event Delegation
 
-#### Examples
 ```javascript
-// Get last element
-const lastBox = _('.box').last()
-lastBox.cls('last')
-
-// Use with chaining
-_('.item').last().s('margin-bottom', '0')
-
-// Get last element's content
-const lastMessage = _('.message').last().t()
-
-// Use in forms
-_('.error').last().focus()
+// Use event delegation for dynamic content
+ok('.container').on('click', '.button', function(e) {
+  console.log('Dynamic button clicked');
+});
 ```
 
----
+## Animations
 
-## Event Handling {#event-handling}
+### Basic Animations
 
-### `.on()` - Add Event Listener
-Attaches event handlers to selected elements.
-
-#### Syntax
 ```javascript
-_(selector).on(event, handler)
-_(selector).on(event, childSelector, handler)
+// Fade in
+ok('.element').fade_in(400, function() {
+  console.log('Fade in complete');
+});
+
+// Fade out
+ok('.element').fade_out(400);
+
+// Slide up
+ok('.element').slide_up(400);
+
+// Slide down
+ok('.element').slide_down(400);
+
+// Custom animation
+ok('.element').animate({
+  'left': '100px',
+  'opacity': 0.5
+}, 500);
 ```
 
-#### Parameters
-- `event` (String): Event name (click, hover, focus, etc.)
-- `childSelector` (String, optional): CSS selector for event delegation
-- `handler` (Function): Function to execute when event occurs
+### Advanced Animations
 
-#### Return Value
-Returns the EasyJS object for chaining.
-
-#### Examples
 ```javascript
-// Direct event binding
-_('#button').on('click', function() {
-  console.log('Button clicked')
-})
+// Scale in
+ok('.element').scaleIn(300);
 
-// Event delegation
-_('#container').on('click', '.item', function() {
-  _(this).tgl('selected')
-})
+// Scale out
+ok('.element').scaleOut(300);
 
-// Multiple events
-_('#element').on('mouseenter mouseleave', function(e) {
-  if (e.type === 'mouseenter') {
-    _(this).cls('hover')
-  } else {
-    _(this).uncls('hover')
-  }
-})
+// Rotate in
+ok('.element').rotateIn(500);
 
-// With event data
-_('#button').on('click', {name: 'John'}, function(e) {
-  console.log('Hello', e.data.name)
-})
+// Rotate out
+ok('.element').rotateOut(500);
 
-// Custom events
-_('#element').on('customEvent', function() {
-  console.log('Custom event triggered')
-})
+// Bounce
+ok('.element').bounce(1000);
+
+// Shake
+ok('.element').shake(500);
 ```
 
-### `.off()` - Remove Event Listener
-Removes event handlers from selected elements.
+## Form Handling
 
-#### Syntax
+### Form Data
+
 ```javascript
-_(selector).off(event, handler)
+// Serialize form data
+const formData = ok('#myForm').form_data();
+console.log(formData);
+
+// Reset form
+ok('#myForm').reset();
 ```
 
-#### Parameters
-- `event` (String): Event name
-- `handler` (Function): Function to remove
+### Form Validation
 
-#### Return Value
-Returns the EasyJS object for chaining.
-
-#### Examples
 ```javascript
-// Remove specific handler
-const handler = function() { console.log('Clicked') }
-_('#button').on('click', handler)
-_('#button').off('click', handler)
-
-// Remove all click handlers
-_('#button').off('click')
-
-// Remove multiple event handlers
-_('#element').off('click mouseover')
-```
-
-### `.click()` - Click Event Shortcut
-Attaches a click event handler.
-
-#### Syntax
-```javascript
-_(selector).click(handler)
-```
-
-#### Parameters
-- `handler` (Function): Function to execute on click
-
-#### Return Value
-Returns the EasyJS object for chaining.
-
-#### Examples
-```javascript
-// Simple click handler
-_('#button').click(function() {
-  console.log('Button clicked')
-})
-
-// Toggle on click
-_('#toggle').click(function() {
-  _('#content').togVis()
-})
-
-// Chain with other methods
-_('#button').click(function() {
-  _(this).cls('clicked')
-}).s('cursor', 'pointer')
-```
-
-### `.hover()` - Hover Event Shortcut
-Attaches mouseenter and mouseleave event handlers.
-
-#### Syntax
-```javascript
-_(selector).hover(enterHandler, leaveHandler)
-```
-
-#### Parameters
-- `enterHandler` (Function): Function for mouseenter
-- `leaveHandler` (Function): Function for mouseleave
-
-#### Return Value
-Returns the EasyJS object for chaining.
-
-#### Examples
-```javascript
-// Hover effects
-_('.menu-item').hover(
-  function() {
-    _(this).cls('hovered')
-  },
-  function() {
-    _(this).uncls('hovered')
-  }
-)
-
-// Show/hide on hover
-_('#trigger').hover(
-  function() {
-    _('#dropdown').show()
-  },
-  function() {
-    _('#dropdown').hide()
-  }
-)
-
-// Only enter handler
-_('#element').hover(function() {
-  console.log('Mouse entered')
-})
-```
-
-### `.focus()` - Focus Event Shortcut
-Attaches a focus event handler.
-
-#### Syntax
-```javascript
-_(selector).focus(handler)
-```
-
-#### Parameters
-- `handler` (Function): Function to execute on focus
-
-#### Return Value
-Returns the EasyJS object for chaining.
-
-#### Examples
-```javascript
-// Focus handler
-_('#input').focus(function() {
-  _(this).cls('focused')
-})
-
-// Validation on focus
-_('#email').focus(function() {
-  if (!_(this).at('value')) {
-    _(this).cls('error')
-  }
-})
-
-// Chain with blur
-_('#input').focus(function() {
-  _('#help').show()
-}).blur(function() {
-  _('#help').hide()
-})
-```
-
----
-
-## Animations {#animations}
-
-### `.fin()` - Fade In
-Fades in selected elements over a specified duration.
-
-#### Syntax
-```javascript
-_(selector).fin(duration, callback)
-```
-
-#### Parameters
-- `duration` (Number, optional): Animation duration in milliseconds (default: 400)
-- `callback` (Function, optional): Function to execute after animation
-
-#### Return Value
-Returns the EasyJS object for chaining.
-
-#### Examples
-```javascript
-// Basic fade in
-_('#element').fin()
-
-// Custom duration
-_('#element').fin(1000)
-
-// With callback
-_('#element').fin(500, function() {
-  console.log('Fade in complete')
-})
-
-// Chain with other methods
-_('#element').hide().fin(300).cls('visible')
-
-// Fade in multiple elements
-_('.hidden-item').fin(400)
-
-// Sequential animations
-_('#first').fin(300, function() {
-  _('#second').fin(300)
-})
-```
-
-### `.fout()` - Fade Out
-Fades out selected elements over a specified duration.
-
-#### Syntax
-```javascript
-_(selector).fout(duration, callback)
-```
-
-#### Parameters
-- `duration` (Number, optional): Animation duration in milliseconds (default: 400)
-- `callback` (Function, optional): Function to execute after animation
-
-#### Return Value
-Returns the EasyJS object for chaining.
-
-#### Examples
-```javascript
-// Basic fade out
-_('#element').fout()
-
-// Custom duration
-_('#element').fout(1000)
-
-// With callback
-_('#element').fout(500, function() {
-  console.log('Fade out complete')
-})
-
-// Chain with other methods
-_('#element').fout(300).hide()
-
-// Fade out multiple elements
-_('.item').fout(400)
-
-// Sequential animations
-_('#first').fout(300, function() {
-  _('#second').fout(300)
-})
-```
-
-### `.sup()` - Slide Up
-Slides up (hides vertically) selected elements over a specified duration.
-
-#### Syntax
-```javascript
-_(selector).sup(duration, callback)
-```
-
-#### Parameters
-- `duration` (Number, optional): Animation duration in milliseconds (default: 400)
-- `callback` (Function, optional): Function to execute after animation
-
-#### Return Value
-Returns the EasyJS object for chaining.
-
-#### Examples
-```javascript
-// Basic slide up
-_('#element').sup()
-
-// Custom duration
-_('#element').sup(1000)
-
-// With callback
-_('#element').sup(500, function() {
-  console.log('Slide up complete')
-})
-
-// Chain with other methods
-_('#element').sup(300).hide()
-
-// Slide up multiple elements
-_('.panel').sup(400)
-
-// Accordion effect
-_('.accordion-header').click(function() {
-  const panel = _(this).down('.accordion-panel')
-  panel.sup(300)
-})
-```
-
-### `.sdown()` - Slide Down
-Slides down (shows vertically) selected elements over a specified duration.
-
-#### Syntax
-```javascript
-_(selector).sdown(duration, callback)
-```
-
-#### Parameters
-- `duration` (Number, optional): Animation duration in milliseconds (default: 400)
-- `callback` (Function, optional): Function to execute after animation
-
-#### Return Value
-Returns the EasyJS object for chaining.
-
-#### Examples
-```javascript
-// Basic slide down
-_('#element').sdown()
-
-// Custom duration
-_('#element').sdown(1000)
-
-// With callback
-_('#element').sdown(500, function() {
-  console.log('Slide down complete')
-})
-
-// Chain with other methods
-_('#element').hide().sdown(300).show()
-
-// Slide down multiple elements
-_('.panel').sdown(400)
-
-// Accordion effect
-_('.accordion-header').click(function() {
-  const panel = _(this).down('.accordion-panel')
-  panel.sdown(300)
-})
-```
-
-### `.go()` - Custom Animation
-Animates CSS properties of selected elements over a specified duration.
-
-#### Syntax
-```javascript
-_(selector).go(properties, duration, callback)
-```
-
-#### Parameters
-- `properties` (Object): CSS properties to animate
-- `duration` (Number, optional): Animation duration in milliseconds (default: 400)
-- `callback` (Function, optional): Function to execute after animation
-
-#### Return Value
-Returns the EasyJS object for chaining.
-
-#### Examples
-```javascript
-// Basic animation
-_('#element').go({width: '200px'})
-
-// Multiple properties
-_('#element').go({
-  width: '200px',
-  height: '200px',
-  opacity: 0.5
-})
-
-// Custom duration
-_('#element').go({width: '300px'}, 1000)
-
-// With callback
-_('#element').go({width: '200px'}, 500, function() {
-  console.log('Animation complete')
-})
-
-// Chain animations
-_('#element')
-  .go({width: '200px'}, 300)
-  .go({height: '200px'}, 300)
-  .go({width: '100px', height: '100px'}, 300)
-
-// Animate multiple elements
-_('.box').go({opacity: 0.5}, 400)
-
-// Complex animation
-_('#element').go({
-  width: '+=50px',
-  height: '+=50px',
-  backgroundColor: '#ff0000'
-}, 600)
-```
-
----
-
-## Form Handling {#form-handling}
-
-### `.val()` - Serialize Form
-Converts form data to a JavaScript object.
-
-#### Syntax
-```javascript
-_(formSelector).val()
-```
-
-#### Return Value
-Returns an object containing form data.
-
-#### Examples
-```javascript
-// Serialize entire form
-const formData = _('#myForm').val()
-console.log(formData)
-
-// Handle form submission
-_('#myForm').on('submit', function(e) {
-  e.preventDefault()
-  const data = _(this).val()
-  
-  // Send to server
-  _.api.post('/submit', data)
-    .then(response => console.log('Success:', response))
-    .catch(error => console.log('Error:', error))
-})
-
-// Get specific field value
-const formData = _('#myForm').val()
-const email = formData.email
-
-// Handle checkboxes and radio buttons
-const data = _('#survey').val()
-// Returns: {newsletter: true, gender: 'male', interests: ['music', 'sports']}
-
-// Handle multiple forms
-_('.contact-form').each(function() {
-  const data = _(this).val()
-  console.log('Form data:', data)
-})
-```
-
-### `.chk()` - Validate Form
-Validates form fields based on specified rules.
-
-#### Syntax
-```javascript
-_(formSelector).chk(rules)
-```
-
-#### Parameters
-- `rules` (Object): Validation rules for form fields
-
-#### Return Value
-Returns `true` if valid, `false` if invalid. Errors stored in `form._validationErrors`.
-
-#### Examples
-```javascript
-// Basic validation
-const isValid = _('#myForm').chk({
-  name: 'required',
-  email: 'required|email'
-})
+// Validate form with rules
+const isValid = ok('#myForm').validateForm({
+  'name': 'required',
+  'email': 'required|email',
+  'password': 'required|min:8',
+  'confirm': 'required|match:password'
+}, {
+  errorClass: 'error',
+  errorElement: 'span',
+  errorContainer: '.field-wrapper'
+});
 
 if (isValid) {
-  // Form is valid
-  const data = _('#myForm').val()
-  console.log('Valid data:', data)
-} else {
-  // Form has errors
-  const errors = _('#myForm')[0]._validationErrors
-  console.log('Errors:', errors)
+  // Form is valid, submit it
 }
+```
 
-// Advanced validation
-_('#registrationForm').chk({
-  username: 'required|min:3|max:20',
-  email: 'required|email',
-  password: 'required|min:8',
-  confirmPassword: 'required|match:password',
-  age: 'required|min:18',
-  website: 'url'
-})
+### Input Masks
 
-// Custom validation with error display
-_('#myForm').on('submit', function(e) {
-  e.preventDefault()
-  
-  // Clear previous errors
-  _('.error').t('')
-  
-  if (!_(this).chk({
-    name: 'required|min:2',
-    email: 'required|email'
-  })) {
-    // Show errors
-    const errors = this._validationErrors
-    for (const field in errors) {
-      _(`#${field}Error`).t(errors[field])
+```javascript
+// Apply phone mask
+ok('input[type="tel"]').applyMask('phone');
+
+// Apply date mask
+ok('input[type="date"]').applyMask('date');
+
+// Apply credit card mask
+ok('input[name="card"]').applyMask('creditCard');
+```
+
+## Component System
+
+### Registering Components
+
+```javascript
+// Register a component
+ok.component.register('my-component', {
+  data: {
+    count: 0
+  },
+  template: '<div class="counter">Count: {{count}}</div>',
+  methods: {
+    increment() {
+      this.state.count++;
+      this.update();
     }
-  } else {
-    // Submit form
-    _(this).val()
-    console.log('Form submitted successfully')
+  },
+  created() {
+    console.log('Component created');
+  },
+  mounted() {
+    console.log('Component mounted');
+  },
+  beforeDestroy() {
+    console.log('Component about to be destroyed');
   }
-})
-
-// Available validation rules:
-// required - Field must have a value
-// email - Must be valid email format
-// min:n - Minimum length of n characters
-// max:n - Maximum length of n characters
-// url - Must be valid URL format
-// number - Must be numeric
-// match:field - Must match another field's value
+});
 ```
 
-### `.reset()` - Reset Form
-Resets form fields to their default values.
+### Creating and Mounting Components
 
-#### Syntax
 ```javascript
-_(formSelector).reset()
+// Create a component instance
+const myComponent = ok.component.create('my-component', {
+  // Props
+});
+
+// Mount component to DOM
+ok.component.mount(myComponent, '#container');
+
+// Get component instance from element
+const element = document.querySelector('.counter');
+const instance = ok.component.getInstance(element);
+
+// Destroy component
+ok.component.destroy(myComponent);
 ```
 
-#### Return Value
-Returns the EasyJS object for chaining.
+## Reactive State Management
 
-#### Examples
-```javascript
-// Reset single form
-_('#myForm').reset()
+### Creating Reactive Objects
 
-// Reset after submission
-_('#myForm').on('submit', function(e) {
-  e.preventDefault()
-  
-  if (_(this).chk(rules)) {
-    // Submit data
-    const data = _(this).val()
-    _.api.post('/submit', data)
-      .then(() => {
-        // Reset form on success
-        _(this).reset()
-        console.log('Form reset')
-      })
-  }
-})
-
-// Reset button
-_('#resetButton').click(() => {
-  _('#myForm').reset()
-})
-
-// Reset multiple forms
-_('.settings-form').reset()
-```
-
----
-
-## Template Rendering {#template-rendering}
-
-### `.tpl()` - Render Template
-Renders a template with data, replacing placeholders with actual values.
-
-#### Syntax
-```javascript
-_(selector).tpl(template, data)
-```
-
-#### Parameters
-- `template` (String): HTML template with {{placeholder}} syntax
-- `data` (Object|Array): Data to populate the template
-
-#### Return Value
-Returns the EasyJS object for chaining.
-
-#### Examples
-```javascript
-// Render single item
-_('#userCard').tpl(`
-  <div class="card">
-    <h3>{{name}}</h3>
-    <p>{{email}}</p>
-  </div>
-`, {
-  name: 'John Doe',
-  email: 'john@example.com'
-})
-
-// Render array of items
-const users = [
-  {name: 'John', email: 'john@example.com'},
-  {name: 'Jane', email: 'jane@example.com'},
-  {name: 'Bob', email: 'bob@example.com'}
-]
-
-_('#userList').tpl(`
-  <li>
-    <strong>{{name}}</strong> - {{email}}
-  </li>
-`, users)
-
-// Render with reactive data
-const state = _.reactive({items: []})
-state.sub('items', function(newItems) {
-  _('#itemList').tpl('<div>{{name}}</div>', newItems)
-})
-
-// Complex template
-_('#productCard').tpl(`
-  <div class="product">
-    <img src="{{image}}" alt="{{name}}">
-    <h3>{{name}}</h3>
-    <p class="price">${{price}}</p>
-    <p class="description">{{description}}</p>
-    <button onclick="addToCart({{id}})">Add to Cart</button>
-  </div>
-`, product)
-
-// Nested data
-_('#comment').tpl(`
-  <div class="comment">
-    <div class="author">{{user.name}}</div>
-    <div class="text">{{content}}</div>
-    <div class="date">{{date}}</div>
-  </div>
-`, comment)
-
-// Conditional rendering (using JavaScript)
-const items = data.filter(item => item.active)
-_('#activeItems').tpl('<div>{{name}}</div>', items)
-```
-
----
-
-## Element Manipulation {#element-manipulation}
-
-### `.add()` - Append Elements
-Adds content to the end of selected elements.
-
-#### Syntax
-```javascript
-_(selector).add(content)
-```
-
-#### Parameters
-- `content` (String|Element|EasyJS): Content to append
-
-#### Return Value
-Returns the EasyJS object for chaining.
-
-#### Examples
-```javascript
-// Append HTML string
-_('#container').add('<div>New content</div>')
-
-// Append element
-const newDiv = document.createElement('div')
-_('#container').add(newDiv)
-
-// Append EasyJS element
-const element = _('<div>Created with EasyJS</div>')
-_('#container').add(element)
-
-// Append multiple items
-data.items.forEach(item => {
-  _('#list').add(`<li>${item.name}</li>`)
-})
-
-// Chain with other methods
-_('#container').add('<div>New</div>').cls('updated')
-
-// Append form data
-_('#log').add(`<div>${new Date()}: Form submitted</div>`)
-```
-
-### `.pre()` - Prepend Elements
-Adds content to the beginning of selected elements.
-
-#### Syntax
-```javascript
-_(selector).pre(content)
-```
-
-#### Parameters
-- `content` (String|Element|EasyJS): Content to prepend
-
-#### Return Value
-Returns the EasyJS object for chaining.
-
-#### Examples
-```javascript
-// Prepend HTML string
-_('#container').pre('<div>First content</div>')
-
-// Prepend element
-const header = document.createElement('header')
-_('#container').pre(header)
-
-// Prepend EasyJS element
-const element = _('<div>Header</div>')
-_('#container').pre(element)
-
-// Add new items to top of list
-data.newItems.forEach(item => {
-  _('#list').pre(`<li>${item.name}</li>`)
-})
-
-// Chain with other methods
-_('#container').pre('<div>Header</div>').cls('has-header')
-
-// Prepend timestamp
-_('#log').pre(`<div>${new Date()}: Latest event</div>`)
-```
-
-### `.del()` - Remove Elements
-Removes selected elements from the DOM.
-
-#### Syntax
-```javascript
-_(selector).del()
-```
-
-#### Return Value
-Returns the EasyJS object for chaining.
-
-#### Examples
-```javascript
-// Remove single element
-_('#oldElement').del()
-
-// Remove multiple elements
-_('.temporary').del()
-
-// Remove on click
-_('.delete-button').click(function() {
-  _(this).up().del()
-})
-
-// Remove after animation
-_('#element').fout(300, function() {
-  _(this).del()
-})
-
-// Conditional removal
-if (shouldRemove) {
-  _('#element').del()
-}
-
-// Remove all children
-_('#container').down().del()
-```
-
-### `.cln()` - Clone Elements
-Creates deep copies of selected elements.
-
-#### Syntax
-```javascript
-_(selector).cln()
-```
-
-#### Return Value
-Returns an EasyJS object containing the cloned elements.
-
-#### Examples
-```javascript
-// Clone element
-const original = _('#template')
-const clone = original.cln()
-clone.at('id', 'copy-' + Date.now())
-_('#container').add(clone)
-
-// Clone with modifications
-_('.item-template').cln()
-  .uncls('item-template')
-  .cls('item')
-  .down('.title').t('New Item')
-  .end()
-  .addto('#list')
-
-// Clone multiple elements
-const clones = _('.box').cln()
-_('#new-container').add(clones)
-
-// Clone and insert after original
-_('#element').cln().insertAfter('#element')
-
-// Use in dynamic content creation
-function createCard(data) {
-  const template = _('#item-template').cln()
-  template.unat('id')
-  template.down('.title').t(data.title)
-  template.down('.description').t(data.description)
-  return template
-}
-
-// Clone with events (events are not cloned, need to rebind)
-const clonedButton = _('#button').cln()
-clonedButton.click(function() {
-  console.log('Cloned button clicked')
-})
-```
-
----
-
-## Reactive State {#reactive-state}
-
-### `_.reactive()` - Create Reactive Object
-Creates a reactive object that automatically updates when properties change.
-
-#### Syntax
-```javascript
-const state = _.reactive(initialObject)
-```
-
-#### Parameters
-- `initialObject` (Object): Initial state object
-
-#### Return Value
-Returns a reactive object with subscription capabilities.
-
-#### Examples
 ```javascript
 // Create reactive state
-const state = _.reactive({
+const state = ok.reactive.reactive({
   count: 0,
-  name: 'John',
-  items: []
-})
+  name: 'OneKit'
+});
 
-// Subscribe to changes
-state.sub('count', function(newValue) {
-  _('#counter').t(newValue)
-})
+// Watch for changes
+const unwatch = ok.reactive.watch('count', function(newValue, oldValue) {
+  console.log(`Count changed from ${oldValue} to ${newValue}`);
+});
 
-state.sub('name', function(newValue) {
-  _('#name').t(newValue)
-})
-
-// Update state (triggers subscriptions)
-state.count = 10
-state.name = 'Jane'
-
-// Subscribe to array changes
-state.sub('items', function(newItems) {
-  _('#itemList').tpl('<li>{{name}}</li>', newItems)
-})
-
-// Add item to array
-state.items.push({name: 'New Item'})
-state.items = [...state.items] // Trigger update
-
-// Complex reactive state
-const appState = _.reactive({
-  user: null,
-  theme: 'light',
-  notifications: [],
-  loading: false
-})
-
-// Multiple subscriptions
-appState.sub('theme', function(theme) {
-  _('body')
-    .uncls('light-theme dark-theme')
-    .cls(theme + '-theme')
-})
-
-appState.sub('loading', function(isLoading) {
-  if (isLoading) {
-    _('#loader').show()
-  } else {
-    _('#loader').hide()
-  }
-})
-
-// Computed properties
-const fullName = _.reactive({first: 'John', last: 'Doe'})
-fullName.sub('first', updateFullName)
-fullName.sub('last', updateFullName)
-
-function updateFullName() {
-  _('#fullName').t(`${fullName.first} ${fullName.last}`)
-}
+// Stop watching
+unwatch();
 ```
 
-### `.sub()` - Subscribe to Changes
-Subscribes to changes in reactive object properties.
+### Binding Elements to State
 
-#### Syntax
 ```javascript
-reactiveObject.sub(propertyName, callback)
+// Bind element to state
+ok.reactive.bind('#counter', 'count');
+
+// When state.count changes, the input value will update
+// When the input value changes, state.count will update
 ```
 
-#### Parameters
-- `propertyName` (String): Property to watch
-- `callback` (Function): Function to execute when property changes
+## API & HTTP Requests
 
-#### Return Value
-Returns an unsubscribe function.
+### Basic Requests
 
-#### Examples
 ```javascript
-// Subscribe with automatic cleanup
-const state = _.reactive({count: 0})
+// GET request
+ok.http.get('/api/data')
+  .then(data => console.log(data))
+  .catch(error => console.error(error));
 
-const unsubscribe = state.sub('count', function(newValue) {
-  console.log('Count changed to:', newValue)
-})
+// POST request
+ok.http.post('/api/save', { name: 'OneKit' })
+  .then(response => console.log(response));
 
-// Update state
-state.count = 1 // Logs: "Count changed to: 1"
+// PUT request
+ok.http.put('/api/update/1', { name: 'Updated' });
 
-// Unsubscribe
-unsubscribe()
-state.count = 2 // No longer logs
-
-// Multiple subscriptions
-state.sub('count', updateCounter)
-state.sub('name', updateName)
-state.sub('items', updateItems)
-
-// Subscribe with immediate execution
-function subWithImmediate(obj, prop, callback) {
-  callback(obj[prop]) // Call immediately
-  return obj.sub(prop, callback) // Then subscribe
-}
-
-subWithImmediate(state, 'count', function(value) {
-  _('#counter').t(value)
-})
-
-// Subscribe to nested changes
-const user = _.reactive({
-  profile: {
-    name: 'John',
-    email: 'john@example.com'
-  }
-})
-
-// Need to subscribe to specific path
-user.sub('profile', function(newProfile) {
-  _('#name').t(newProfile.name)
-  _('#email').t(newProfile.email)
-})
+// DELETE request
+ok.http.delete('/api/delete/1');
 ```
 
----
+### Advanced Request Options
 
-## Storage Utilities {#storage-utilities}
-
-### `_.store.set()` - Store Data
-Saves data to localStorage with automatic JSON serialization.
-
-#### Syntax
 ```javascript
-_.store.set(key, value)
-```
-
-#### Parameters
-- `key` (String): Storage key
-- `value` (Any): Value to store (objects are automatically JSON serialized)
-
-#### Examples
-```javascript
-// Store string
-_.store.set('username', 'john_doe')
-
-// Store object
-_.store.set('user', {
-  id: 1,
-  name: 'John Doe',
-  email: 'john@example.com'
-})
-
-// Store array
-_.store.set('recentSearches', [
-  'javascript',
-  'react',
-  'easyjs'
-])
-
-// Store number
-_.store.set('visitCount', 5)
-
-// Store boolean
-_.store.set('isLoggedIn', true)
-
-// Store complex data
-_.store.set('appState', {
-  user: {id: 1, name: 'John'},
-  preferences: {theme: 'dark', language: 'en'},
-  lastLogin: new Date().toISOString()
-})
-```
-
-### `_.store.get()` - Retrieve Data
-Retrieves data from localStorage with automatic JSON parsing.
-
-#### Syntax
-```javascript
-_.store.get(key)
-```
-
-#### Parameters
-- `key` (String): Storage key
-
-#### Return Value
-Returns the stored value or `null` if not found.
-
-#### Examples
-```javascript
-// Get string
-const username = _.store.get('username')
-console.log(username) // 'john_doe'
-
-// Get object
-const user = _.store.get('user')
-console.log(user.name) // 'John Doe'
-
-// Get array
-const searches = _.store.get('recentSearches')
-console.log(searches[0]) // 'javascript'
-
-// Get with default value
-const theme = _.store.get('theme') || 'light'
-
-// Check if exists
-const hasData = _.store.get('user') !== null
-
-// Get and use immediately
-const user = _.store.get('user')
-if (user) {
-  _('#welcome').t(`Welcome back, ${user.name}!`)
-}
-
-// Get complex data
-const appState = _.store.get('appState')
-if (appState && appState.user) {
-  console.log('User logged in:', appState.user.name)
-}
-```
-
-### `_.store.del()` - Delete Data
-Removes data from localStorage.
-
-#### Syntax
-```javascript
-_.store.del(key)
-```
-
-#### Parameters
-- `key` (String): Storage key to delete
-
-#### Examples
-```javascript
-// Delete single item
-_.store.del('username')
-
-// Delete user session
-_.store.del('user')
-_.store.del('authToken')
-
-// Clear cache
-_.store.del('cachedData')
-
-// Delete on logout
-function logout() {
-  _.store.del('user')
-  _.store.del('authToken')
-  _.store.del('permissions')
-  window.location.href = '/login'
-}
-
-// Delete multiple items
-['tempData', 'cache', 'lastSearch'].forEach(key => {
-  _.store.del(key)
-})
-
-// Conditional deletion
-const user = _.store.get('user')
-if (user && user.id === 1) {
-  _.store.del('adminSettings')
-}
-```
-
----
-
-## API Integration {#api-integration}
-
-### `_.api.get()` - GET Request
-Sends an HTTP GET request to the specified URL.
-
-#### Syntax
-```javascript
-_.api.get(url, options)
-```
-
-#### Parameters
-- `url` (String): Request URL
-- `options` (Object, optional): Configuration options
-
-#### Return Value
-Returns a Promise that resolves with the response data.
-
-#### Examples
-```javascript
-// Basic GET request
-_.api.get('/api/users')
-  .then(users => console.log(users))
-  .catch(error => console.error(error))
-
-// With options
-_.api.get('/api/users', {
-  headers: {'Authorization': 'Bearer token123'},
-  timeout: 10000,
-  loader: '#loader'
-})
-  .then(data => {
-    _('#userList').tpl('<li>{{name}}</li>', data)
-  })
-
-// Query parameters
-_.api.get('/api/search?q=javascript&limit=10')
-  .then(results => {
-    _('#results').tpl('<div>{{title}}</div>', results)
-  })
-
-// Error handling
-_.api.get('/api/data')
-  .then(data => {
-    console.log('Success:', data)
-  })
-  .catch(error => {
-    _('#error').t(`Error: ${error.message}`)
-    _('#error').show()
-  })
-
-// Chain with DOM manipulation
-_('#loadData').click(() => {
-  _.api.get('/api/data')
-    .then(data => _('#content').tpl('<div>{{name}}</div>', data))
-    .catch(() => _('#content').t('Failed to load data'))
-})
-```
-
-### `_.api.post()` - POST Request
-Sends an HTTP POST request to the specified URL.
-
-#### Syntax
-```javascript
-_.api.post(url, data, options)
-```
-
-#### Parameters
-- `url` (String): Request URL
-- `data` (Object): Data to send
-- `options` (Object, optional): Configuration options
-
-#### Return Value
-Returns a Promise that resolves with the response data.
-
-#### Examples
-```javascript
-// Basic POST request
-_.api.post('/api/users', {
-  name: 'John Doe',
-  email: 'john@example.com'
-})
-  .then(response => console.log('User created:', response))
-  .catch(error => console.error(error))
-
-// Form submission
-_('#myForm').on('submit', function(e) {
-  e.preventDefault()
-  
-  const formData = _(this).val()
-  
-  _.api.post('/api/submit', formData, {
-    loader: '#loader',
-    headers: {'X-CSRF-Token': 'token123'}
-  })
-    .then(response => {
-      _('#success').t('Form submitted successfully!')
-      _(this).reset()
-    })
-    .catch(error => {
-      _('#error').t(`Submission failed: ${error.message}`)
-    })
-})
-
-// File upload (FormData)
-const formData = new FormData()
-formData.append('file', fileInput.files[0])
-
-_.api.post('/api/upload', formData, {
-  headers: {'Content-Type': 'multipart/form-data'}
-})
-  .then(response => console.log('Upload complete'))
-
-// JSON with custom headers
-_.api.post('/api/data', {key: 'value'}, {
+// Request with options
+ok.http.request('/api/data', {
+  method: 'GET',
   headers: {
-    'Content-Type': 'application/json',
-    'Authorization': 'Bearer token123'
-  }
-})
-```
-
-### `_.api.put()` - PUT Request
-Sends an HTTP PUT request to update data at the specified URL.
-
-#### Syntax
-```javascript
-_.api.put(url, data, options)
-```
-
-#### Parameters
-- `url` (String): Request URL
-- `data` (Object): Data to update
-- `options` (Object, optional): Configuration options
-
-#### Return Value
-Returns a Promise that resolves with the response data.
-
-#### Examples
-```javascript
-// Update user
-_.api.put('/api/users/1', {
-  name: 'Jane Doe',
-  email: 'jane@example.com'
-})
-  .then(response => console.log('User updated:', response))
-
-// Update settings
-_('#saveSettings').click(() => {
-  const settings = _('#settingsForm').val()
-  
-  _.api.put('/api/settings', settings)
-    .then(() => {
-      _('#message').t('Settings saved!')
-      _('#message').show().fout(3000)
-    })
-    .catch(error => {
-      _('#message').t(`Error: ${error.message}`)
-    })
-})
-
-// Partial update
-_.api.put('/api/posts/123', {
-  title: 'New Title',
-  content: 'Updated content'
-})
-```
-
-### `_.api.del()` - DELETE Request
-Sends an HTTP DELETE request to the specified URL.
-
-#### Syntax
-```javascript
-_.api.del(url, options)
-```
-
-#### Parameters
-- `url` (String): Request URL
-- `options` (Object, optional): Configuration options
-
-#### Return Value
-Returns a Promise that resolves with the response data.
-
-#### Examples
-```javascript
-// Delete user
-_.api.del('/api/users/123')
-  .then(() => console.log('User deleted'))
-
-// Delete with confirmation
-_('.delete-button').click(function() {
-  if (confirm('Are you sure?')) {
-    const id = _(this).at('data-id')
-    
-    _.api.del(`/api/items/${id}`)
-      .then(() => {
-        _(this).up().del()
-      })
-      .catch(error => {
-        alert('Delete failed: ' + error.message)
-      })
-  }
-})
-
-// Clear data
-_('#clearData').click(() => {
-  _.api.del('/api/cache')
-    .then(() => {
-      _('#status').t('Cache cleared')
-    })
-})
-```
-
-### `_.api.req()` - General Request
-Sends a custom HTTP request with full configuration.
-
-#### Syntax
-```javascript
-_.api.req(config)
-```
-
-#### Parameters
-- `config` (Object): Request configuration
-
-#### Return Value
-Returns a Promise that resolves with the response data.
-
-#### Examples
-```javascript
-// Custom request
-_.api.req({
-  url: '/api/data',
-  method: 'PATCH',
-  data: {field: 'value'},
-  headers: {'Custom-Header': 'value'},
+    'Authorization': 'Bearer token'
+  },
   timeout: 5000,
-  loader: '#loader'
-})
-  .then(response => console.log(response))
+  retries: 3,
+  cache: true,
+  cacheTime: 300000,
+  loader: '#loading-indicator'
+});
+```
 
-// Multiple requests
-Promise.all([
-  _.api.get('/api/users'),
-  _.api.get('/api/posts'),
-  _.api.get('/api/comments')
-])
-  .then(([users, posts, comments]) => {
-    console.log('All data loaded')
-  })
+### WebSocket
 
-// Request with progress
-_.api.req({
-  url: '/api/upload',
+```javascript
+// Create WebSocket connection
+const ws = ok.http.websocket('wss://example.com/socket', {
+  reconnect: true,
+  reconnectInterval: 3000,
+  maxReconnectAttempts: 5
+});
+
+// Listen for messages
+ws.on('message', function(data) {
+  console.log('Received:', data);
+});
+
+// Send data
+ws.send({ type: 'message', content: 'Hello' });
+
+// Close connection
+ws.close();
+```
+
+### File Upload
+
+```javascript
+// Upload file with progress tracking
+ok.http.upload('/api/upload', file, {
   method: 'POST',
-  data: formData,
-  onProgress: function(progress) {
-    _('#progress').s('width', progress + '%')
-  }
+  data: { userId: 123 },
+  timeout: 30000,
+  onProgress: function(percentComplete, loaded, total) {
+    console.log(`Upload ${percentComplete}% complete`);
+  },
+  loader: '#upload-progress'
 })
+.then(response => console.log('Upload complete'))
+.catch(error => console.error('Upload failed'));
 ```
 
----
+## Gesture Support
 
-## Utility Functions {#utility-functions}
+### Adding Gesture Support
 
-### `_.wait()` - Debounce Function
-Creates a debounced function that delays execution until after wait time.
-
-#### Syntax
 ```javascript
-_.wait(func, delay)
+// Enable gestures on an element
+ok('.carousel').gesture();
+
+// Listen for gesture events
+ok('.carousel').on('swipe', function(e) {
+  console.log('Swiped', e.detail.direction);
+});
+
+ok('.carousel').on('swipeleft', function(e) {
+  // Go to next slide
+});
+
+ok('.carousel').on('swiperight', function(e) {
+  // Go to previous slide
+});
+
+ok('.element').on('tap', function(e) {
+  console.log('Tapped at', e.detail.x, e.detail.y);
+});
+
+ok('.element').on('longpress', function(e) {
+  console.log('Long press at', e.detail.x, e.detail.y);
+});
+
+ok('.element').on('pinchstart', function(e) {
+  console.log('Pinch started with distance', e.detail.distance);
+});
+
+ok('.element').on('pinchmove', function(e) {
+  console.log('Pinch scale', e.detail.scale);
+});
+
+ok('.element').on('pinchend', function(e) {
+  console.log('Pinch ended');
+});
 ```
 
-#### Parameters
-- `func` (Function): Function to debounce
-- `delay` (Number): Delay in milliseconds
+## Utilities
 
-#### Return Value
-Returns a debounced function.
+### Debounce and Throttle
 
-#### Examples
 ```javascript
-// Debounced search
-_('#search').on('input', _.wait(function() {
-  const query = _(this).at('value')
-  _.api.get(`/api/search?q=${query}`)
-    .then(results => _('#results').tpl('<div>{{name}}</div>', results))
-}, 300))
+// Debounce function
+const debouncedFn = ok.utils.debounce(function() {
+  console.log('Debounced function called');
+}, 300);
 
-// Debounced resize handler
-window.addEventListener('resize', _.wait(function() {
-  console.log('Window resized')
-}, 250))
-
-// Debounced save
-_('#autoSave').on('input', _.wait(function() {
-  const content = _(this).val()
-  _.api.post('/api/save', {content})
-}, 1000))
-
-// Debounced API calls
-const debouncedApi = _.wait(_.api.get, 500)
-debouncedApi('/api/data')
+// Throttle function
+const throttledFn = ok.utils.throttle(function() {
+  console.log('Throttled function called');
+}, 1000);
 ```
 
-### `_.flow()` - Throttle Function
-Creates a throttled function that limits execution to once per time period.
+### Object Utilities
 
-#### Syntax
 ```javascript
-_.flow(func, limit)
+// Deep clone object
+const cloned = ok.utils.deepClone(originalObject);
+
+// Deep merge objects
+const merged = ok.utils.deepMerge(object1, object2);
 ```
 
-#### Parameters
-- `func` (Function): Function to throttle
-- `limit` (Number): Time limit in milliseconds
+### URL Utilities
 
-#### Return Value
-Returns a throttled function.
-
-#### Examples
 ```javascript
-// Throttled scroll handler
-window.addEventListener('scroll', _.flow(function() {
-  const scrollTop = window.pageYOffset
-  if (scrollTop > 100) {
-    _('#header').cls('scrolled')
-  } else {
-    _('#header').uncls('scrolled')
-  }
-}, 100))
+// Build URL with parameters
+const url = ok.utils.url('/api/data', { page: 1, limit: 10 });
+// Result: "/api/data?page=1&limit=10"
 
-// Throttled mouse move
-_('#canvas').on('mousemove', _.flow(function(e) {
-  const x = e.offsetX
-  const y = e.offsetY
-  // Update position
-}, 16)) // ~60fps
-
-// Throttled button clicks
-_('#rapidButton').on('click', _.flow(function() {
-  console.log('Button clicked')
-}, 1000))
-
-// Throttled API calls
-const throttledApi = _.flow(_.api.get, 2000)
-throttledApi('/api/updates')
+// Parse query string
+const params = ok.utils.parseQuery('?page=1&limit=10');
+// Result: { page: "1", limit: "10" }
 ```
 
----
+### Date Formatting
 
-## Advanced Examples {#advanced-examples}
-
-### Complete Todo Application
 ```javascript
-// State
-const state = _.reactive({
-  todos: [],
-  filter: 'all',
-  loading: false
-})
-
-// Load todos from API
-function loadTodos() {
-  state.loading = true
-  _.api.get('/api/todos')
-    .then(todos => {
-      state.todos = todos
-      state.loading = false
-    })
-    .catch(error => {
-      console.error('Failed to load todos:', error)
-      state.loading = false
-    })
-}
-
-// Subscribe to state changes
-state.sub('todos', function(todos) {
-  const filtered = todos.filter(todo => {
-    if (state.filter === 'active') return !todo.completed
-    if (state.filter === 'completed') return todo.completed
-    return true
-  })
-  
-  _('#todoList').tpl(`
-    <li class="todo {{completed}}">
-      <input type="checkbox" {{checked}} data-id="{{id}}">
-      <span>{{text}}</span>
-      <button class="delete" data-id="{{id}}">×</button>
-    </li>
-  `, filtered.map(todo => ({
-    ...todo,
-    completed: todo.completed ? 'completed' : '',
-    checked: todo.completed ? 'checked' : ''
-  })))
-})
-
-state.sub('loading', function(isLoading) {
-  if (isLoading) {
-    _('#loader').show()
-  } else {
-    _('#loader').hide()
-  }
-})
-
-// Event handlers
-_('#addTodo').on('submit', function(e) {
-  e.preventDefault()
-  const text = _('#todoInput').val().text
-  
-  if (text.trim()) {
-    _.api.post('/api/todos', {text, completed: false})
-      .then(todo => {
-        state.todos = [...state.todos, todo]
-        _('#todoInput').val('')
-      })
-  }
-})
-
-_('#todoList').on('change', 'input[type="checkbox"]', function() {
-  const id = parseInt(_(this).at('data-id'))
-  const completed = _(this).at('checked')
-  
-  _.api.put(`/api/todos/${id}`, {completed})
-    .then(() => {
-      state.todos = state.todos.map(todo =>
-        todo.id === id ? {...todo, completed} : todo
-      )
-    })
-})
-
-_('#todoList').on('click', '.delete', function() {
-  const id = parseInt(_(this).at('data-id'))
-  
-  _.api.del(`/api/todos/${id}`)
-    .then(() => {
-      state.todos = state.todos.filter(todo => todo.id !== id)
-    })
-})
-
-_('#filters').on('click', 'button', function() {
-  state.filter = _(this).at('data-filter')
-  _('#filters button').uncls('active')
-  _(this).cls('active')
-})
-
-// Initialize
-loadTodos()
+// Format date
+const formatted = ok.utils.formatDate(new Date(), 'YYYY-MM-DD HH:mm:ss');
+// Result: "2023-06-15 14:30:45"
 ```
 
-### Real-time Chat Application
+## Accessibility
+
+### Screen Reader Announcements
+
 ```javascript
-// Chat state
-const chatState = _.reactive({
-  messages: [],
-  users: [],
-  currentUser: null,
-  isConnected: false
-})
+// Announce message to screen readers
+ok('.button').announce('Button clicked');
 
-// WebSocket connection
-const socket = new WebSocket('wss://chat.example.com')
+// Announce with polite priority (default)
+ok.a11y.announce('Content loaded', 'polite');
 
-socket.onopen = () => {
-  chatState.isConnected = true
-  _('#status').t('Connected').cls('connected')
-}
-
-socket.onmessage = (event) => {
-  const message = JSON.parse(event.data)
-  
-  switch (message.type) {
-    case 'message':
-      chatState.messages = [...chatState.messages, message.data]
-      break
-    case 'userList':
-      chatState.users = message.data
-      break
-  }
-}
-
-socket.onclose = () => {
-  chatState.isConnected = false
-  _('#status').t('Disconnected').uncls('connected')
-}
-
-// Subscribe to state changes
-chatState.sub('messages', function(messages) {
-  const container = _('#messages')
-  const shouldScroll = container[0].scrollTop + container[0].clientHeight >= container[0].scrollHeight - 50
-  
-  _('#messages').tpl(`
-    <div class="message {{type}}">
-      <strong>{{user}}:</strong> {{text}}
-      <span class="time">{{time}}</span>
-    </div>
-  `, messages)
-  
-  if (shouldScroll) {
-    container[0].scrollTop = container[0].scrollHeight
-  }
-})
-
-chatState.sub('users', function(users) {
-  _('#users').tpl('<div class="user">{{name}}</div>', users)
-})
-
-chatState.sub('isConnected', function(connected) {
-  _('#messageInput').at('disabled', !connected)
-  _('#sendButton').at('disabled', !connected)
-})
-
-// Send message
-_('#messageForm').on('submit', function(e) {
-  e.preventDefault()
-  
-  const input = _('#messageInput')
-  const text = input.val().trim()
-  
-  if (text && chatState.isConnected) {
-    socket.send(JSON.stringify({
-      type: 'message',
-      text: text
-    }))
-    
-    input.val('')
-  }
-})
-
-// Typing indicator
-let typingTimeout
-_('#messageInput').on('input', _.wait(function() {
-  if (chatState.isConnected) {
-    socket.send(JSON.stringify({type: 'typing'}))
-  }
-}, 500))
+// Announce with assertive priority
+ok.a11y.announce('Error occurred', 'assertive');
 ```
 
----
+### Focus Management
 
-## Best Practices {#best-practices}
-
-### 1. **Cache Selectors**
 ```javascript
-// Good
-const $container = _('#container')
-const $items = $container.down('.item')
+// Trap focus within modal
+ok('.modal').trapFocus();
 
-// Avoid
-_('#container').cls('active')
-_('#container').s('color', 'red')
-_('#container').add('<div>New</div>')
+// Remove focus trap
+ok('.modal').removeFocusTrap();
 ```
 
-### 2. **Use Method Chaining**
+## Theme System
+
+### Applying Themes
+
 ```javascript
-// Good
-_('#element')
-  .cls('active')
-  .s('color', 'red')
-  .show()
-  .fin(300)
+// Apply custom theme
+ok.theme.apply({
+  primary: '#3498db',
+  secondary: '#2ecc71',
+  accent: '#e74c3c',
+  background: '#ffffff',
+  surface: '#f5f5f5',
+  text: '#333333',
+  textSecondary: '#666666',
+  border: '#dddddd',
+  dark: false
+});
 
-// Avoid
-_('#element').cls('active')
-_('#element').s('color', 'red')
-_('#element').show()
-_('#element').fin(300)
+// Toggle dark mode
+ok.theme.toggleDark();
+
+// Get current theme
+const currentTheme = ok.theme.current();
+
+// Load saved theme
+ok.theme.load();
 ```
 
-### 3. **Event Delegation for Dynamic Content**
+## Storage
+
+### Local Storage
+
 ```javascript
-// Good
-_('#container').on('click', '.item', function() {
-  _(this).tgl('selected')
-})
+// Store data
+ok.store.set('key', 'value');
+ok.store.set('user', { name: 'John', age: 30 });
 
-// Avoid
-_('.item').each(function() {
-  _(this).on('click', function() {
-    _(this).tgl('selected')
-  })
-})
+// Retrieve data
+const value = ok.store.get('key');
+const user = ok.store.get('user');
+
+// Delete data
+ok.store.del('key');
 ```
 
-### 4. **Use Reactive State for Complex Applications**
+## Plugin Development
+
+### Creating Plugins
+
 ```javascript
-// Good
-const state = _.reactive({count: 0})
-state.sub('count', value => _('#counter').t(value))
+// Register a plugin
+ok.plugin.register('myPlugin', function(options = {}) {
+  // Plugin logic
+  return this.each(function() {
+    // 'this' refers to the current element
+    console.log('Plugin applied to', this);
+  });
+});
 
-// Avoid
-_('#increment').click(() => {
-  const count = parseInt(_('#counter').t()) + 1
-  _('#counter').t(count)
-})
+// Use the plugin
+ok('.element').myPlugin({ option: 'value' });
 ```
 
-### 5. **Handle Errors Gracefully**
+### Legacy Plugin Method
+
 ```javascript
-// Good
-_.api.get('/api/data')
-  .then(data => _('#content').tpl(template, data))
-  .catch(error => {
-    console.error('API Error:', error)
-    _('#content').t('Failed to load data')
-  })
+// Add method to OneKit prototype
+ok.plug('legacyMethod', function() {
+  return this.each(function() {
+    console.log('Legacy method called on', this);
+  });
+});
 
-// Avoid
-_.api.get('/api/data')
-  .then(data => _('#content').tpl(template, data))
+// Use the legacy method
+ok('.element').legacyMethod();
 ```
 
-### 6. **Use Debounce/Throttle for Performance**
+## Debugging
+
+### Logging Elements
+
 ```javascript
-// Good
-_('#search').on('input', _.wait(handleSearch, 300))
-window.addEventListener('scroll', _.flow(handleScroll, 100))
+// Log element to console
+ok('.element').log();
 
-// Avoid
-_('#search').on('input', handleSearch)
-window.addEventListener('scroll', handleScroll)
+// Log element information
+ok('.element').info();
 ```
 
-### 7. **Clean Up Event Listeners**
-```javascript
-// Good
-const unsubscribe = state.sub('data', handler)
-// Later when done:
-unsubscribe()
+## Browser Support
 
-// Avoid
-state.sub('data', handler) // No way to unsubscribe
-```
+OneKit 2.0.2 supports all modern browsers, including:
+- Chrome (latest)
+- Firefox (latest)
+- Safari (latest)
+- Edge (latest)
 
-This comprehensive documentation covers all EasyJS features with practical examples and best practices for building modern web applications.
+## License
+
+OneKit is released under the MIT License.
