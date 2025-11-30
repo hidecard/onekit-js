@@ -8,14 +8,14 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/hidecard/Easy-JS.git"
+    "url": "git+https://github.com/hidecard/onekit-js"
   },
   "author": "Arkar Yan",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/hidecard/Easy-JS/issues"
+    "url": "https://github.com/hidecard/onekit-js/issues"
   },
-  "homepage": "https://github.com/hidecard/Easy-JS#readme",
+  "homepage": "https://github.com/hidecard/onekit-js#readme",
   "dependencies": {
     "hidecard-easyjs": "^1.0.0"
   }
