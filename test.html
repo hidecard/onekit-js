@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OneKit Browser Example</title>
+</head>
+<body>
+
+    <h1>OneKit Browser Mode</h1>
+
+    <div id="list"></div>
+
+    <!-- Load OneKit -->
+    <script src="./onekit.js"></script>
+
+    <script>
+        // API URL
+        const API_URL =
+            "https://script.google.com/macros/s/AKfycbzVCC93V8GClQGNRJIBRH7CeBG9vzxE5zvfc280D8oH78BJQwKMZ9X3ddQo_r7u4uzX/exec";
+
+        // This function now handles all UI updates directly
+        async function loadData() {
+            const listElement = ok('#list');
+
+            // 1. Show loading state
+            listElement.html('<p>Loading...</p>');
+
+            try {
+                // 2. Fetch data using the generic request method
+                const res = await ok.http.request(API_URL, {
+                    method: 'GET',
+                    timeout: 15000 // 15-second timeout
+                });
+                
+                // Log the response to the console for debugging
+                console.log("API Response:", res);
+
+                // 3. Handle the response
+                if (!res || res.length === 0) {
+                    // If there's no data, show a message
+                    listElement.html('<p>No Data Found</p>');
+                    return;
+                }
+
+                // 4. If there is data, build the HTML
+                let htmlContent = '';
+                res.forEach(item => { // Using a standard forEach loop
+                    const keys = Object.keys(item);
+                    const titleKey = keys.find(key => typeof item[key] === 'string');
+                    const descriptionKey = keys.find(key => typeof item[key] === 'string' && key !== titleKey);
+                    
+                    const title = titleKey ? item[titleKey] : 'No Title';
+                    const description = descriptionKey ? item[descriptionKey] : 'No Description';
+
+                    htmlContent += `
+                        <div style="padding:10px; margin:5px; border:1px solid #ddd">
+                            <b>${title}</b><br>
+                            <span>${description}</span>
+                        </div>
+                    `;
+                });
+                
+                // 5. Update the DOM with the generated content
+                listElement.html(htmlContent);
+
+            } catch (e) {
+                // 6. Handle any errors during the request
+                console.error(e);
+                listElement.html('<p style="color:red">Failed to load data!</p>');
+            }
+        }
+
+        // Initial call to load data when the script runs
+        loadData();
+    </script>
+</body>
+</html>
