@@ -1,341 +1,409 @@
 
 
-# OneKit 2.0.2 - Complete Documentation & Usage Guide
+# OneKit 2.1.0 - Complete Documentation
 
-OneKit is a lightweight, modern JavaScript library for DOM manipulation, animations, reactive state management, and API integration. This guide covers all features of OneKit 2.0.2.
+OneKit is a lightweight, modern JavaScript library for DOM manipulation, animations, reactive state management, routing, and API integration. It provides a compact, chainable API inspired by jQuery but with modern features like Promises, a component system, and modular architecture.
 
 ## Table of Contents
-1. [Getting Started](#getting-started)
-2. [Core API](#core-api)
-3. [DOM Manipulation](#dom-manipulation)
-4. [Event Handling](#event-handling)
-5. [Animations](#animations)
-6. [Form Handling](#form-handling)
-7. [Component System](#component-system)
-8. [Reactive State Management](#reactive-state-management)
-9. [API & HTTP Requests](#api--http-requests)
-10. [Gesture Support](#gesture-support)
-11. [Utilities](#utilities)
-12. [Accessibility](#accessibility)
-13. [Theme System](#theme-system)
-14. [Storage](#storage)
-15. [Plugin Development](#plugin-development)
 
-## Getting Started
+1.  [Core Concepts](#core-concepts)
+2.  [DOM Manipulation](#dom-manipulation)
+3.  [Event Handling](#event-handling)
+4.  [Animations](#animations)
+5.  [Form Handling](#form-handling)
+6.  [Component System](#component-system)
+7.  [Reactive State Management](#reactive-state-management)
+8.  [API & HTTP Requests](#api--http-requests)
+9.  [Router (SPA)](#router-spa)
+10. [Web Storage](#web-storage)
+11. [Utility Functions](#utility-functions)
+12. [Gestures (Touch Events)](#gestures-touch-events)
+13. [Accessibility (A11y)](#accessibility-a11y)
+14. [Theming](#theming)
+15. [Virtual DOM (VDOM)](#virtual-dom-vdom)
+16. [Plugin System](#plugin-system)
+17. [Legacy Utilities](#legacy-utilities)
 
-### Installation
+---
 
-Include OneKit in your HTML file:
+<a name="core-concepts"></a>
+## 1. Core Concepts
 
-```html
-<script src="path/to/onekit.js"></script>
+### `ok(selector)`
+
+The main entry point to the library. It creates a new OneKit instance containing a collection of DOM elements.
+
+**Syntax:** `ok(selector)`
+
+*   **`selector`** (String|Element|Array|OneKit): A CSS selector string, an HTML string, a DOM element, an array of elements, or another OneKit object.
+
+**Returns:** A new `OneKit` instance.
+
+**Examples:**
+```javascript
+// By CSS selector
+const buttons = ok('button');
+
+// By DOM element
+const mainElement = ok(document.body);
+
+// By HTML string
+const newDiv = ok('<div class="box">Hello</div>');
+
+// By array of elements
+const allInputs = ok(document.querySelectorAll('input'));
 ```
 
-### Basic Usage
+### Chaining
 
-OneKit uses the `ok` function as its main entry point:
+Most OneKit methods return the `OneKit instance itself, allowing you to chain methods together for concise code.
 
+**Example:**
 ```javascript
-// Select elements by CSS selector
-const elements = ok('.my-class');
-
-// Create DOM elements from HTML string
-const newElement = ok('<div class="new">Content</div>');
-
-// Chain methods
-ok('.button').class('active').css('color', 'blue');
+ok('p')
+  .class('highlight')
+  .css('color', 'red')
+  .animate({ fontSize: '20px' }, 500);
 ```
 
-## Core API
+---
 
-### Selection
+<a name="dom-manipulation"></a>
+## 2. DOM Manipulation
 
-OneKit supports multiple selection methods:
+### Traversal
 
+#### `.first()`
+Gets the first element in the collection as a new OneKit object.
 ```javascript
-// CSS selector
-ok('.my-class');
-
-// DOM element
-ok(document.getElementById('my-id'));
-
-// HTML string
-ok('<div>Hello</div>');
-
-// Array of elements
-ok([element1, element2]);
-
-// Another OneKit object
-ok(otherOneKitObject);
+ok('li').first().class('active');
 ```
 
-### Iteration
-
-Use the `each` method to iterate over elements:
-
+#### `.last()`
+Gets the last element in the collection as a new OneKit object.
 ```javascript
-ok('li').each(function(index, element) {
-  // 'this' refers to the current element
+ok('li').last().class('active');
+```
+
+#### `.each(callback)`
+Iterates over each element in the collection.
+```javascript
+ok('div').each(function(index, element) {
   console.log(index, element);
 });
 ```
 
-### Navigation
-
+#### `.find(selector)`
+Finds descendant elements matching the selector.
 ```javascript
-// Get the first element
-ok('.item').first();
-
-// Get the last element
-ok('.item').last();
-
-// Find descendant elements
-ok('.container').find('.child');
-
-// Get parent element
-ok('.child').parent();
-
-// Get children elements
-ok('.parent').kids();
-
-// Get sibling elements
-ok('.item').sibs();
+ok('#container').find('.item');
 ```
 
-## DOM Manipulation
-
-### Content
-
+#### `.parent()`
+Gets the direct parent of each element.
 ```javascript
-// Get or set HTML content
-ok('.element').html('<span>New content</span>');
-const html = ok('.element').html();
-
-// Get or set text content
-ok('.element').text('New text');
-const text = ok('.element').text();
+ok('span').parent().class('has-span');
 ```
 
-### Attributes
-
+#### `.kids(selector)`
+Gets the direct children of each element.
 ```javascript
-// Set single attribute
-ok('.element').attr('title', 'Tooltip');
+ok('ul').kids('li'); // Get direct LI children
+```
+
+#### `.sibs(selector)`
+Gets the siblings of each element.
+```javascript
+ok('li.active').sibs().unclass('active');
+```
+
+### Content & Attributes
+
+#### `.html(content)`
+Gets or sets the inner HTML of elements.
+```javascript
+// Get HTML
+const content = ok('#myDiv').html();
+
+// Set HTML
+ok('#myDiv').html('<strong>New Content</strong>');
+```
+
+#### `.text(content)`
+Gets or sets the text content of elements.
+```javascript
+// Get text
+const text = ok('#myDiv').text();
+
+// Set text
+ok('#myDiv').text('Plain text content');
+```
+
+#### `.attr(name, value)`
+Gets, sets, or removes attributes.
+```javascript
+// Get attribute
+const id = ok('input').attr('id');
+
+// Set attribute
+ok('a').attr('href', 'https://example.com');
 
 // Set multiple attributes
-ok('.element').attr({
-  'title': 'Tooltip',
-  'data-id': '123'
-});
-
-// Get attribute
-const title = ok('.element').attr('title');
-
-// Remove attribute
-ok('.element').unattr('title');
+ok('img').attr({ src: 'logo.png', alt: 'Logo' });
 ```
 
-### CSS
-
+#### `.unattr(name)`
+Removes an attribute.
 ```javascript
-// Set single CSS property
-ok('.element').css('color', 'red');
-
-// Set multiple CSS properties
-ok('.element').css({
-  'color': 'red',
-  'font-size': '16px'
-});
-
-// Get CSS property
-const color = ok('.element').css('color');
+ok('button').unattr('disabled');
 ```
 
-### Classes
-
+#### `.css(prop, value)`
+Gets or sets CSS styles.
 ```javascript
-// Add class
-ok('.element').class('active');
+// Get style
+const color = ok('h1').css('color');
 
-// Remove class
-ok('.element').unclass('active');
+// Set style
+ok('p').css('font-size', '16px');
 
-// Toggle class
-ok('.element').toggleClass('active');
+// Set multiple styles
+ok('.box').css({ color: 'white', background: 'blue' });
+```
+
+### Modification
+
+#### `.class(className)`
+Adds a CSS class.
+```javascript
+ok('div').class('new-class');
+```
+
+#### `.unclass(className)`
+Removes a CSS class.
+```javascript
+ok('div').unclass('old-class');
+```
+
+#### `.toggleClass(className)`
+Toggles a CSS class.
+```javascript
+ok('button').toggleClass('active');
+```
+
+#### `.append(content)`
+Inserts content at the end of each element.
+```javascript
+ok('ul').append('<li>New Item</li>');
+```
+
+#### `.prepend(content)`
+Inserts content at the beginning of each element.
+```javascript
+ok('ul').prepend('<li>First Item</li>');
+```
+
+#### `.remove()`
+Removes elements from the DOM.
+```javascript
+ok('.temporary').remove();
+```
+
+#### `.clone()`
+Clones elements.
+```javascript
+const clonedElement = ok('.template').clone();
 ```
 
 ### Visibility
 
+#### `.show()`
+Shows elements by resetting the `display` property.
 ```javascript
-// Show elements
-ok('.element').show();
-
-// Hide elements
-ok('.element').hide();
-
-// Toggle visibility
-ok('.element').toggle();
+ok('.hidden').show();
 ```
 
-### DOM Structure
-
+#### `.hide()`
+Hides elements by setting `display: none`.
 ```javascript
-// Append content
-ok('.container').append('<div>New element</div>');
-ok('.container').append(otherElement);
-
-// Prepend content
-ok('.container').prepend('<div>First element</div>');
-
-// Clone elements
-ok('.element').clone();
-
-// Remove elements
-ok('.element').remove();
+ok('.visible').hide();
 ```
 
-## Event Handling
-
-### Basic Events
-
+#### `.toggle()`
+Toggles the visibility of elements.
 ```javascript
-// Add event listener
-ok('.button').on('click', function(e) {
-  console.log('Button clicked');
+ok('.toggle-me').toggle();
+```
+
+---
+
+<a name="event-handling"></a>
+## 3. Event Handling
+
+#### `.on(event, selector, handler)`
+Attaches an event listener.
+```javascript
+// Direct binding
+ok('button').on('click', function(e) {
+  console.log('Button clicked!');
 });
 
-// Remove event listener
-ok('.button').off('click', handler);
-
-// Event shortcuts
-ok('.button').click(function() {
-  console.log('Clicked');
+// Event delegation
+ok('#parent').on('click', '.child-button', function(e) {
+  console.log('A child button was clicked!');
 });
+```
 
-ok('.element').hover(
-  function() { console.log('Mouse entered'); },
-  function() { console.log('Mouse left'); }
+#### `.off(event, handler)`
+Removes an event listener.
+```javascript
+function myHandler() { /* ... */ }
+ok('button').on('click', myHandler);
+// ... later
+ok('button').off('click', myHandler);
+```
+
+#### `.click(handler)`
+A shortcut for the `click` event.
+```javascript
+ok('button').click(function() {
+  alert('Clicked!');
+});
+```
+
+#### `.hover(enterHandler, leaveHandler)`
+A shortcut for `mouseenter` and `mouseleave` events.
+```javascript
+ok('div').hover(
+  function() { ok(this).class('hovered'); },
+  function() { ok(this).unclass('hovered'); }
 );
+```
 
-ok('.input').focus(function() {
-  console.log('Input focused');
+#### `.focus(handler)`
+A shortcut for the `focus` event.
+```javascript
+ok('input').focus(function() {
+  ok(this).css('border-color', 'blue');
 });
 ```
 
-### Event Delegation
+---
 
+<a name="animations"></a>
+## 4. Animations
+
+All animation methods return a `Promise` that resolves when the animation completes.
+
+#### `.animate(props, duration, callback)`
+Animates CSS properties.
 ```javascript
-// Use event delegation for dynamic content
-ok('.container').on('click', '.button', function(e) {
-  console.log('Dynamic button clicked');
-});
+ok('.box').animate({ width: '200px', height: '200px' }, 1000)
+  .then(element => console.log('Animation finished!'));
 ```
 
-## Animations
-
-### Basic Animations
-
+#### `.fade_in(duration, callback)`
+Fades elements in.
 ```javascript
-// Fade in
-ok('.element').fade_in(400, function() {
-  console.log('Fade in complete');
-});
-
-// Fade out
-ok('.element').fade_out(400);
-
-// Slide up
-ok('.element').slide_up(400);
-
-// Slide down
-ok('.element').slide_down(400);
-
-// Custom animation
-ok('.element').animate({
-  'left': '100px',
-  'opacity': 0.5
-}, 500);
+ok('.modal').fade_in(400);
 ```
 
-### Advanced Animations
-
+#### `.fade_out(duration, callback)`
+Fades elements out.
 ```javascript
-// Scale in
-ok('.element').scaleIn(300);
-
-// Scale out
-ok('.element').scaleOut(300);
-
-// Rotate in
-ok('.element').rotateIn(500);
-
-// Rotate out
-ok('.element').rotateOut(500);
-
-// Bounce
-ok('.element').bounce(1000);
-
-// Shake
-ok('.element').shake(500);
+ok('.modal').fade_out(400);
 ```
 
-## Form Handling
+#### `.slide_up(duration, callback)`
+Slides elements up.
+```javascript
+ok('.panel').slide_up(300);
+```
 
-### Form Data
+#### `.slide_down(duration, callback)`
+Slides elements down.
+```javascript
+ok('.panel').slide_down(300);
+```
+
+#### `.move(x, y, duration)`
+Hardware-accelerated movement using `translate3d`.
+```javascript
+ok('.sprite').move(100, 50, 500);
+```
+
+#### Module-based Animations
+These are added by the `animation` module.
 
 ```javascript
-// Serialize form data
-const formData = ok('#myForm').form_data();
-console.log(formData);
+ok('.card').scaleIn(300);
+ok('.card').scaleOut(300);
+ok('.card').rotateIn(500);
+ok('.card').rotateOut(500);
+ok('.card').bounce(1000);
+ok('.card').shake(500);
+```
 
-// Reset form
+---
+
+<a name="form-handling"></a>
+## 5. Form Handling
+
+#### `.form_data()`
+Serializes a form into a JavaScript object.
+```javascript
+const data = ok('#myForm').form_data();
+// Result: { username: 'john', password: '123', remember: 'on' }
+```
+
+#### `.reset()`
+Resets a form.
+```javascript
 ok('#myForm').reset();
 ```
 
-### Form Validation
-
+#### `.validateForm(rules, options)`
+Validates a form based on defined rules.
 ```javascript
-// Validate form with rules
 const isValid = ok('#myForm').validateForm({
-  'name': 'required',
-  'email': 'required|email',
-  'password': 'required|min:8',
-  'confirm': 'required|match:password'
-}, {
-  errorClass: 'error',
-  errorElement: 'span',
-  errorContainer: '.field-wrapper'
+  username: 'required|min:4',
+  email: 'required|email',
+  password: 'required|min:8',
+  'confirm-password': 'required|match:password'
 });
 
-if (isValid) {
-  // Form is valid, submit it
+if (!isValid) {
+  console.log('Form has errors!');
 }
 ```
 
-### Input Masks
-
+#### `.applyMask(maskName)`
+Applies an input mask to an element.
 ```javascript
-// Apply phone mask
-ok('input[type="tel"]').applyMask('phone');
-
-// Apply date mask
-ok('input[type="date"]').applyMask('date');
-
-// Apply credit card mask
-ok('input[name="card"]').applyMask('creditCard');
+// Predefined masks are in ok.form.masks
+ok('input[name="phone"]').applyMask('phone');
+ok('input[name="date"]').applyMask('date');
 ```
 
-## Component System
+---
 
-### Registering Components
+<a name="component-system"></a>
+## 6. Component System
 
+#### `ok.component.register(name, definition)`
+Registers a new component.
 ```javascript
-// Register a component
-ok.component.register('my-component', {
-  data: {
-    count: 0
-  },
-  template: '<div class="counter">Count: {{count}}</div>',
+ok.component.register('my-card', {
+  props: { title: 'Default Title' },
+  data: { count: 0 },
+  template: `
+    <div class="card">
+      <h3>{{props.title}}</h3>
+      <p>Count: {{state.count}}</p>
+      <button onclick="this.methods.increment()">+</button>
+      <slot></slot>
+    </div>
+  `,
   methods: {
     increment() {
       this.state.count++;
@@ -343,353 +411,330 @@ ok.component.register('my-component', {
     }
   },
   created() {
-    console.log('Component created');
+    console.log('Component created!');
   },
   mounted() {
-    console.log('Component mounted');
-  },
-  beforeDestroy() {
-    console.log('Component about to be destroyed');
+    console.log('Component mounted to DOM!');
   }
 });
 ```
 
-### Creating and Mounting Components
-
+#### `ok.component.create(name, props, slots)`
+Creates a component instance.
 ```javascript
-// Create a component instance
-const myComponent = ok.component.create('my-component', {
-  // Props
-});
-
-// Mount component to DOM
-ok.component.mount(myComponent, '#container');
-
-// Get component instance from element
-const element = document.querySelector('.counter');
-const instance = ok.component.getInstance(element);
-
-// Destroy component
-ok.component.destroy(myComponent);
+const cardInstance = ok.component.create('my-card', 
+  { title: 'My Special Card' }, 
+  { default: '<p>This is slotted content.</p>' }
+);
 ```
 
-## Reactive State Management
-
-### Creating Reactive Objects
-
+#### `ok.component.mount(component, target)`
+Mounts a component instance to the DOM.
 ```javascript
-// Create reactive state
-const state = ok.reactive.reactive({
-  count: 0,
-  name: 'OneKit'
-});
-
-// Watch for changes
-const unwatch = ok.reactive.watch('count', function(newValue, oldValue) {
-  console.log(`Count changed from ${oldValue} to ${newValue}`);
-});
-
-// Stop watching
-unwatch();
+ok.component.mount(cardInstance, '#app-container');
 ```
 
-### Binding Elements to State
+---
 
+<a name="reactive-state-management"></a>
+## 7. Reactive State Management
+
+#### `ok.reactive.reactive(obj)`
+Creates a reactive object.
 ```javascript
-// Bind element to state
-ok.reactive.bind('#counter', 'count');
+const state = ok.reactive.reactive({ message: 'Hello' });
 
-// When state.count changes, the input value will update
-// When the input value changes, state.count will update
+ok.reactive.watch('message', (newValue, oldValue) => {
+  console.log(`Message changed from ${oldValue} to ${newValue}`);
+});
+
+state.message = 'Hi'; // Triggers the watcher
 ```
 
-## API & HTTP Requests
-
-### Basic Requests
-
+#### `ok.reactive.watch(key, callback)`
+Watches for changes on a reactive property.
 ```javascript
-// GET request
-ok.http.get('/api/data')
-  .then(data => console.log(data))
+// See example above
+```
+
+#### `ok.reactive.bind(element, stateKey, attribute)`
+Two-way binds an element to a reactive state property.
+```javascript
+const state = ok.reactive.reactive({ text: '' });
+ok.reactive.bind('#myInput', 'text', 'value');
+
+// Changing the input updates state.text
+// Changing state.text updates the input
+```
+
+---
+
+<a name="api--http-requests"></a>
+## 8. API & HTTP Requests
+
+All methods return a `Promise`.
+
+#### `ok.http.setDefaults(options)`
+Sets default options for all requests.
+```javascript
+ok.http.setDefaults({ cache: true, timeout: 10000 });
+```
+
+#### `ok.http.get(url, options)`
+Makes a GET request.
+```javascript
+ok.http.get('/api/users')
+  .then(users => console.log(users))
   .catch(error => console.error(error));
-
-// POST request
-ok.http.post('/api/save', { name: 'OneKit' })
-  .then(response => console.log(response));
-
-// PUT request
-ok.http.put('/api/update/1', { name: 'Updated' });
-
-// DELETE request
-ok.http.delete('/api/delete/1');
 ```
 
-### Advanced Request Options
-
+#### `ok.http.post(url, data, options)`
+Makes a POST request.
 ```javascript
-// Request with options
-ok.http.request('/api/data', {
-  method: 'GET',
-  headers: {
-    'Authorization': 'Bearer token'
-  },
-  timeout: 5000,
-  retries: 3,
-  cache: true,
-  cacheTime: 300000,
-  loader: '#loading-indicator'
-});
+ok.http.post('/api/users', { name: 'John', email: 'john@example.com' })
+  .then(user => console.log('User created:', user));
 ```
 
-### WebSocket
-
+#### `ok.http.put(url, data, options)`
+Makes a PUT request.
 ```javascript
-// Create WebSocket connection
-const ws = ok.http.websocket('wss://example.com/socket', {
-  reconnect: true,
-  reconnectInterval: 3000,
-  maxReconnectAttempts: 5
-});
-
-// Listen for messages
-ws.on('message', function(data) {
-  console.log('Received:', data);
-});
-
-// Send data
-ws.send({ type: 'message', content: 'Hello' });
-
-// Close connection
-ws.close();
+ok.http.put('/api/users/1', { name: 'Jane' });
 ```
 
-### File Upload
-
+#### `ok.http.delete(url, options)`
+Makes a DELETE request.
 ```javascript
-// Upload file with progress tracking
-ok.http.upload('/api/upload', file, {
-  method: 'POST',
-  data: { userId: 123 },
-  timeout: 30000,
-  onProgress: function(percentComplete, loaded, total) {
-    console.log(`Upload ${percentComplete}% complete`);
-  },
-  loader: '#upload-progress'
-})
-.then(response => console.log('Upload complete'))
-.catch(error => console.error('Upload failed'));
+ok.http.delete('/api/users/1');
 ```
 
-## Gesture Support
-
-### Adding Gesture Support
-
+#### `ok.http.upload(url, file, options)`
+Uploads a file with progress tracking.
 ```javascript
-// Enable gestures on an element
-ok('.carousel').gesture();
-
-// Listen for gesture events
-ok('.carousel').on('swipe', function(e) {
-  console.log('Swiped', e.detail.direction);
-});
-
-ok('.carousel').on('swipeleft', function(e) {
-  // Go to next slide
-});
-
-ok('.carousel').on('swiperight', function(e) {
-  // Go to previous slide
-});
-
-ok('.element').on('tap', function(e) {
-  console.log('Tapped at', e.detail.x, e.detail.y);
-});
-
-ok('.element').on('longpress', function(e) {
-  console.log('Long press at', e.detail.x, e.detail.y);
-});
-
-ok('.element').on('pinchstart', function(e) {
-  console.log('Pinch started with distance', e.detail.distance);
-});
-
-ok('.element').on('pinchmove', function(e) {
-  console.log('Pinch scale', e.detail.scale);
-});
-
-ok('.element').on('pinchend', function(e) {
-  console.log('Pinch ended');
+const fileInput = ok('#fileInput').elements[0].files[0];
+ok.http.upload('/api/upload', fileInput, {
+  onProgress: (percent, loaded, total) => {
+    console.log(`Upload is ${percent}% complete`);
+  }
 });
 ```
 
-## Utilities
-
-### Debounce and Throttle
-
+#### `ok.http.websocket(url, options)`
+Creates a WebSocket connection.
 ```javascript
-// Debounce function
-const debouncedFn = ok.utils.debounce(function() {
-  console.log('Debounced function called');
+const ws = ok.http.websocket('ws://localhost:8080');
+ws.on('message', data => console.log('Received:', data));
+ws.send({ type: 'greeting', text: 'Hello Server!' });
+```
+
+---
+
+<a name="router-spa"></a>
+## 9. Router (SPA)
+
+#### `ok.router.add(path, component)`
+Adds a route.
+```javascript
+ok.router.add('/', 'home-component');
+ok.router.add('/about', 'about-component');
+ok.router.add('/users/:id', (params) => {
+  return `<h1>User Profile for ID: ${params.id}</h1>`;
+});
+```
+
+#### `ok.router.notFound(component)`
+Sets a 404 Not Found handler.
+```javascript
+ok.router.notFound('not-found-component');
+```
+
+#### `ok.router.init()`
+Initializes the router and starts listening for navigation.
+```javascript
+// Call this once when your app loads
+ok.router.init();
+```
+
+#### `ok.router.navigate(path)`
+Programmatically navigates to a new route.
+```javascript
+ok('button').click(() => {
+  ok.router.navigate('/about');
+});
+```
+
+---
+
+<a name="web-storage"></a>
+## 10. Web Storage
+
+#### `ok.storage.set(key, value, type)`
+Saves a value to storage. Automatically handles JSON serialization.
+```javascript
+ok.storage.set('user', { id: 1, name: 'John' });
+```
+
+#### `ok.storage.get(key, defaultValue, type)`
+Retrieves a value from storage. Automatically handles JSON parsing.
+```javascript
+const user = ok.storage.get('user', {});
+```
+
+#### `ok.storage.reactive(key, defaultValue, type)`
+Creates a reactive object that syncs with storage across tabs.
+```javascript
+const settings = ok.storage.reactive('settings', { theme: 'dark' });
+settings.theme = 'light'; // Automatically saved to localStorage
+```
+
+#### `ok.storage.collection(name, type)`
+Creates a reactive, persistent collection of objects (like a simple table).
+```javascript
+const todos = ok.storage.collection('todos');
+const newTodo = todos.add({ text: 'Learn OneKit', done: false });
+todos.update(newTodo.id, { done: true });
+```
+
+---
+
+<a name="utility-functions"></a>
+## 11. Utility Functions
+
+#### `ok.utils.debounce(func, delay)`
+Creates a debounced version of a function.
+```javascript
+const searchInput = ok('#search');
+const debouncedSearch = ok.utils.debounce(function() {
+  console.log('Searching for:', this.value);
 }, 300);
 
-// Throttle function
-const throttledFn = ok.utils.throttle(function() {
-  console.log('Throttled function called');
-}, 1000);
+searchInput.on('input', debouncedSearch);
 ```
 
-### Object Utilities
-
+#### `ok.utils.throttle(func, limit)`
+Creates a throttled version of a function.
 ```javascript
-// Deep clone object
-const cloned = ok.utils.deepClone(originalObject);
-
-// Deep merge objects
-const merged = ok.utils.deepMerge(object1, object2);
+ok(window).on('scroll', ok.utils.throttle(function() {
+  console.log('Scrolling...');
+}, 100));
 ```
 
-### URL Utilities
-
+#### `ok.utils.deepClone(obj)`
+Creates a deep clone of an object or array.
 ```javascript
-// Build URL with parameters
-const url = ok.utils.url('/api/data', { page: 1, limit: 10 });
-// Result: "/api/data?page=1&limit=10"
-
-// Parse query string
-const params = ok.utils.parseQuery('?page=1&limit=10');
-// Result: { page: "1", limit: "10" }
+const original = { a: 1, b: { c: 2 } };
+const clone = ok.utils.deepClone(original);
 ```
 
-### Date Formatting
+---
 
+<a name="gestures-touch-events"></a>
+## 12. Gestures (Touch Events)
+
+#### `.gesture()`
+Enables touch gestures on an element.
 ```javascript
-// Format date
-const formatted = ok.utils.formatDate(new Date(), 'YYYY-MM-DD HH:mm:ss');
-// Result: "2023-06-15 14:30:45"
+ok('.swipeable').gesture()
+  .on('swipeleft', () => console.log('Swiped left!'))
+  .on('swiperight', () => console.log('Swiped right!'))
+  .on('tap', () => console.log('Tapped!'));
 ```
 
-## Accessibility
+---
 
-### Screen Reader Announcements
+<a name="accessibility-a11y"></a>
+## 13. Accessibility (A11y)
 
+#### `.announce(message, priority)`
+Announces a message to screen readers.
 ```javascript
-// Announce message to screen readers
-ok('.button').announce('Button clicked');
-
-// Announce with polite priority (default)
-ok.a11y.announce('Content loaded', 'polite');
-
-// Announce with assertive priority
-ok.a11y.announce('Error occurred', 'assertive');
+ok('.status').announce('Loading complete.', 'assertive');
 ```
 
-### Focus Management
-
+#### `.trapFocus()`
+Traps focus within an element (e.g., a modal).
 ```javascript
-// Trap focus within modal
 ok('.modal').trapFocus();
-
-// Remove focus trap
-ok('.modal').removeFocusTrap();
 ```
 
-## Theme System
+---
 
-### Applying Themes
+<a name="theming"></a>
+## 14. Theming
 
+#### `ok.theme.apply(theme)`
+Applies a theme object.
 ```javascript
-// Apply custom theme
 ok.theme.apply({
-  primary: '#3498db',
-  secondary: '#2ecc71',
-  accent: '#e74c3c',
-  background: '#ffffff',
-  surface: '#f5f5f5',
-  text: '#333333',
-  textSecondary: '#666666',
-  border: '#dddddd',
-  dark: false
+  primary: '#ff6b6b',
+  dark: true
+});
+```
+
+#### `ok.theme.toggleDark()`
+Toggles between light and dark mode.
+```javascript
+ok('button#theme-toggle').click(() => {
+  ok.theme.toggleDark();
+});
+```
+
+---
+
+<a name="virtual-dom-vdom"></a>
+## 15. Virtual DOM (VDOM)
+
+#### `ok.vdom.h(tag, props, children)`
+Creates a virtual DOM node.
+```javascript
+const vnode = ok.vdom.h('div', { class: 'container' }, [
+  ok.vdom.h('h1', {}, 'Hello'),
+  ok.vdom.h('p', {}, 'World')
+]);
+```
+
+#### `ok.vdom.createElement(vnode)`
+Creates a real DOM element from a virtual node.
+```javascript
+const element = ok.vdom.createElement(vnode);
+document.body.appendChild(element);
+```
+
+---
+
+<a name="plugin-system"></a>
+## 16. Plugin System
+
+#### `ok.plugin.register(name, plugin, namespace)`
+Registers a new plugin.
+```javascript
+ok.plugin.register('highlight', function(color) {
+  return this.each(function() {
+    this.style.backgroundColor = color;
+  });
 });
 
-// Toggle dark mode
-ok.theme.toggleDark();
-
-// Get current theme
-const currentTheme = ok.theme.current();
-
-// Load saved theme
-ok.theme.load();
+// Usage:
+ok('p').highlight('yellow');
 ```
 
-## Storage
+---
 
-### Local Storage
+<a name="legacy-utilities"></a>
+## 17. Legacy Utilities
 
+These are aliases for newer module functions.
+
+#### `ok.store`
+An alias for basic `localStorage` helpers.
 ```javascript
-// Store data
 ok.store.set('key', 'value');
-ok.store.set('user', { name: 'John', age: 30 });
-
-// Retrieve data
-const value = ok.store.get('key');
-const user = ok.store.get('user');
-
-// Delete data
+const val = ok.store.get('key');
 ok.store.del('key');
 ```
 
-## Plugin Development
-
-### Creating Plugins
-
-```javascript
-// Register a plugin
-ok.plugin.register('myPlugin', function(options = {}) {
-  // Plugin logic
-  return this.each(function() {
-    // 'this' refers to the current element
-    console.log('Plugin applied to', this);
-  });
-});
-
-// Use the plugin
-ok('.element').myPlugin({ option: 'value' });
-```
-
-### Legacy Plugin Method
-
-```javascript
-// Add method to OneKit prototype
-ok.plug('legacyMethod', function() {
-  return this.each(function() {
-    console.log('Legacy method called on', this);
-  });
-});
-
-// Use the legacy method
-ok('.element').legacyMethod();
-```
-
-## Debugging
-
-### Logging Elements
-
-```javascript
-// Log element to console
-ok('.element').log();
-
-// Log element information
-ok('.element').info();
-```
-
-## Browser Support
-
-OneKit 2.0.2 supports all modern browsers, including:
-- Chrome (latest)
-- Firefox (latest)
-- Safari (latest)
-- Edge (latest)
-
-## License
-
-OneKit is released under the MIT License.
+#### `ok.wait`
+An alias for `ok.utils.debounce`.
+#### `ok.flow`
+An alias for `ok.utils.throttle`.
+#### `ok.plug`
+An alias for `ok.plugin.register`.
