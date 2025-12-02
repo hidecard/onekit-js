@@ -17,6 +17,14 @@
 
     <div class="demo">
         <h2>Fade Animations</h2>
+        <h3>Usage Syntax</h3>
+        <pre><code>// Fade in
+ok('.element').fade_in(400, function() {
+  console.log('Fade in complete');
+});
+
+// Fade out
+ok('.element').fade_out(400);</code></pre>
         <div id="fade-box" class="animate-box">Fade Box</div>
         <button id="fade-in">Fade In</button>
         <button id="fade-out">Fade Out</button>
@@ -31,6 +39,12 @@
 
     <div class="demo">
         <h2>Custom Animations</h2>
+        <h3>Usage Syntax</h3>
+        <pre><code>// Custom animation
+ok('.element').animate({
+  'left': '100px',
+  'opacity': 0.5
+}, 500);</code></pre>
         <div id="custom-box" class="custom-box">Custom Box</div>
         <button id="move-right">Move Right</button>
         <button id="scale-up">Scale Up</button>

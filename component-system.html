@@ -15,6 +15,26 @@
     <h1>OneKit Component System Demo</h1>
 
     <div class="demo">
+        <h2>Component Registration</h2>
+        <h3>Usage Syntax</h3>
+        <pre><code>// Register a component
+ok.component.register('my-component', {
+  data: { count: 0 },
+  template: '<div>Count: {{count}}</div>',
+  methods: {
+    increment() { this.state.count++; this.update(); }
+  },
+  mounted: function() {
+    // Component mounted
+  }
+});
+
+// Create and mount component
+const component = ok.component.create('my-component');
+ok.component.mount(component, '#container');</code></pre>
+    </div>
+
+    <div class="demo">
         <h2>Counter Component</h2>
         <div id="counter-container"></div>
         <button id="create-counter">Create Counter</button>

@@ -18,6 +18,13 @@
 
     <div class="demo">
         <h2>Form Data Serialization</h2>
+        <h3>Usage Syntax</h3>
+        <pre><code>// Serialize form data
+const formData = ok('#myForm').form_data();
+console.log(formData);
+
+// Reset form
+ok('#myForm').reset();</code></pre>
         <form id="data-form">
             <label>Name: <input type="text" name="name" value="John Doe"></label>
             <label>Email: <input type="email" name="email" value="john@example.com"></label>

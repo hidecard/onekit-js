@@ -16,6 +16,21 @@
     <h1>OneKit Storage Demo</h1>
 
     <div class="demo">
+        <h2>Local Storage Operations</h2>
+        <h3>Usage Syntax</h3>
+        <pre><code>// Store data
+ok.store.set('key', 'value');
+ok.store.set('user', { name: 'John', age: 30 });
+
+// Retrieve data
+const value = ok.store.get('key');
+const user = ok.store.get('user');
+
+// Delete data
+ok.store.del('key');</code></pre>
+    </div>
+
+    <div class="demo">
         <h2>Store Data</h2>
         <label>Key: <input type="text" id="store-key" value="username"></label>
         <label>Value: <input type="text" id="store-value" value="John Doe"></label>

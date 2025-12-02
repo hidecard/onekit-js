@@ -15,6 +15,30 @@
     <div id="log"></div>
 
     <div class="demo">
+        <h2>Touch Gestures</h2>
+        <h3>Usage Syntax</h3>
+        <pre><code>// Enable gestures on element
+ok('.element').gesture();
+
+// Listen for gesture events
+ok('.element').on('swipe', function(e) {
+  console.log('Swiped', e.detail.direction);
+});
+
+ok('.element').on('tap', function(e) {
+  console.log('Tapped at', e.detail.x, e.detail.y);
+});
+
+ok('.element').on('longpress', function(e) {
+  console.log('Long pressed');
+});
+
+ok('.element').on('pinchstart', function(e) {
+  console.log('Pinch started');
+});</code></pre>
+    </div>
+
+    <div class="demo">
         <h2>Gesture Area</h2>
         <p>Try swiping, tapping, long pressing, or pinching on the area below (works best on touch devices)</p>
         <div id="gesture-area" class="gesture-area">Touch me!</div>
