@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>OneKit Storage</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .demo { margin: 20px 0; padding: 10px; border: 1px solid #ccc; }
+        label { display: block; margin: 5px 0; }
+        input { margin: 5px 0; padding: 5px; width: 200px; }
+        button { margin: 5px; padding: 5px 10px; }
+        #result { background: #f9f9f9; padding: 10px; margin: 10px 0; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+    <h1>OneKit Storage Demo</h1>
+
+    <div class="demo">
+        <h2>Store Data</h2>
+        <label>Key: <input type="text" id="store-key" value="username"></label>
+        <label>Value: <input type="text" id="store-value" value="John Doe"></label>
+        <button id="store-string">Store as String</button>
+        <button id="store-object">Store as Object</button>
+    </div>
+
+    <div class="demo">
+        <h2>Retrieve Data</h2>
+        <label>Key: <input type="text" id="get-key" value="username"></label>
+        <button id="get-data">Get Data</button>
+        <div id="get-result"></div>
+    </div>
+
+    <div class="demo">
+        <h2>Delete Data</h2>
+        <label>Key: <input type="text" id="delete-key" value="username"></label>
+        <button id="delete-data">Delete Data</button>
+    </div>
+
+    <div class="demo">
+        <h2>All Stored Data</h2>
+        <button id="show-all">Show All Stored Data</button>
+        <div id="all-result"></div>
+    </div>
+
+    <script src="./onekit.js"></script>
+    <script>
+        // Store data
+        ok('#store-string').click(function() {
+            const key = ok('#store-key').elements[0].value;
+            const value = ok('#store-value').elements[0].value;
+            ok.store.set(key, value);
+            alert('Data stored!');
+        });
+
+        ok('#store-object').click(function() {
+            const key = ok('#store-key').elements[0].value;
+            const value = { name: ok('#store-value').elements[0].value, timestamp: new Date().toISOString() };
+            ok.store.set(key, value);
+            alert('Object stored!');
+        });
+
+        // Get data
+        ok('#get-data').click(function() {
+            const key = ok('#get-key').elements[0].value;
+            const value = ok.store.get(key);
+            ok('#get-result').html('<pre>' + JSON.stringify(value, null, 2) + '</pre>');
+        });
+
+        // Delete data
+        ok('#delete-data').click(function() {
+            const key = ok('#delete-key').elements[0].value;
+            ok.store.del(key);
+            alert('Data deleted!');
+            ok('#get-result').html('');
+        });
+
+        // Show all data
+        ok('#show-all').click(function() {
+            const allData = {};
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                allData[key] = ok.store.get(key);
+            }
+            ok('#all-result').html('<pre>' + JSON.stringify(allData, null, 2) + '</pre>');
+        });
+    </script>
+</body>
+</html>

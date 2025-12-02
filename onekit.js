@@ -2,7 +2,7 @@
  * OneKit - A lightweight, modern JavaScript library for DOM manipulation,
  * animations, reactive state, and API integration.
  *
- * Version: 2.0.2
+ * Version: 2.1.0
  * Author: OneKit Team
  */
 
@@ -362,146 +362,175 @@
       return this.on('focus', handler);
     }
 
-    // Fade in animation
+    // Fade in animation (Promise-based)
     fade_in(duration, callback) {
       duration = duration || 400;
-      return this.each(function() {
-        const element = this;
-        element.style.opacity = 0;
-        element.style.display = '';
-        
-        const start = performance.now();
-        
-        function animate(time) {
-          const timeFraction = (time - start) / duration;
-          if (timeFraction > 1) timeFraction = 1;
+      return new Promise(resolve => {
+        this.each(function() {
+          const element = this;
+          element.style.opacity = 0;
+          element.style.display = '';
           
-          element.style.opacity = timeFraction;
+          const start = performance.now();
           
-          if (timeFraction < 1) {
-            requestAnimationFrame(animate);
-          } else if (callback) {
-            callback.call(element);
+          function animate(time) {
+            const timeFraction = (time - start) / duration;
+            if (timeFraction > 1) timeFraction = 1;
+            
+            element.style.opacity = timeFraction;
+            
+            if (timeFraction < 1) {
+              requestAnimationFrame(animate);
+            } else {
+              if (callback) callback.call(element);
+              resolve(element);
+            }
           }
-        }
-        
-        requestAnimationFrame(animate);
+          
+          requestAnimationFrame(animate);
+        });
       });
     }
 
-    // Fade out animation
+    // Fade out animation (Promise-based)
     fade_out(duration, callback) {
       duration = duration || 400;
-      return this.each(function() {
-        const element = this;
-        const startOpacity = parseFloat(window.getComputedStyle(element).opacity);
-        
-        const start = performance.now();
-        
-        function animate(time) {
-          const timeFraction = (time - start) / duration;
-          if (timeFraction > 1) timeFraction = 1;
+      return new Promise(resolve => {
+        this.each(function() {
+          const element = this;
+          const startOpacity = parseFloat(window.getComputedStyle(element).opacity);
           
-          element.style.opacity = startOpacity * (1 - timeFraction);
+          const start = performance.now();
           
-          if (timeFraction < 1) {
-            requestAnimationFrame(animate);
-          } else {
-            element.style.display = 'none';
-            if (callback) callback.call(element);
+          function animate(time) {
+            const timeFraction = (time - start) / duration;
+            if (timeFraction > 1) timeFraction = 1;
+            
+            element.style.opacity = startOpacity * (1 - timeFraction);
+            
+            if (timeFraction < 1) {
+              requestAnimationFrame(animate);
+            } else {
+              element.style.display = 'none';
+              if (callback) callback.call(element);
+              resolve(element);
+            }
           }
-        }
-        
-        requestAnimationFrame(animate);
+          
+          requestAnimationFrame(animate);
+        });
       });
     }
 
-    // Slide up animation
+    // Slide up animation (Promise-based)
     slide_up(duration, callback) {
       duration = duration || 400;
-      return this.each(function() {
-        const element = this;
-        const height = element.scrollHeight;
-        
-        element.style.height = height + 'px';
-        element.style.overflow = 'hidden';
-        element.style.transition = `height ${duration}ms`;
-        
-        // Force reflow
-        element.offsetHeight;
-        
-        element.style.height = '0px';
-        
-        setTimeout(() => {
-          element.style.display = 'none';
-          element.style.height = '';
-          element.style.overflow = '';
-          element.style.transition = '';
-          if (callback) callback.call(element);
-        }, duration);
+      return new Promise(resolve => {
+        this.each(function() {
+          const element = this;
+          const height = element.scrollHeight;
+          
+          element.style.height = height + 'px';
+          element.style.overflow = 'hidden';
+          element.style.transition = `height ${duration}ms`;
+          
+          element.offsetHeight; // Force reflow
+          
+          element.style.height = '0px';
+          
+          setTimeout(() => {
+            element.style.display = 'none';
+            element.style.height = '';
+            element.style.overflow = '';
+            element.style.transition = '';
+            if (callback) callback.call(element);
+            resolve(element);
+          }, duration);
+        });
       });
     }
 
-    // Slide down animation
+    // Slide down animation (Promise-based)
     slide_down(duration, callback) {
       duration = duration || 400;
-      return this.each(function() {
-        const element = this;
-        
-        element.style.display = '';
-        const height = element.scrollHeight;
-        element.style.height = '0px';
-        element.style.overflow = 'hidden';
-        element.style.transition = `height ${duration}ms`;
-        
-        // Force reflow
-        element.offsetHeight;
-        
-        element.style.height = height + 'px';
-        
-        setTimeout(() => {
-          element.style.height = '';
-          element.style.overflow = '';
-          element.style.transition = '';
-          if (callback) callback.call(element);
-        }, duration);
+      return new Promise(resolve => {
+        this.each(function() {
+          const element = this;
+          
+          element.style.display = '';
+          const height = element.scrollHeight;
+          element.style.height = '0px';
+          element.style.overflow = 'hidden';
+          element.style.transition = `height ${duration}ms`;
+          
+          element.offsetHeight; // Force reflow
+          
+          element.style.height = height + 'px';
+          
+          setTimeout(() => {
+            element.style.height = '';
+            element.style.overflow = '';
+            element.style.transition = '';
+            if (callback) callback.call(element);
+            resolve(element);
+          }, duration);
+        });
       });
     }
 
-    // Custom animation
+    // Custom animation (Promise-based)
     animate(props, duration, callback) {
       duration = duration || 400;
-      return this.each(function() {
-        const element = this;
-        const startValues = {};
-        const changeValues = {};
-        
-        // Get initial values
-        for (const prop in props) {
-          const value = parseFloat(window.getComputedStyle(element)[prop]) || 0;
-          startValues[prop] = value;
-          changeValues[prop] = parseFloat(props[prop]) - value;
-        }
-        
-        const start = performance.now();
-        
-        function animate(time) {
-          const timeFraction = (time - start) / duration;
-          if (timeFraction > 1) timeFraction = 1;
+      return new Promise(resolve => {
+        this.each(function() {
+          const element = this;
+          const startValues = {};
+          const changeValues = {};
           
           for (const prop in props) {
-            element.style[prop] = startValues[prop] + changeValues[prop] * timeFraction + 
-              (typeof props[prop] === 'string' && props[prop].includes('px') ? 'px' : '');
+            const value = parseFloat(window.getComputedStyle(element)[prop]) || 0;
+            startValues[prop] = value;
+            changeValues[prop] = parseFloat(props[prop]) - value;
           }
           
-          if (timeFraction < 1) {
-            requestAnimationFrame(animate);
-          } else if (callback) {
-            callback.call(element);
+          const start = performance.now();
+          
+          function animate(time) {
+            const timeFraction = (time - start) / duration;
+            if (timeFraction > 1) timeFraction = 1;
+            
+            for (const prop in props) {
+              element.style[prop] = startValues[prop] + changeValues[prop] * timeFraction + 
+                (typeof props[prop] === 'string' && props[prop].includes('px') ? 'px' : '');
+            }
+            
+            if (timeFraction < 1) {
+              requestAnimationFrame(animate);
+            } else {
+              if (callback) callback.call(element);
+              resolve(element);
+            }
           }
-        }
-        
-        requestAnimationFrame(animate);
+          
+          requestAnimationFrame(animate);
+        });
+      });
+    }
+
+    // Hardware-accelerated movement (Promise-based)
+    move(x, y, duration = 300) {
+      return new Promise(resolve => {
+        this.each(function() {
+          const element = this;
+          element.style.transition = `transform ${duration}ms ease-out`;
+          element.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+          
+          const handleTransitionEnd = () => {
+            element.removeEventListener('transitionend', handleTransitionEnd);
+            resolve(element);
+          };
+          element.addEventListener('transitionend', handleTransitionEnd);
+        });
       });
     }
 
@@ -561,18 +590,15 @@
       const errors = {};
       let isValid = true;
       
-      // Clear previous errors
       if (hideError) {
         formEl.querySelectorAll(`.${errorClass}`).forEach(el => {
           el.classList.remove(errorClass);
         });
-        
         formEl.querySelectorAll(`${errorElement}.${errorClass}-message`).forEach(el => {
           el.remove();
         });
       }
       
-      // Validate each field
       for (const field in rules) {
         const input = formEl.querySelector(`[name="${field}"]`);
         if (!input) continue;
@@ -622,7 +648,6 @@
           errors[field] = fieldErrors;
           isValid = false;
           
-          // Show errors
           if (showError) {
             input.classList.add(errorClass);
             
@@ -644,9 +669,7 @@
         }
       }
       
-      // Store errors on the form element
       formEl._validationErrors = errors;
-      
       return isValid;
     }
 
@@ -659,13 +682,14 @@
         const el = this;
         if (el.tagName !== 'INPUT') return;
         
-        // Format on input
         el.addEventListener('input', function() {
           const formattedValue = mask.format(this.value);
-          this.value = formattedValue;
+          // Only update if the value has actually changed to prevent cursor jumping
+          if (this.value !== formattedValue) {
+            this.value = formattedValue;
+          }
         });
         
-        // Set placeholder
         if (mask.pattern) {
           el.placeholder = mask.pattern;
         }
@@ -737,6 +761,30 @@
       });
     }
 
+    // Sanitize HTML string before insertion
+    clean(dirtyHtml) {
+      const div = document.createElement('div');
+      div.innerHTML = dirtyHtml;
+      
+      // Remove script tags
+      const scripts = div.querySelectorAll('script');
+      scripts.forEach(script => script.remove());
+      
+      // Remove elements with on* attributes
+      const allElements = div.querySelectorAll('*');
+      allElements.forEach(el => {
+        const attributes = el.attributes;
+        for (let i = attributes.length - 1; i >= 0; i--) {
+          const attrName = attributes[i].name;
+          if (attrName.startsWith('on')) {
+            el.removeAttribute(attrName);
+          }
+        }
+      });
+      
+      return div.innerHTML;
+    }
+
     // Debug: log element to console
     log() {
       if (this.elements.length > 0) {
@@ -771,16 +819,20 @@
       components[name] = definition;
     }
     
-    function create(name, props = {}) {
+    function create(name, props = {}, slots = {}) {
       if (!components[name]) {
         console.error(`Component "${name}" not found`);
         return null;
       }
       
       const definition = components[name];
+      const defaultProps = definition.props || {};
+      const finalProps = { ...defaultProps, ...props };
+      
       const instance = {
         name,
-        props,
+        props: finalProps,
+        slots,
         state: definition.data ? JSON.parse(JSON.stringify(definition.data)) : {},
         element: null,
         mounted: false,
@@ -795,15 +847,68 @@
           };
         });
       }
+
+      // Unified update method for reactive updates
+      instance.update = function() {
+        if (this.element) {
+          if (this.name === 'counter') {
+            const h3 = this.element.querySelector('h3');
+            if (h3) {
+              h3.textContent = 'Counter: ' + this.state.count;
+            }
+          } else {
+            let html = '';
+            if (definition.template) {
+              html = definition.template.replace(/\{\{([^}]+)\}\}/g, (match, key) => {
+                const keys = key.trim().split('.');
+                let value = this.state;
+                if (keys[0] in this.props) {
+                  value = this.props;
+                }
+                for (const k of keys) {
+                  value = value && value[k];
+                }
+                return value !== undefined ? value : '';
+              });
+              // Replace slots
+              html = html.replace(/<slot><\/slot>/gi, this.slots.default || '');
+              html = html.replace(/<slot name="([^"]+)"><\/slot>/gi, (match, slotName) => {
+                return this.slots[slotName] || '';
+              });
+            } else if (definition.render) {
+              html = definition.render.call(this);
+            }
+            
+            if (html) {
+              const newElement = ok(html).first().elements[0];
+              this.element.innerHTML = newElement.innerHTML;
+            }
+          }
+        }
+      };
       
       // Create element
+      let html = '';
       if (definition.template) {
-        const html = definition.template.replace(/\{\{(\w+)\}\}/g, (match, key) => {
-          return instance.state[key] !== undefined ? instance.state[key] : '';
+        html = definition.template.replace(/\{\{([^}]+)\}\}/g, (match, key) => {
+          const keys = key.trim().split('.');
+          let value = instance.state;
+          if (keys[0] in instance.props) {
+            value = instance.props;
+          }
+          for (const k of keys) {
+            value = value && value[k];
+          }
+          return value !== undefined ? value : '';
+        });
+        // Replace slots
+        html = html.replace(/<slot><\/slot>/gi, instance.slots.default || '');
+        html = html.replace(/<slot name="([^"]+)"><\/slot>/gi, (match, slotName) => {
+          return instance.slots[slotName] || '';
         });
         instance.element = ok(html).first().elements[0];
       } else if (definition.render) {
-        const html = definition.render.call(instance);
+        html = definition.render.call(instance);
         instance.element = ok(html).first().elements[0];
       }
       
@@ -837,7 +942,6 @@
       targetElement.appendChild(component.element);
       component.mounted = true;
       
-      // Call mounted hook
       const definition = components[component.name];
       if (definition && definition.mounted) {
         definition.mounted.call(component);
@@ -853,25 +957,20 @@
     function destroy(component) {
       if (!component || !component.element) return;
       
-      // Call beforeDestroy hook
       const definition = components[component.name];
       if (definition && definition.beforeDestroy) {
         definition.beforeDestroy.call(component);
       }
       
-      // Remove element
       if (component.element.parentNode) {
         component.element.parentNode.removeChild(component.element);
       }
       
-      // Remove event listeners
       component.listeners.forEach(({ element, event, handler }) => {
         element.removeEventListener(event, handler);
       });
       
-      // Remove from instances
       componentInstances.delete(component.element);
-      
       component.mounted = false;
     }
     
@@ -898,7 +997,6 @@
               const oldValue = value;
               value = newValue;
               
-              // Notify watchers
               if (watchers[key]) {
                 watchers[key].forEach(watcher => {
                   watcher(newValue, oldValue);
@@ -918,7 +1016,6 @@
       }
       watchers[key].push(callback);
       
-      // Return unwatch function
       return function() {
         const index = watchers[key].indexOf(callback);
         if (index > -1) {
@@ -931,17 +1028,14 @@
       const el = ok(element).first().elements[0];
       if (!el) return;
       
-      // Initial sync
       if (state[stateKey] !== undefined) {
         el[attribute] = state[stateKey];
       }
       
-      // Update state when element changes
       el.addEventListener('input', function() {
         state[stateKey] = el[attribute];
       });
       
-      // Update element when state changes
       watch(stateKey, function(newValue) {
         el[attribute] = newValue;
       });
@@ -967,7 +1061,6 @@
       
       const element = document.createElement(vnode.tag);
       
-      // Set properties
       if (vnode.props) {
         Object.keys(vnode.props).forEach(key => {
           if (key === 'className') {
@@ -981,7 +1074,6 @@
         });
       }
       
-      // Add children
       if (vnode.children) {
         vnode.children.forEach(child => {
           element.appendChild(createElement(child));
@@ -997,108 +1089,101 @@
   // Animation Module
   ok.module('animation', function() {
     const animations = {
-      scaleIn(duration = 300, callback) {
+      scaleIn(duration = 300) {
         return this.each(function() {
           const element = this;
           element.style.transform = 'scale(0)';
           element.style.opacity = '0';
           element.style.transition = `transform ${duration}ms ease-out, opacity ${duration}ms ease-out`;
           
-          element.offsetHeight; // Force reflow
+          element.offsetHeight;
           
           element.style.transform = 'scale(1)';
           element.style.opacity = '1';
           
           setTimeout(() => {
             element.style.transition = '';
-            if (callback) callback.call(element);
           }, duration);
         });
       },
       
-      scaleOut(duration = 300, callback) {
+      scaleOut(duration = 300) {
         return this.each(function() {
           const element = this;
           element.style.transform = 'scale(1)';
           element.style.opacity = '1';
           element.style.transition = `transform ${duration}ms ease-in, opacity ${duration}ms ease-in`;
           
-          element.offsetHeight; // Force reflow
+          element.offsetHeight;
           
           element.style.transform = 'scale(0)';
           element.style.opacity = '0';
           
           setTimeout(() => {
             element.style.transition = '';
-            if (callback) callback.call(element);
           }, duration);
         });
       },
       
-      rotateIn(duration = 500, callback) {
+      rotateIn(duration = 500) {
         return this.each(function() {
           const element = this;
           element.style.transform = 'rotate(-180deg) scale(0)';
           element.style.opacity = '0';
           element.style.transition = `transform ${duration}ms ease-out, opacity ${duration}ms ease-out`;
           
-          element.offsetHeight; // Force reflow
+          element.offsetHeight;
           
           element.style.transform = 'rotate(0) scale(1)';
           element.style.opacity = '1';
           
           setTimeout(() => {
             element.style.transition = '';
-            if (callback) callback.call(element);
           }, duration);
         });
       },
       
-      rotateOut(duration = 500, callback) {
+      rotateOut(duration = 500) {
         return this.each(function() {
           const element = this;
           element.style.transform = 'rotate(0) scale(1)';
           element.style.opacity = '1';
           element.style.transition = `transform ${duration}ms ease-in, opacity ${duration}ms ease-in`;
           
-          element.offsetHeight; // Force reflow
+          element.offsetHeight;
           
           element.style.transform = 'rotate(180deg) scale(0)';
           element.style.opacity = '0';
           
           setTimeout(() => {
             element.style.transition = '';
-            if (callback) callback.call(element);
           }, duration);
         });
       },
       
-      bounce(duration = 1000, callback) {
+      bounce(duration = 1000) {
         return this.each(function() {
           const element = this;
           element.style.animation = `bounce ${duration}ms ease-in-out`;
           
           setTimeout(() => {
             element.style.animation = '';
-            if (callback) callback.call(element);
           }, duration);
         });
       },
       
-      shake(duration = 500, callback) {
+      shake(duration = 500) {
         return this.each(function() {
           const element = this;
           element.style.animation = `shake ${duration}ms ease-in-out`;
           
           setTimeout(() => {
             element.style.animation = '';
-            if (callback) callback.call(element);
           }, duration);
         });
       }
     };
     
-    // Add CSS for animations
     const style = document.createElement('style');
     style.textContent = `
       @keyframes bounce { 0%, 20%, 53%, 80%, 100% { transform: translate3d(0, 0, 0); } 40%, 43% { transform: translate3d(0, -30px, 0); } 70% { transform: translate3d(0, -15px, 0); } 90% { transform: translate3d(0, -4px, 0); } }
@@ -1106,7 +1191,6 @@
     `;
     document.head.appendChild(style);
     
-    // Add animation methods to OneKit prototype
     Object.keys(animations).forEach(name => {
       OneKit.prototype[name] = animations[name];
     });
@@ -1197,17 +1281,39 @@
     ok.gesture = { addGestures };
   });
 
-  // API Module
+  // API Module (Enhanced)
   ok.module('api', function() {
     const cache = {};
+    const defaultOptions = {
+      timeout: 5000,
+      retries: 3,
+      cache: false,
+      cacheTime: 300000
+    };
+    
+    function setDefaults(options) {
+      Object.assign(defaultOptions, options);
+      return this;
+    }
     
     function request(url, options = {}) {
-      const { method = 'GET', headers = {}, body = null, timeout = 5000, retries = 3, cache: useCache = false, cacheTime = 300000, loader = null } = options;
+      const { 
+        method = 'GET', 
+        headers = {}, 
+        body = null, 
+        timeout = defaultOptions.timeout, 
+        retries = defaultOptions.retries, 
+        cache: useCache = defaultOptions.cache, 
+        cacheTime = defaultOptions.cacheTime, 
+        loader = null 
+      } = options;
       
       if (useCache && method === 'GET') {
         const cacheKey = `${method}:${url}`;
         const cached = cache[cacheKey];
-        if (cached && Date.now() - cached.timestamp < cacheTime) { return Promise.resolve(cached.data); }
+        if (cached && Date.now() - cached.timestamp < cacheTime) { 
+          return Promise.resolve(cached.data); 
+        }
       }
       
       if (loader) { ok(loader).show(); }
@@ -1215,12 +1321,22 @@
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), timeout);
       
+      let processedBody = body;
+      if (body && typeof body === 'object' && !(body instanceof FormData)) {
+        processedBody = JSON.stringify(body);
+        headers['Content-Type'] = headers['Content-Type'] || 'application/json';
+      }
+      
       const makeRequest = (attempt = 0) => {
-        return fetch(url, { method, headers, body, signal: controller.signal })
+        return fetch(url, { method, headers, body: processedBody, signal: controller.signal })
         .then(response => {
           clearTimeout(timeoutId);
           if (loader) { ok(loader).hide(); }
-          if (!response.ok) { throw new Error(`Request failed with status ${response.status}`); }
+          
+          if (!response.ok) { 
+            throw new Error(`Request failed with status ${response.status}`); 
+          }
+          
           return response.json();
         })
         .then(data => {
@@ -1228,14 +1344,19 @@
             const cacheKey = `${method}:${url}`;
             cache[cacheKey] = { data, timestamp: Date.now() };
           }
+          
           return data;
         })
         .catch(error => {
           clearTimeout(timeoutId);
           if (loader) { ok(loader).hide(); }
+          
           if (attempt < retries && error.name !== 'AbortError') {
-            return new Promise(resolve => { setTimeout(() => resolve(makeRequest(attempt + 1)), 1000 * Math.pow(2, attempt)); });
+            return new Promise(resolve => { 
+              setTimeout(() => resolve(makeRequest(attempt + 1)), 1000 * Math.pow(2, attempt)); 
+            });
           }
+          
           throw error;
         });
       };
@@ -1243,97 +1364,100 @@
       return makeRequest();
     }
     
-    function websocket(url, options = {}) {
-      const { protocols = [], reconnect = true, reconnectInterval = 3000, maxReconnectAttempts = 5 } = options;
-      let ws, reconnectAttempts = 0, messageQueue = [], eventHandlers = {};
-      
-      function connect() {
-        try {
-          ws = new WebSocket(url, protocols);
-          ws.onopen = function(event) {
-            reconnectAttempts = 0;
-            while (messageQueue.length) { ws.send(messageQueue.shift()); }
-            if (eventHandlers.open) { eventHandlers.open.forEach(h => h(event)); }
+    const http = {
+      get(url, options = {}) { return request(url, { ...options, method: 'GET' }); },
+      post(url, data, options = {}) { return request(url, { ...options, method: 'POST', body: data }); },
+      put(url, data, options = {}) { return request(url, { ...options, method: 'PUT', body: data }); },
+      patch(url, data, options = {}) { return request(url, { ...options, method: 'PATCH', body: data }); },
+      delete(url, options = {}) { return request(url, { ...options, method: 'DELETE' }); },
+      upload(url, file, options = {}) {
+        const { method = 'POST', headers = {}, data = {}, timeout = defaultOptions.timeout, onProgress = null, loader = null } = options;
+        return new Promise((resolve, reject) => {
+          if (loader) { ok(loader).show(); }
+          const formData = new FormData();
+          formData.append('file', file);
+          Object.keys(data).forEach(k => formData.append(k, data[k]));
+          
+          const xhr = new XMLHttpRequest();
+          if (timeout > 0) { xhr.timeout = timeout; }
+          if (onProgress && xhr.upload) {
+            xhr.upload.onprogress = function (e) {
+              if (e.lengthComputable) {
+                const percentComplete = (e.loaded / e.total) * 100;
+                onProgress(percentComplete, e.loaded, e.total);
+              }
+            };
+          }
+          xhr.onload = function () {
+            if (loader) { ok(loader).hide(); }
+            if (xhr.status >= 200 && xhr.status < 300) {
+              try { resolve(JSON.parse(xhr.responseText)); } catch (e) { resolve(xhr.responseText); }
+            } else { reject(new Error(`Upload failed with status ${xhr.status}`)); }
           };
-          ws.onmessage = function(event) {
-            try { const data = JSON.parse(event.data); if (eventHandlers.message) { eventHandlers.message.forEach(h => h(data)); } }
-            catch (e) { if (eventHandlers.message) { eventHandlers.message.forEach(h => h(event.data)); } }
-          };
-          ws.onclose = function(event) {
-            if (eventHandlers.close) { eventHandlers.close.forEach(h => h(event)); }
-            if (reconnect && event.code !== 1000 && reconnectAttempts < maxReconnectAttempts) {
-              reconnectAttempts++; setTimeout(connect, reconnectInterval);
-            }
-          };
-          ws.onerror = function(event) {
-            if (eventHandlers.error) { eventHandlers.error.forEach(h => h(event)); }
+          xhr.onerror = function () { if (loader) { ok(loader).hide(); reject(new Error('Upload failed')); } };
+          xhr.ontimeout = function () { if (loader) { ok(loader).hide(); reject(new Error('Upload timed out')); } };
+          
+          xhr.open(method, url, true);
+          Object.keys(headers).forEach(k => xhr.setRequestHeader(k, headers[k]));
+          xhr.send(formData);
+        });
+      },
+      websocket(url, options = {}) {
+        const { protocols = [], reconnect = true, reconnectInterval = 3000, maxReconnectAttempts = 5 } = options;
+        let ws, reconnectAttempts = 0, messageQueue = [], eventHandlers = {};
+        
+        function connect() {
+          try {
+            ws = new WebSocket(url, protocols);
+            ws.onopen = function(event) {
+              reconnectAttempts = 0;
+              while (messageQueue.length) { ws.send(messageQueue.shift()); }
+              if (eventHandlers.open) { eventHandlers.open.forEach(h => h(event)); }
+            };
+            ws.onmessage = function(event) {
+              try { const data = JSON.parse(event.data); if (eventHandlers.message) { eventHandlers.message.forEach(h => h(data)); } }
+              catch (e) { if (eventHandlers.message) { eventHandlers.message.forEach(h => h(event.data)); } }
+            };
+            ws.onclose = function(event) {
+              if (eventHandlers.close) { eventHandlers.close.forEach(h => h(event)); }
+              if (reconnect && event.code !== 1000 && reconnectAttempts < maxReconnectAttempts) {
+                reconnectAttempts++; setTimeout(connect, reconnectInterval);
+              }
+            };
+            ws.onerror = function(event) {
+              if (eventHandlers.error) { eventHandlers.error.forEach(h => h(event)); }
+              if (reconnect && reconnectAttempts < maxReconnectAttempts) {
+                reconnectAttempts++; setTimeout(connect, reconnectInterval);
+              }
+            };
+          } catch (e) {
+            console.error('WebSocket connection error:', e);
             if (reconnect && reconnectAttempts < maxReconnectAttempts) {
               reconnectAttempts++; setTimeout(connect, reconnectInterval);
             }
-          };
-        } catch (e) {
-          console.error('WebSocket connection error:', e);
-          if (reconnect && reconnectAttempts < maxReconnectAttempts) {
-            reconnectAttempts++; setTimeout(connect, reconnectInterval);
           }
         }
-      }
-      
-      connect();
-      
-      return {
-        send(data) {
-          const message = typeof data === 'string' ? data : JSON.stringify(data);
-          if (ws && ws.readyState === WebSocket.OPEN) { ws.send(message); } else { messageQueue.push(message); }
-        },
-        close() { reconnect = false; if (ws) { ws.close(); } },
-        on(event, handler) {
-          if (!eventHandlers[event]) { eventHandlers[event] = []; }
-          eventHandlers[event].push(handler);
-          return () => { const h = eventHandlers[event]; const i = h.indexOf(handler); if (i > -1) { h.splice(i, 1); } };
-        },
-        get readyState() { return ws ? ws.readyState : WebSocket.CONNECTING; }
-      };
-    }
-    
-    function upload(url, file, options = {}) {
-      const { method = 'POST', headers = {}, data = {}, timeout = 0, onProgress = null, loader = null } = options;
-      return new Promise((resolve, reject) => {
-        if (loader) { ok(loader).show(); }
-        const formData = new FormData();
-        formData.append('file', file);
-        Object.keys(data).forEach(k => formData.append(k, data[k]));
         
-        const xhr = new XMLHttpRequest();
-        if (timeout > 0) { xhr.timeout = timeout; }
-        if (onProgress && xhr.upload) {
-          xhr.upload.onprogress = function (e) {
-            if (e.lengthComputable) {
-              const percentComplete = (e.loaded / e.total) * 100;
-              onProgress(percentComplete, e.loaded, e.total);
-            }
-          };
-        }
-        xhr.onload = function () {
-          if (loader) { ok(loader).hide(); }
-          if (xhr.status >= 200 && xhr.status < 300) {
-            try { resolve(JSON.parse(xhr.responseText)); } catch (e) { resolve(xhr.responseText); }
-          } else { reject(new Error(`Upload failed with status ${xhr.status}`)); }
+        connect();
+        
+        return {
+          send(data) {
+            const message = typeof data === 'string' ? data : JSON.stringify(data);
+            if (ws && ws.readyState === WebSocket.OPEN) { ws.send(message); } else { messageQueue.push(message); }
+          },
+          close() { reconnect = false; if (ws) { ws.close(); } },
+          on(event, handler) {
+            if (!eventHandlers[event]) { eventHandlers[event] = []; }
+            eventHandlers[event].push(handler);
+            return () => { const h = eventHandlers[event]; const i = h.indexOf(handler); if (i > -1) { h.splice(i, 1); } };
+          },
+          get readyState() { return ws ? ws.readyState : WebSocket.CONNECTING; }
         };
-        xhr.onerror = function () {
-          if (loader) { ok(loader).hide(); reject(new Error('Upload failed')); };
-          xhr.ontimeout = function () {
-            if (loader) { ok(loader).hide(); reject(new Error('Upload timed out')); };
-        
-            xhr.open(method, url, true);
-            Object.keys(headers).forEach(k => xhr.setRequestHeader(k, headers[k]));
-            xhr.send(formData);
-          }
-        }
-      })
-    }
+      },
+      setDefaults
+    };
     
-    ok.http = { request, get: (url, o) => request(url, { ...o, method: 'GET' }), post: (url, d, o) => request(url, { ...o, method: 'POST', body: JSON.stringify(d) }), put: (url, d, o) => request(url, { ...o, method: 'PUT', body: JSON.stringify(d) }), delete: (url, o) => request(url, { ...o, method: 'DELETE' }), websocket, upload };
+    ok.http = http;
   });
 
   // Utility Module
@@ -1440,37 +1564,336 @@
     ok.theme = { apply: applyTheme, toggleDark: toggleDarkMode, load: loadTheme, current: () => ({ ...currentTheme }) };
   });
 
+  // Router Module
+  ok.module('router', function() {
+    const routes = {};
+    let currentRoute = null;
+    let notFoundRoute = null;
+    let base = '/';
+    
+    function add(path, component, options = {}) {
+      routes[path] = { component, options, params: extractParamNames(path) };
+      return this;
+    }
+    
+    function notFound(component) {
+      notFoundRoute = component;
+      return this;
+    }
+    
+    function setBase(path) {
+      base = path;
+      return this;
+    }
+    
+    function extractParamNames(path) {
+      const paramNames = [];
+      const segments = path.split('/');
+      segments.forEach(segment => {
+        if (segment.startsWith(':')) {
+          paramNames.push(segment.substring(1));
+        }
+      });
+      return paramNames;
+    }
+    
+    function matchRoute(path) {
+      if (base !== '/' && path.startsWith(base)) {
+        path = path.substring(base.length);
+      }
+      
+      if (routes[path]) {
+        return { route: routes[path], params: {} };
+      }
+      
+      for (const routePath in routes) {
+        const routeSegments = routePath.split('/');
+        const pathSegments = path.split('/');
+        
+        if (routeSegments.length !== pathSegments.length) continue;
+        
+        const params = {};
+        let isMatch = true;
+        
+        for (let i = 0; i < routeSegments.length; i++) {
+          const routeSegment = routeSegments[i];
+          const pathSegment = pathSegments[i];
+          
+          if (routeSegment.startsWith(':')) {
+            params[routeSegment.substring(1)] = pathSegment;
+          } else if (routeSegment !== pathSegment) {
+            isMatch = false;
+            break;
+          }
+        }
+        
+        if (isMatch) {
+          return { route: routes[routePath], params };
+        }
+      }
+      
+      return null;
+    }
+    
+    function navigate(path, state = {}) {
+      const match = matchRoute(path);
+      
+      if (match) {
+        const { route, params } = match;
+        history.pushState(state, '', base + path);
+        
+        if (typeof route.component === 'string') {
+          const component = ok.component.create(route.component, { ...params, ...state });
+          ok.component.mount(component, '#app');
+        } else if (typeof route.component === 'function') {
+          const result = route.component(params, state);
+          if (typeof result === 'string') {
+            ok('#app').html(result);
+          } else {
+            ok.component.mount(result, '#app');
+          }
+        }
+        
+        currentRoute = { path, params, state };
+        
+        const event = new CustomEvent('routechange', { detail: { path, params, state }, bubbles: true, cancelable: true });
+        document.dispatchEvent(event);
+        
+        return true;
+      } else if (notFoundRoute) {
+        if (typeof notFoundRoute === 'string') {
+          const component = ok.component.create(notFoundRoute, { path });
+          ok.component.mount(component, '#app');
+        } else if (typeof notFoundRoute === 'function') {
+          const result = notFoundRoute(path);
+          if (typeof result === 'string') {
+            ok('#app').html(result);
+          } else {
+            ok.component.mount(result, '#app');
+          }
+        }
+        
+        currentRoute = { path: '404', params: { requestedPath: path }, state };
+        return false;
+      }
+      
+      return false;
+    }
+    
+    function handlePopState(e) {
+      const path = window.location.pathname;
+      const state = e.state || {};
+      navigate(path, state);
+    }
+    
+    function init() {
+      window.addEventListener('popstate', handlePopState);
+      
+      document.addEventListener('click', function(e) {
+        const target = e.target.closest('a');
+        if (!target) return;
+        
+        const href = target.getAttribute('href');
+        if (!href || href.startsWith('http') || href.startsWith('//') || href.startsWith('#')) {
+          return;
+        }
+        
+        if (href.startsWith(base) || (base === '/' && href.startsWith('/'))) {
+          e.preventDefault();
+          navigate(href);
+        }
+      });
+      
+      const initialPath = window.location.pathname;
+      navigate(initialPath);
+      
+      return this;
+    }
+    
+    function current() {
+      return currentRoute;
+    }
+    
+    ok.router = { add, notFound, setBase, navigate, init, current };
+  });
+
+  // Storage Module
+  ok.module('storage', function() {
+    function getStorage(type = 'local') {
+      return type === 'session' ? sessionStorage : localStorage;
+    }
+    
+    function safeSet(key, value, type = 'local') {
+      try {
+        const storage = getStorage(type);
+        const serialized = JSON.stringify(value);
+        storage.setItem(key, serialized);
+        return true;
+      } catch (e) {
+        console.error('Storage quota exceeded or other error:', e);
+        return false;
+      }
+    }
+    
+    function get(key, defaultValue = null, type = 'local') {
+      try {
+        const storage = getStorage(type);
+        const item = storage.getItem(key);
+        if (item === null) return defaultValue;
+        return JSON.parse(item);
+      } catch (e) {
+        console.error('Error parsing stored value:', e);
+        return defaultValue;
+      }
+    }
+    
+    function remove(key, type = 'local') {
+      try {
+        const storage = getStorage(type);
+        storage.removeItem(key);
+        return true;
+      } catch (e) {
+        console.error('Error removing item from storage:', e);
+        return false;
+      }
+    }
+    
+    function clear(type = 'local') {
+      try {
+        const storage = getStorage(type);
+        storage.clear();
+        return true;
+      } catch (e) {
+        console.error('Error clearing storage:', e);
+        return false;
+      }
+    }
+    
+    function keys(type = 'local') {
+      try {
+        const storage = getStorage(type);
+        const result = [];
+        for (let i = 0; i < storage.length; i++) {
+          result.push(storage.key(i));
+        }
+        return result;
+      } catch (e) {
+        console.error('Error getting storage keys:', e);
+        return [];
+      }
+    }
+    
+    function reactive(key, defaultValue = null, type = 'local') {
+      let value = get(key, defaultValue, type);
+      const reactiveObj = ok.reactive.reactive({ value });
+      
+      ok.reactive.watch('value', (newValue) => {
+        safeSet(key, newValue, type);
+      });
+      
+      window.addEventListener('storage', function(e) {
+        if (e.key === key && e.newValue !== null) {
+          try {
+            const newValue = JSON.parse(e.newValue);
+            reactiveObj.value = newValue;
+          } catch (err) {
+            console.error('Error parsing storage event value:', err);
+          }
+        } else if (e.key === key && e.newValue === null) {
+          reactiveObj.value = defaultValue;
+        }
+      });
+      
+      return reactiveObj.value;
+    }
+    
+    function collection(name, type = 'local') {
+      const storageKey = `collection:${name}`;
+      let items = get(storageKey, [], type);
+      
+      const reactiveCollection = ok.reactive.reactive({
+        items,
+        add(item) {
+          if (!item.id) {
+            item.id = Date.now().toString(36) + Math.random().toString(36).substr(2);
+          }
+          this.items.push(item);
+          return item;
+        },
+        update(id, updates) {
+          const index = this.items.findIndex(item => item.id === id);
+          if (index !== -1) {
+            this.items[index] = { ...this.items[index], ...updates };
+            return this.items[index];
+          }
+          return null;
+        },
+        remove(id) {
+          const index = this.items.findIndex(item => item.id === id);
+          if (index !== -1) {
+            const removed = this.items[index];
+            this.items.splice(index, 1);
+            return removed;
+          }
+          return null;
+        },
+        find(id) {
+          return this.items.find(item => item.id === id);
+        },
+        filter(predicate) {
+          return this.items.filter(predicate);
+        },
+        clear() {
+          this.items = [];
+        }
+      });
+      
+      ok.reactive.watch('items', (newItems) => {
+        safeSet(storageKey, newItems, type);
+      });
+      
+      window.addEventListener('storage', function(e) {
+        if (e.key === storageKey && e.newValue !== null) {
+          try {
+            const newItems = JSON.parse(e.newValue);
+            reactiveCollection.items = newItems;
+          } catch (err) {
+            console.error('Error parsing storage collection event value:', err);
+          }
+        }
+      });
+      
+      return reactiveCollection;
+    }
+    
+    ok.storage = { set: safeSet, get, remove, clear, keys, reactive, collection };
+  });
+
   // ==================== INITIALIZATION ====================
 
-  // Initialize modules
-  const moduleNames = ['component', 'reactive', 'vdom', 'animation', 'gesture', 'api', 'utils', 'form', 'plugin', 'a11y', 'theme'];
+  const moduleNames = ['component', 'reactive', 'vdom', 'animation', 'gesture', 'api', 'utils', 'form', 'plugin', 'a11y', 'theme', 'router', 'storage'];
   moduleNames.forEach(name => {
     if (modules[name]) {
       modules[name]();
     }
   });
 
-  // Storage utilities
   ok.store = {
     set(key, value) { if (typeof value === 'object') { value = JSON.stringify(value); } localStorage.setItem(key, value); },
     get(key) { const v = localStorage.getItem(key); try { return JSON.parse(v); } catch (e) { return v; } },
     del(key) { localStorage.removeItem(key); }
   };
 
-  // Utility functions (legacy)
   ok.wait = ok.utils.debounce;
   ok.flow = ok.utils.throttle;
-
-  // Plugin architecture (legacy)
   ok.plug = function(name, fn) { OneKit.prototype[name] = fn; };
 
-  // Export to global
   global.ok = ok;
   global.OneKit = OneKit;
 
-  // Auto-initialize on DOM ready
   document.addEventListener('DOMContentLoaded', function() {
     if (ok.theme && ok.theme.load) { ok.theme.load(); }
+    if (ok.router && typeof ok.router.init === 'function') { ok.router.init(); }
   });
 
 })(typeof window !== 'undefined' ? window : this);

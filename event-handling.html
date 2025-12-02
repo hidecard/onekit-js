@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>OneKit Event Handling</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .demo { margin: 20px 0; padding: 10px; border: 1px solid #ccc; }
+        .clickable { background: #f0f0f0; padding: 10px; cursor: pointer; }
+        .hoverable { background: #e0e0e0; padding: 10px; }
+        .container { border: 1px solid #999; padding: 10px; }
+        .item { background: #ddd; margin: 5px; padding: 5px; cursor: pointer; }
+        #log { background: #f9f9f9; padding: 10px; height: 200px; overflow-y: auto; }
+    </style>
+</head>
+<body>
+    <h1>OneKit Event Handling Demo</h1>
+    <div id="log"></div>
+
+    <div class="demo">
+        <h2>Basic Events</h2>
+        <button id="click-btn">Click Me</button>
+        <input type="text" id="input-field" placeholder="Type something">
+        <div id="hover-div" class="hoverable">Hover over me</div>
+    </div>
+
+    <div class="demo">
+        <h2>Event Delegation</h2>
+        <div id="container" class="container">
+            <div class="item">Item 1</div>
+            <div class="item">Item 2</div>
+            <div class="item">Item 3</div>
+        </div>
+        <button id="add-item">Add Item</button>
+    </div>
+
+    <script src="./onekit.js"></script>
+    <script>
+        function log(message) {
+            const logDiv = ok('#log');
+            const time = new Date().toLocaleTimeString();
+            logDiv.append(`<div>${time}: ${message}</div>`);
+            logDiv.elements[0].scrollTop = logDiv.elements[0].scrollHeight;
+        }
+
+        // Basic events
+        ok('#click-btn').click(function() {
+            log('Button clicked');
+        });
+
+        ok('#input-field').on('input', function() {
+            log('Input changed: ' + this.value);
+        });
+
+        ok('#hover-div').hover(
+            function() { log('Mouse entered hover div'); },
+            function() { log('Mouse left hover div'); }
+        );
+
+        // Event delegation
+        ok('#container').on('click', '.item', function() {
+            log('Item clicked: ' + this.textContent);
+        });
+
+        ok('#add-item').click(function() {
+            const itemCount = ok('.item').elements.length + 1;
+            ok('#container').append(`<div class="item">Item ${itemCount}</div>`);
+            log('Added new item');
+        });
+    </script>
+</body>
+</html>
