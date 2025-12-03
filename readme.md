@@ -6,17 +6,17 @@ OneKit is a lightweight, powerful JavaScript library that provides everything yo
 
 ## Features
 
-- 🚀 **DOM Manipulation** - jQuery-like API for element selection and manipulation
-- 🎨 **Animations** - Smooth CSS animations and transitions
-- ⚛️ **Reactive State** - Automatic UI updates with reactive data binding
-- 🛣️ **Router** - Client-side routing with history API support
-- 🌐 **HTTP Client** - AJAX requests, WebSocket, and file uploads
-- 📱 **Gestures** - Touch and gesture support for mobile devices
-- 🎭 **Components** - Reusable component system
-- 🎨 **Themes** - Built-in theming and dark mode support
-- ♿ **Accessibility** - Screen reader support and focus management
-- 💾 **Storage** - Local/session storage utilities
-- 🔧 **Utilities** - Debounce, throttle, date formatting, and more
+- **DOM Manipulation** - jQuery-like API for element selection and manipulation
+- **Animations** - Smooth CSS animations and transitions
+- **Reactive State** - Automatic UI updates with reactive data binding
+- **Router** - Client-side routing with history API support
+- **HTTP Client** - AJAX requests, WebSocket, and file uploads
+- **Gestures** - Touch and gesture support for mobile devices
+- **Components** - Reusable component system
+- **Themes** - Built-in theming and dark mode support
+- **Accessibility** - Screen reader support and focus management
+- **Storage** - Local/session storage utilities
+- **Utilities** - Debounce, throttle, date formatting, and more
 
 ## Quick Start
 
