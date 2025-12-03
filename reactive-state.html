@@ -37,7 +37,8 @@
     <script>
         // Reactive counter
         const counterState = ok.reactive.reactive({
-            count: 0
+            count: 0,
+            name: ''
         });
 
         ok('#increment').click(function() {
@@ -61,6 +62,7 @@
 
         ok.reactive.watch('name', function(newValue) {
             ok('#name-display').text(newValue || 'World');
+            ok('#name-input').attr('value', newValue || '');
         });
 
         // Reactive user object

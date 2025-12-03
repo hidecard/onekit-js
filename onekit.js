@@ -9,6 +9,33 @@
 (function(global) {
   'use strict';
 
+  // Global error handler
+  function errorHandler(error, context = 'Unknown') {
+    console.error(`OneKit Error [${context}]:`, error);
+    
+    // Dispatch a custom error event
+    const event = new CustomEvent('onekit-error', {
+      detail: { error, context },
+      bubbles: true,
+      cancelable: true
+    });
+    document.dispatchEvent(event);
+    
+    return null;
+  }
+
+  // Safe method wrapper
+  function safeMethod(method) {
+    return function(...args) {
+      try {
+        return method.apply(this, args);
+      } catch (error) {
+        errorHandler(error, method.name);
+        return this; // Return this for method chaining
+      }
+    };
+  }
+
   // Core OneKit function
   function ok(selector) {
     return new OneKit(selector);
@@ -48,8 +75,17 @@
           return this;
         }
 
-        // Handle CSS selectors
-        const elements = document.querySelectorAll(selector);
+        // Handle CSS selectors with caching
+        const cacheKey = `selector:${selector}`;
+        let elements = OneKit._cache && OneKit._cache.get(cacheKey);
+        
+        if (!elements) {
+          elements = document.querySelectorAll(selector);
+          if (OneKit._cache) {
+            OneKit._cache.set(cacheKey, elements);
+          }
+        }
+        
         for (let i = 0; i < elements.length; i++) {
           this.elements.push(elements[i]);
         }
@@ -65,6 +101,14 @@
       }
 
       return this;
+    }
+
+    // Static cache for performance
+    static _cache = new Map();
+    
+    // Method to clear the cache
+    static clearCache() {
+      OneKit._cache.clear();
     }
 
     // Get the first element
@@ -581,7 +625,8 @@
         errorElement = 'span',
         errorContainer = null,
         showError = true,
-        hideError = true
+        hideError = true,
+        onSubmit = null
       } = options;
       
       const formEl = this.elements[0];
@@ -642,6 +687,24 @@
               continue;
             }
           }
+          
+          // Add pattern validation
+          if (rule.startsWith('pattern:')) {
+            const pattern = new RegExp(rule.split(':')[1]);
+            if (value && !pattern.test(value)) {
+              fieldErrors.push(`${field} format is invalid`);
+              continue;
+            }
+          }
+          
+          // Add custom validation
+          if (rule.startsWith('custom:')) {
+            const customFunc = window[rule.split(':')[1]];
+            if (typeof customFunc === 'function' && !customFunc(value)) {
+              fieldErrors.push(`${field} is invalid`);
+              continue;
+            }
+          }
         }
         
         if (fieldErrors.length) {
@@ -670,6 +733,15 @@
       }
       
       formEl._validationErrors = errors;
+      
+      // Add submit handler if provided
+      if (onSubmit && isValid) {
+        formEl.addEventListener('submit', function(e) {
+          e.preventDefault();
+          onSubmit(ok(formEl).form_data());
+        });
+      }
+      
       return isValid;
     }
 
@@ -806,7 +878,191 @@
       }
       return this;
     }
+
+    // Batch DOM operations for better performance
+    batch(callback) {
+      // Use document fragment for better performance
+      const fragment = document.createDocumentFragment();
+      const originalElements = this.elements;
+      
+      // Temporarily replace elements with the fragment
+      this.elements = [fragment];
+      
+      // Execute the callback
+      const result = callback.call(this);
+      
+      // Restore original elements
+      this.elements = originalElements;
+      
+      // Append the fragment to all elements
+      this.each(function() {
+        this.appendChild(fragment.cloneNode(true));
+      });
+      
+      return result;
+    }
+
+    // Throttle DOM updates
+    throttleUpdate(callback, delay = 16) { // 60fps
+      let timeoutId;
+      let lastRun = 0;
+      
+      return function() {
+        const context = this;
+        const args = arguments;
+        const now = Date.now();
+        
+        if (now - lastRun >= delay) {
+          callback.apply(context, args);
+          lastRun = now;
+        } else {
+          clearTimeout(timeoutId);
+          timeoutId = setTimeout(() => {
+            callback.apply(context, args);
+            lastRun = Date.now();
+          }, delay - (now - lastRun));
+        }
+      };
+    }
+    
+    // Debounce DOM updates
+    debounceUpdate(callback, delay = 100) {
+      let timeoutId;
+      
+      return function() {
+        const context = this;
+        const args = arguments;
+        
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => {
+          callback.apply(context, args);
+        }, delay);
+      };
+    }
+    
+    // Use requestAnimationFrame for animations
+    animateFrame(callback) {
+      return new Promise(resolve => {
+        const frame = () => {
+          const result = callback.call(this);
+          if (result !== false) {
+            requestAnimationFrame(frame);
+          } else {
+            resolve();
+          }
+        };
+        requestAnimationFrame(frame);
+      });
+    }
+    
+    // Observe element visibility changes
+    observeVisibility(callback, options = {}) {
+      if (this.elements.length === 0) return null;
+      
+      const defaultOptions = {
+        root: null,
+        rootMargin: '0px',
+        threshold: 0.1
+      };
+      
+      const finalOptions = { ...defaultOptions, ...options };
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          callback.call(this, entry);
+        });
+      }, finalOptions);
+      
+      this.each(function() {
+        observer.observe(this);
+      });
+      
+      return observer;
+    }
+    
+    // Observe element mutations
+    observeMutations(callback, options = {}) {
+      if (this.elements.length === 0) return null;
+      
+      const defaultOptions = {
+        attributes: true,
+        childList: true,
+        subtree: true,
+        characterData: true
+      };
+      
+      const finalOptions = { ...defaultOptions, ...options };
+      const observer = new MutationObserver((mutations) => {
+        mutations.forEach(mutation => {
+          callback.call(this, mutation);
+        });
+      });
+      
+      this.each(function() {
+        observer.observe(this, finalOptions);
+      });
+      
+      return observer;
+    }
+    
+    // Lazy load images
+    lazyLoad(options = {}) {
+      const defaultOptions = {
+        rootMargin: '0px',
+        threshold: 0.1,
+        load: function(img) {
+          const src = img.getAttribute('data-src');
+          if (src) {
+            img.src = src;
+            img.removeAttribute('data-src');
+          }
+        }
+      };
+      
+      const finalOptions = { ...defaultOptions, ...options };
+      
+      return this.observeVisibility((entry) => {
+        if (entry.isIntersecting) {
+          finalOptions.load.call(this, entry.target);
+        }
+      }, {
+        rootMargin: finalOptions.rootMargin,
+        threshold: finalOptions.threshold
+      });
+    }
+    
+    // Implement infinite scrolling
+    infiniteScroll(callback, options = {}) {
+      const defaultOptions = {
+        rootMargin: '100px',
+        threshold: 0.1
+      };
+      
+      const finalOptions = { ...defaultOptions, ...options };
+      
+      return this.observeVisibility((entry) => {
+        if (entry.isIntersecting) {
+          callback.call(this);
+        }
+      }, {
+        rootMargin: finalOptions.rootMargin,
+        threshold: finalOptions.threshold
+      });
+    }
   }
+
+  // Wrap critical methods with the safeMethod wrapper
+  const criticalMethods = [
+    'find', 'html', 'text', 'attr', 'css', 'append', 'prepend', 
+    'remove', 'on', 'off', 'fade_in', 'fade_out', 'slide_up', 
+    'slide_down', 'animate', 'move'
+  ];
+
+  criticalMethods.forEach(methodName => {
+    if (OneKit.prototype[methodName]) {
+      const originalMethod = OneKit.prototype[methodName];
+      OneKit.prototype[methodName] = safeMethod(originalMethod);
+    }
+  });
 
   // ==================== MODULES ====================
 
@@ -851,37 +1107,43 @@
       // Unified update method for reactive updates
       instance.update = function() {
         if (this.element) {
-          if (this.name === 'counter') {
-            const h3 = this.element.querySelector('h3');
-            if (h3) {
-              h3.textContent = 'Counter: ' + this.state.count;
-            }
-          } else {
-            let html = '';
-            if (definition.template) {
-              html = definition.template.replace(/\{\{([^}]+)\}\}/g, (match, key) => {
-                const keys = key.trim().split('.');
-                let value = this.state;
-                if (keys[0] in this.props) {
-                  value = this.props;
-                }
-                for (const k of keys) {
-                  value = value && value[k];
-                }
-                return value !== undefined ? value : '';
-              });
-              // Replace slots
-              html = html.replace(/<slot><\/slot>/gi, this.slots.default || '');
-              html = html.replace(/<slot name="([^"]+)"><\/slot>/gi, (match, slotName) => {
-                return this.slots[slotName] || '';
-              });
-            } else if (definition.render) {
-              html = definition.render.call(this);
-            }
+          let html = '';
+          if (definition.template) {
+            html = definition.template.replace(/\{\{([^}]+)\}\}/g, (match, key) => {
+              const keys = key.trim().split('.');
+              let value = this.state;
+              if (keys[0] in this.props) {
+                value = this.props;
+              }
+              for (const k of keys) {
+                value = value && value[k];
+              }
+              return value !== undefined ? value : '';
+            });
+            // Replace slots
+            html = html.replace(/<slot><\/slot>/gi, this.slots.default || '');
+            html = html.replace(/<slot name="([^"]+)"><\/slot>/gi, (match, slotName) => {
+              return this.slots[slotName] || '';
+            });
+          } else if (definition.render) {
+            html = definition.render.call(this);
+          }
+          
+          if (html) {
+            const newElement = ok(html).first().elements[0];
+            this.element.innerHTML = newElement.innerHTML;
             
-            if (html) {
-              const newElement = ok(html).first().elements[0];
-              this.element.innerHTML = newElement.innerHTML;
+            // Re-attach event listeners after update
+            if (definition.methods) {
+              Object.keys(definition.methods).forEach(method => {
+                const events = this.element.querySelectorAll(`[data-on-${method}]`);
+                events.forEach(el => {
+                  el.addEventListener(method.split('on')[1], (e) => {
+                    e.preventDefault();
+                    this[method](e);
+                  });
+                });
+              });
             }
           }
         }
@@ -1181,6 +1443,127 @@
             element.style.animation = '';
           }, duration);
         });
+      },
+      
+      // New animations
+      slideInLeft(duration = 400) {
+        return this.each(function() {
+          const element = this;
+          element.style.transform = 'translateX(-100%)';
+          element.style.opacity = '0';
+          element.style.transition = `transform ${duration}ms ease-out, opacity ${duration}ms ease-out`;
+          
+          element.offsetHeight;
+          
+          element.style.transform = 'translateX(0)';
+          element.style.opacity = '1';
+          
+          setTimeout(() => {
+            element.style.transition = '';
+          }, duration);
+        });
+      },
+      
+      slideInRight(duration = 400) {
+        return this.each(function() {
+          const element = this;
+          element.style.transform = 'translateX(100%)';
+          element.style.opacity = '0';
+          element.style.transition = `transform ${duration}ms ease-out, opacity ${duration}ms ease-out`;
+          
+          element.offsetHeight;
+          
+          element.style.transform = 'translateX(0)';
+          element.style.opacity = '1';
+          
+          setTimeout(() => {
+            element.style.transition = '';
+          }, duration);
+        });
+      },
+      
+      slideInUp(duration = 400) {
+        return this.each(function() {
+          const element = this;
+          element.style.transform = 'translateY(100%)';
+          element.style.opacity = '0';
+          element.style.transition = `transform ${duration}ms ease-out, opacity ${duration}ms ease-out`;
+          
+          element.offsetHeight;
+          
+          element.style.transform = 'translateY(0)';
+          element.style.opacity = '1';
+          
+          setTimeout(() => {
+            element.style.transition = '';
+          }, duration);
+        });
+      },
+      
+      slideInDown(duration = 400) {
+        return this.each(function() {
+          const element = this;
+          element.style.transform = 'translateY(-100%)';
+          element.style.opacity = '0';
+          element.style.transition = `transform ${duration}ms ease-out, opacity ${duration}ms ease-out`;
+          
+          element.offsetHeight;
+          
+          element.style.transform = 'translateY(0)';
+          element.style.opacity = '1';
+          
+          setTimeout(() => {
+            element.style.transition = '';
+          }, duration);
+        });
+      },
+      
+      flip(duration = 600) {
+        return this.each(function() {
+          const element = this;
+          element.style.transform = 'rotateY(0)';
+          element.style.transition = `transform ${duration}ms ease-in-out`;
+          
+          element.offsetHeight;
+          
+          element.style.transform = 'rotateY(360deg)';
+          
+          setTimeout(() => {
+            element.style.transition = '';
+            element.style.transform = '';
+          }, duration);
+        });
+      },
+      
+      pulse(duration = 1000, iterations = 1) {
+        return this.each(function() {
+          const element = this;
+          element.style.animation = `pulse ${duration}ms ease-in-out ${iterations}`;
+          
+          setTimeout(() => {
+            element.style.animation = '';
+          }, duration * iterations);
+        });
+      },
+      
+      glow(duration = 1000, color = '#ffff00') {
+        return this.each(function() {
+          const element = this;
+          element.style.boxShadow = `0 0 5px ${color}`;
+          element.style.transition = `box-shadow ${duration}ms ease-in-out`;
+          
+          element.offsetHeight;
+          
+          element.style.boxShadow = `0 0 20px ${color}, 0 0 30px ${color}`;
+          
+          setTimeout(() => {
+            element.style.boxShadow = '0 0 5px ' + color;
+            setTimeout(() => {
+              element.style.transition = '';
+              element.style.boxShadow = '';
+            }, duration);
+          }, duration);
+        });
       }
     };
     
@@ -1188,6 +1571,7 @@
     style.textContent = `
       @keyframes bounce { 0%, 20%, 53%, 80%, 100% { transform: translate3d(0, 0, 0); } 40%, 43% { transform: translate3d(0, -30px, 0); } 70% { transform: translate3d(0, -15px, 0); } 90% { transform: translate3d(0, -4px, 0); } }
       @keyframes shake { 0%, 100% { transform: translate3d(0, 0, 0); } 10%, 30%, 50%, 70%, 90% { transform: translate3d(-10px, 0, 0); } 20%, 40%, 60%, 80% { transform: translate3d(10px, 0, 0); } }
+      @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
     `;
     document.head.appendChild(style);
     
@@ -1287,6 +1671,7 @@
     const defaultOptions = {
       timeout: 5000,
       retries: 3,
+      retryDelay: 1000,
       cache: false,
       cacheTime: 300000
     };
@@ -1303,15 +1688,20 @@
         body = null, 
         timeout = defaultOptions.timeout, 
         retries = defaultOptions.retries, 
+        retryDelay = defaultOptions.retryDelay,
         cache: useCache = defaultOptions.cache, 
         cacheTime = defaultOptions.cacheTime, 
-        loader = null 
+        loader = null,
+        onProgress = null,
+        onSuccess = null,
+        onError = null
       } = options;
       
       if (useCache && method === 'GET') {
         const cacheKey = `${method}:${url}`;
         const cached = cache[cacheKey];
         if (cached && Date.now() - cached.timestamp < cacheTime) { 
+          if (onSuccess) onSuccess(cached.data);
           return Promise.resolve(cached.data); 
         }
       }
@@ -1319,7 +1709,10 @@
       if (loader) { ok(loader).show(); }
       
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), timeout);
+      const timeoutId = setTimeout(() => {
+        controller.abort();
+        if (onError) onError(new Error('Request timed out'));
+      }, timeout);
       
       let processedBody = body;
       if (body && typeof body === 'object' && !(body instanceof FormData)) {
@@ -1334,7 +1727,9 @@
           if (loader) { ok(loader).hide(); }
           
           if (!response.ok) { 
-            throw new Error(`Request failed with status ${response.status}`); 
+            const error = new Error(`Request failed with status ${response.status}`);
+            error.response = response;
+            throw error; 
           }
           
           return response.json();
@@ -1345,6 +1740,7 @@
             cache[cacheKey] = { data, timestamp: Date.now() };
           }
           
+          if (onSuccess) onSuccess(data);
           return data;
         })
         .catch(error => {
@@ -1352,11 +1748,13 @@
           if (loader) { ok(loader).hide(); }
           
           if (attempt < retries && error.name !== 'AbortError') {
+            const delay = retryDelay * Math.pow(2, attempt);
             return new Promise(resolve => { 
-              setTimeout(() => resolve(makeRequest(attempt + 1)), 1000 * Math.pow(2, attempt)); 
+              setTimeout(() => resolve(makeRequest(attempt + 1)), delay); 
             });
           }
           
+          if (onError) onError(error);
           throw error;
         });
       };
@@ -1462,15 +1860,190 @@
 
   // Utility Module
   ok.module('utils', function() {
-    function debounce(func, delay) { let timeout; return function() { const context = this; const args = arguments; clearTimeout(timeout); timeout = setTimeout(() => func.apply(context, args), delay); }; }
-    function throttle(func, limit) { let inThrottle; return function() { const context = this; const args = arguments; if (!inThrottle) { func.apply(context, args); inThrottle = true; setTimeout(() => inThrottle = false, limit); } }; }
-    function deepClone(obj) { if (obj === null || typeof obj !== 'object') return obj; if (obj instanceof Date) return new Date(obj.getTime()); if (obj instanceof Array) return obj.map(i => deepClone(i)); if (typeof obj === 'object') { const o = {}; Object.keys(obj).forEach(k => o[k] = deepClone(obj[k])); return o; } }
-    function deepMerge(target, source) { if (typeof target !== 'object' || typeof source !== 'object') return source; const result = { ...target }; Object.keys(source).forEach(k => { if (typeof source[k] === 'object' && typeof result[k] === 'object') { result[k] = deepMerge(result[k], source[k]); } else { result[k] = source[k]; } }); return result; }
-    function url(url, params = {}) { const u = new URL(url, window.location.origin); Object.keys(params).forEach(k => u.searchParams.set(k, params[k])); return u.toString(); }
-    function parseQuery(queryString = window.location.search) { const p = {}; const u = new URLSearchParams(queryString); for (const [k, v] of u) { p[k] = v; } return p; }
-    function formatDate(date, format = 'YYYY-MM-DD') { const d = new Date(date); const y = d.getFullYear(); const m = String(d.getMonth() + 1).padStart(2, '0'); const day = String(d.getDate()).padStart(2, '0'); const h = String(d.getHours()).padStart(2, '0'); const min = String(d.getMinutes()).padStart(2, '0'); const s = String(d.getSeconds()).padStart(2, '0'); return format.replace('YYYY', y).replace('MM', m).replace('DD', day).replace('HH', h).replace('mm', min).replace('ss', s); }
+    function debounce(func, delay) { 
+      let timeout; 
+      return function() { 
+        const context = this; 
+        const args = arguments; 
+        clearTimeout(timeout); 
+        timeout = setTimeout(() => func.apply(context, args), delay); 
+      }; 
+    }
     
-    ok.utils = { debounce, throttle, deepClone, deepMerge, url, parseQuery, formatDate };
+    function throttle(func, limit) { 
+      let inThrottle; 
+      return function() { 
+        const context = this; 
+        const args = arguments; 
+        if (!inThrottle) { 
+          func.apply(context, args); 
+          inThrottle = true; 
+          setTimeout(() => inThrottle = false, limit); 
+        } 
+      }; 
+    }
+    
+    function deepClone(obj) { 
+      if (obj === null || typeof obj !== 'object') return obj; 
+      if (obj instanceof Date) return new Date(obj.getTime()); 
+      if (obj instanceof Array) return obj.map(i => deepClone(i)); 
+      if (typeof obj === 'object') { 
+        const o = {}; 
+        Object.keys(obj).forEach(k => o[k] = deepClone(obj[k])); 
+        return o; 
+      } 
+    }
+    
+    function deepMerge(target, source) { 
+      if (typeof target !== 'object' || typeof source !== 'object') return source; 
+      const result = { ...target }; 
+      Object.keys(source).forEach(k => { 
+        if (typeof source[k] === 'object' && typeof result[k] === 'object') { 
+          result[k] = deepMerge(result[k], source[k]); 
+        } else { 
+          result[k] = source[k]; 
+        } 
+      }); 
+      return result; 
+    }
+    
+    function url(url, params = {}) { 
+      const u = new URL(url, window.location.origin); 
+      Object.keys(params).forEach(k => u.searchParams.set(k, params[k])); 
+      return u.toString(); 
+    }
+    
+    function parseQuery(queryString = window.location.search) { 
+      const p = {}; 
+      const u = new URLSearchParams(queryString); 
+      for (const [k, v] of u) { 
+        p[k] = v; 
+      } 
+      return p; 
+    }
+    
+    function formatDate(date, format = 'YYYY-MM-DD') { 
+      const d = new Date(date); 
+      const y = d.getFullYear(); 
+      const m = String(d.getMonth() + 1).padStart(2, '0'); 
+      const day = String(d.getDate()).padStart(2, '0'); 
+      const h = String(d.getHours()).padStart(2, '0'); 
+      const min = String(d.getMinutes()).padStart(2, '0'); 
+      const s = String(d.getSeconds()).padStart(2, '0'); 
+      return format.replace('YYYY', y).replace('MM', m).replace('DD', day).replace('HH', h).replace('mm', min).replace('ss', s); 
+    }
+    
+    function formatNumber(num, decimals = 0, dec_point = '.', thousands_sep = ',') {
+      const parts = parseFloat(num).toFixed(decimals).split('.');
+      parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, thousands_sep);
+      return parts.join(dec_point);
+    }
+
+    function formatCurrency(num, currency = '$', decimals = 2) {
+      return currency + formatNumber(num, decimals);
+    }
+
+    function truncate(str, length, ending = '...') {
+      if (str.length > length) {
+        return str.substring(0, length - ending.length) + ending;
+      }
+      return str;
+    }
+
+    function capitalize(str) {
+      return str.charAt(0).toUpperCase() + str.slice(1);
+    }
+
+    function camelCase(str) {
+      return str.replace(/-([a-z])/g, function(g) { return g[1].toUpperCase(); });
+    }
+
+    function kebabCase(str) {
+      return str.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
+    }
+
+    function slugify(str) {
+      return str
+        .toLowerCase()
+        .replace(/[^\w ]+/g, '')
+        .replace(/ +/g, '-');
+    }
+
+    function randomString(length = 10) {
+      const chars = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+      let result = '';
+      for (let i = 0; i < length; i++) {
+        result += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      return result;
+    }
+
+    function isEmail(email) {
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    }
+
+    function isUrl(url) {
+      try {
+        new URL(url);
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
+
+    function isMobile() {
+      return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    }
+
+    function cookie(name, value, days = null, path = '/') {
+      if (value !== undefined) {
+        let expires = '';
+        if (days) {
+          const date = new Date();
+          date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+          expires = '; expires=' + date.toUTCString();
+        }
+        document.cookie = name + '=' + (value || '') + expires + '; path=' + path;
+        return this;
+      } else {
+        const nameEQ = name + '=';
+        const ca = document.cookie.split(';');
+        for (let i = 0; i < ca.length; i++) {
+          let c = ca[i];
+          while (c.charAt(0) === ' ') c = c.substring(1, c.length);
+          if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
+        }
+        return null;
+      }
+    }
+
+    function removeCookie(name, path = '/') {
+      document.cookie = name + '=; Path=' + path + '; Expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+      return this;
+    }
+    
+    ok.utils = { 
+      debounce, 
+      throttle, 
+      deepClone, 
+      deepMerge, 
+      url, 
+      parseQuery, 
+      formatDate,
+      formatNumber,
+      formatCurrency,
+      truncate,
+      capitalize,
+      camelCase,
+      kebabCase,
+      slugify,
+      randomString,
+      isEmail,
+      isUrl,
+      isMobile,
+      cookie,
+      removeCookie
+    };
   });
 
   // Form Module
@@ -1497,30 +2070,180 @@
   // Accessibility Module
   ok.module('a11y', function() {
     function announce(message, priority = 'polite') {
-      const a = document.createElement('div'); a.setAttribute('aria-live', priority); a.setAttribute('aria-atomic', 'true'); a.className = 'sr-only'; a.style.position = 'absolute'; a.style.left = '-10000px'; a.style.width = '1px'; a.style.height = '1px'; a.style.overflow = 'hidden';
-      document.body.appendChild(a); a.textContent = message;
-      setTimeout(() => { document.body.removeChild(a); }, 1000);
+      const a = document.createElement('div');
+      a.setAttribute('aria-live', priority);
+      a.setAttribute('aria-atomic', 'true');
+      a.className = 'sr-only';
+      a.style.position = 'absolute';
+      a.style.left = '-10000px';
+      a.style.width = '1px';
+      a.style.height = '1px';
+      a.style.overflow = 'hidden';
+      document.body.appendChild(a);
+      a.textContent = message;
+      setTimeout(() => {
+        document.body.removeChild(a);
+      }, 1000);
     }
     
     function trapFocus(element) {
-      const el = ok(element).first().elements[0]; if (!el) return;
-      const f = el.querySelectorAll('a[href], button, textarea, input[type="text"], input[type="radio"], input[type="checkbox"], select');
-      const first = f[0]; const last = f[f.length - 1];
+      const el = ok(element).first().elements[0];
+      if (!el) return;
+      
+      const focusableElements = el.querySelectorAll(
+        'a[href], button:not([disabled]), textarea:not([disabled]), input[type="text"]:not([disabled]), input[type="radio"]:not([disabled]), input[type="checkbox"]:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      );
+      const firstFocusableElement = focusableElements[0];
+      const lastFocusableElement = focusableElements[focusableElements.length - 1];
+      
       el.addEventListener('keydown', function(e) {
         if (e.key === 'Tab') {
-          if (e.shiftKey) { if (document.activeElement === first) { last.focus(); e.preventDefault(); } }
-          else { if (document.activeElement === last) { first.focus(); e.preventDefault(); } }
+          if (e.shiftKey) {
+            if (document.activeElement === firstFocusableElement) {
+              lastFocusableElement.focus();
+              e.preventDefault();
+            }
+          } else {
+            if (document.activeElement === lastFocusableElement) {
+              firstFocusableElement.focus();
+              e.preventDefault();
+            }
+          }
         }
       });
-      if (first) { first.focus(); }
+      
+      if (firstFocusableElement) {
+        firstFocusableElement.focus();
+      }
+      
+      // Store the previous active element
+      el._previousActiveElement = document.activeElement;
+      
+      return {
+        release: () => removeFocusTrap(el)
+      };
     }
     
     function removeFocusTrap(element) {
-      const el = ok(element).first().elements[0]; if (!el) return;
-      const newEl = el.cloneNode(true); el.parentNode.replaceChild(newEl, el);
+      const el = ok(element).first().elements[0];
+      if (!el) return;
+      
+      // Restore focus to the previous active element
+      if (el._previousActiveElement && typeof el._previousActiveElement.focus === 'function') {
+        el._previousActiveElement.focus();
+      }
+      
+      // Clone the element to remove all event listeners
+      const newEl = el.cloneNode(true);
+      el.parentNode.replaceChild(newEl, el);
+    }
+
+    function addAriaAttributes(element, attributes) {
+      const el = ok(element).first().elements[0];
+      if (!el) return;
+      
+      Object.keys(attributes).forEach(key => {
+        el.setAttribute(`aria-${key}`, attributes[key]);
+      });
+      
+      return this;
+    }
+
+    function addRole(element, role) {
+      const el = ok(element).first().elements[0];
+      if (!el) return;
+      
+      el.setAttribute('role', role);
+      return this;
+    }
+
+    function addLabel(element, label) {
+      const el = ok(element).first().elements[0];
+      if (!el) return;
+      
+      if (el.tagName === 'INPUT') {
+        el.setAttribute('aria-label', label);
+      } else {
+        const id = el.id || 'element-' + Math.random().toString(36).substr(2, 9);
+        el.id = id;
+        
+        const labelEl = document.createElement('label');
+        labelEl.setAttribute('for', id);
+        labelEl.textContent = label;
+        
+        el.parentNode.insertBefore(labelEl, el);
+      }
+      
+      return this;
+    }
+
+    function addDescription(element, description) {
+      const el = ok(element).first().elements[0];
+      if (!el) return;
+      
+      const id = el.id || 'element-' + Math.random().toString(36).substr(2, 9);
+      el.id = id;
+      
+      const descId = 'desc-' + id;
+      const descEl = document.createElement('div');
+      descEl.id = descId;
+      descEl.className = 'sr-only';
+      descEl.textContent = description;
+      
+      el.parentNode.insertBefore(descEl, el.nextSibling);
+      el.setAttribute('aria-describedby', descId);
+      
+      return this;
+    }
+
+    function checkContrast(element1, element2) {
+      const el1 = ok(element1).first().elements[0];
+      const el2 = ok(element2).first().elements[0];
+      
+      if (!el1 || !el2) return null;
+      
+      const style1 = window.getComputedStyle(el1);
+      const style2 = window.getComputedStyle(el2);
+      
+      const color1 = style1.color || style1.backgroundColor;
+      const color2 = style2.color || style2.backgroundColor;
+      
+      function getLuminance(color) {
+        const rgb = color.match(/\d+/g);
+        if (!rgb) return 0;
+        
+        const [r, g, b] = rgb.map(val => {
+          val = val / 255;
+          return val <= 0.03928 ? val / 12.92 : Math.pow((val + 0.055) / 1.055, 2.4);
+        });
+        
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      }
+      
+      const lum1 = getLuminance(color1);
+      const lum2 = getLuminance(color2);
+      
+      const ratio = (Math.max(lum1, lum2) + 0.05) / (Math.min(lum1, lum2) + 0.05);
+      
+      return {
+        ratio: ratio.toFixed(2),
+        aaLarge: ratio >= 3,
+        aa: ratio >= 4.5,
+        aaaLarge: ratio >= 4.5,
+        aaa: ratio >= 7
+      };
     }
     
-    ok.a11y = { announce, trapFocus, removeFocusTrap };
+    ok.a11y = { 
+      announce, 
+      trapFocus, 
+      removeFocusTrap,
+      addAriaAttributes,
+      addRole,
+      addLabel,
+      addDescription,
+      checkContrast
+    };
   });
 
   // Theme Module
@@ -1635,12 +2358,17 @@
       return null;
     }
     
-    function navigate(path, state = {}) {
+    function navigate(path, state = {}, replace = false) {
       const match = matchRoute(path);
       
       if (match) {
         const { route, params } = match;
-        history.pushState(state, '', base + path);
+        
+        if (replace) {
+          history.replaceState(state, '', base + path);
+        } else {
+          history.pushState(state, '', base + path);
+        }
         
         if (typeof route.component === 'string') {
           const component = ok.component.create(route.component, { ...params, ...state });
@@ -1679,6 +2407,10 @@
       
       return false;
     }
+
+    function replace(path, state = {}) {
+      return navigate(path, state, true);
+    }
     
     function handlePopState(e) {
       const path = window.location.pathname;
@@ -1714,7 +2446,7 @@
       return currentRoute;
     }
     
-    ok.router = { add, notFound, setBase, navigate, init, current };
+    ok.router = { add, notFound, setBase, navigate, replace, init, current };
   });
 
   // Storage Module
@@ -1723,11 +2455,35 @@
       return type === 'session' ? sessionStorage : localStorage;
     }
     
-    function safeSet(key, value, type = 'local') {
+    function encrypt(data, key) {
+      if (!key) return data;
+      // Simple XOR encryption for demonstration
+      // In a real implementation, use a proper encryption library
+      const result = [];
+      for (let i = 0; i < data.length; i++) {
+        result.push(String.fromCharCode(data.charCodeAt(i) ^ key.charCodeAt(i % key.length)));
+      }
+      return btoa(result.join(''));
+    }
+
+    function decrypt(data, key) {
+      if (!key) return data;
+      // Simple XOR decryption for demonstration
+      // In a real implementation, use a proper encryption library
+      const decoded = atob(data);
+      const result = [];
+      for (let i = 0; i < decoded.length; i++) {
+        result.push(String.fromCharCode(decoded.charCodeAt(i) ^ key.charCodeAt(i % key.length)));
+      }
+      return result.join('');
+    }
+    
+    function safeSet(key, value, type = 'local', encryptKey = null) {
       try {
         const storage = getStorage(type);
         const serialized = JSON.stringify(value);
-        storage.setItem(key, serialized);
+        const encrypted = encryptKey ? encrypt(serialized, encryptKey) : serialized;
+        storage.setItem(key, encrypted);
         return true;
       } catch (e) {
         console.error('Storage quota exceeded or other error:', e);
@@ -1735,12 +2491,13 @@
       }
     }
     
-    function get(key, defaultValue = null, type = 'local') {
+    function get(key, defaultValue = null, type = 'local', encryptKey = null) {
       try {
         const storage = getStorage(type);
         const item = storage.getItem(key);
         if (item === null) return defaultValue;
-        return JSON.parse(item);
+        const decrypted = encryptKey ? decrypt(item, encryptKey) : item;
+        return JSON.parse(decrypted);
       } catch (e) {
         console.error('Error parsing stored value:', e);
         return defaultValue;
@@ -1866,7 +2623,7 @@
       return reactiveCollection;
     }
     
-    ok.storage = { set: safeSet, get, remove, clear, keys, reactive, collection };
+    ok.storage = { set: safeSet, get, remove, clear, keys, reactive, collection, encrypt, decrypt };
   });
 
   // ==================== INITIALIZATION ====================
@@ -1890,6 +2647,16 @@
 
   global.ok = ok;
   global.OneKit = OneKit;
+
+  // Add global error handlers
+  window.addEventListener('unhandledrejection', function(event) {
+    errorHandler(event.reason, 'Unhandled Promise Rejection');
+    event.preventDefault();
+  });
+
+  window.addEventListener('error', function(event) {
+    errorHandler(event.error, 'JavaScript Error');
+  });
 
   document.addEventListener('DOMContentLoaded', function() {
     if (ok.theme && ok.theme.load) { ok.theme.load(); }
