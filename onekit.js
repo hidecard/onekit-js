@@ -2,7 +2,7 @@
  * OneKit - A lightweight, modern JavaScript library for DOM manipulation,
  * animations, reactive state, and API integration.
  *
- * Version: 2.1.0
+ * Version: 2.0.3
  * Author: OneKit Team
  */
 
