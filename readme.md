@@ -57,7 +57,7 @@ Download `onekit.js` and include it in your HTML:
 Or install via npm:
 
 ```bash
-npm install onekit
+npm i onekit-js
 ```
 
 ## Router Example
