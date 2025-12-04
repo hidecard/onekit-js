@@ -641,6 +641,166 @@ ok('#format-btn').click(() => {
 });
 ```
 
+## Cryptography
+
+OneKit includes a comprehensive crypto module for secure cryptographic operations:
+
+```javascript
+// Hash data
+ok.crypto.hash('Hello World')
+    .then(hash => console.log('SHA-256:', hash));
+
+// Encrypt/decrypt data
+ok.crypto.encrypt('Secret message', 'my-key')
+    .then(encrypted => {
+        return ok.crypto.decrypt(encrypted, 'my-key');
+    })
+    .then(decrypted => console.log(decrypted));
+
+// Generate secure keys
+ok.crypto.generateKey('AES-GCM', 256)
+    .then(key => console.log('Key generated'));
+
+// Generate random bytes
+const randomBytes = ok.crypto.randomBytes(16);
+
+// HMAC for integrity
+ok.crypto.hmac('data', 'key')
+    .then(hmac => console.log('HMAC:', hmac));
+
+// PBKDF2 key derivation
+ok.crypto.pbkdf2('password', 'salt', 100000, 256)
+    .then(key => console.log('Derived key'));
+```
+
+**Example from crypto-examples.html:**
+```javascript
+// Hash a password
+ok.crypto.hash('mypassword')
+    .then(hash => {
+        console.log('Password hash:', hash);
+    });
+
+// Encrypt sensitive data
+const data = { email: 'user@example.com', ssn: '123-45-6789' };
+ok.crypto.encrypt(JSON.stringify(data), 'encryption-key')
+    .then(encrypted => {
+        // Store encrypted data
+        ok.storage.set('user-data', encrypted);
+    });
+```
+
+## Physics-Based Animations
+
+Add realistic physics to your animations:
+
+```javascript
+// Enable physics on elements
+ok('.ball').physics({
+    gravity: 0.5,
+    bounce: 0.8,
+    friction: 0.1
+});
+
+// Create spring connections
+ok('.anchor').physics.spring('.connected-element', {
+    stiffness: 0.2,
+    damping: 0.1
+});
+```
+
+## Timeline Animations
+
+Create complex sequenced animations:
+
+```javascript
+const tl = ok.timeline();
+
+tl.to('.box1', { opacity: 1, x: 100 }, 500)
+  .to('.box2', { opacity: 1, y: 100 }, 500, { stagger: 100 })
+  .add(() => console.log('Midpoint reached'))
+  .from('.box3', { scale: 0 }, 300);
+
+tl.play();
+```
+
+## 3D Scene Management
+
+Manipulate 3D transformations:
+
+```javascript
+const scene = ok.scene3d('#container');
+
+const cube = scene.add('.cube');
+scene.rotateY(cube, 45);
+scene.translateZ(cube, 100);
+```
+
+## Content Security Policy
+
+Manage CSP headers programmatically:
+
+```javascript
+ok.csp.policy({
+    'default-src': "'self'",
+    'script-src': "'self' 'unsafe-inline'",
+    'style-src': "'self' 'unsafe-inline'"
+}).apply();
+
+// Monitor violations
+ok.csp.onViolation(violation => {
+    console.log('CSP violation:', violation);
+});
+```
+
+## Command Line Interface
+
+Built-in CLI for development and debugging:
+
+```javascript
+// Register custom commands
+ok.cli.register('greet', (name) => `Hello, ${name}!`, 'Greet someone');
+
+// Execute commands
+const result = ok.cli.execute('greet World');
+// Result: "Hello, World!"
+```
+
+## Component Stories
+
+Create interactive component documentation:
+
+```javascript
+ok.stories.add('Buttons', 'Primary Button', {
+    description: 'A primary action button',
+    component: '<button class="btn btn-primary">Click me</button>'
+});
+
+ok.stories.render(); // Opens storybook interface
+```
+
+## WebAssembly Support
+
+Load and instantiate WebAssembly modules:
+
+```javascript
+ok.wasm.load('module.wasm')
+    .then(instance => {
+        // Use WebAssembly functions
+        const result = instance.exports.add(1, 2);
+        console.log('1 + 2 =', result);
+    });
+```
+
+## Background Workers
+
+Run tasks in background threads:
+
+```javascript
+// Note: Worker module implementation depends on specific requirements
+// This is a placeholder for future implementation
+```
+
 ## Installation
 
 Download `onekit.js` and include it in your HTML:

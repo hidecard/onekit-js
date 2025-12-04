@@ -272,21 +272,12 @@
           return this;
         }
 
-        // Handle CSS selectors with caching
-        const cacheKey = `selector:${selector}`;
-        let elements = OneKit._cache && OneKit._cache.get(cacheKey);
-        
-        if (!elements) {
-          elements = document.querySelectorAll(selector);
-          if (OneKit._cache) {
-            OneKit._cache.set(cacheKey, elements);
-          }
-        }
-        
-        for (let i = 0; i < elements.length; i++) {
-          this.elements.push(elements[i]);
-        }
-        return this;
+      // Handle CSS selectors
+      const elements = document.querySelectorAll(selector);
+      for (let i = 0; i < elements.length; i++) {
+        this.elements.push(elements[i]);
+      }
+      return this;
       }
 
       // Handle arrays or OneKit objects
@@ -2727,7 +2718,7 @@
       return result.join('');
     }
     
-    function safeSet(key, value, type = 'local', encryptKey = null) {
+    async function safeSet(key, value, type = 'local', encryptKey = null) {
       // Validate storage key to prevent prototype pollution
       if (!validateStorageKey(key)) {
         return false;
@@ -2738,7 +2729,17 @@
         // Sanitize value to prevent prototype pollution
         const sanitizedValue = deepCloneSafe(value);
         const serialized = JSON.stringify(sanitizedValue);
-        const encrypted = encryptKey ? encrypt(serialized, encryptKey) : serialized;
+
+        // Use crypto module for secure encryption if available and key provided
+        let encrypted = serialized;
+        if (encryptKey && ok.crypto && ok.crypto.encrypt) {
+          // Use Web Crypto API for secure encryption
+          encrypted = await ok.crypto.encrypt(serialized, encryptKey);
+        } else if (encryptKey) {
+          // Fallback to simple XOR encryption
+          encrypted = encrypt(serialized, encryptKey);
+        }
+
         storage.setItem(key, encrypted);
         return true;
       } catch (e) {
@@ -2757,7 +2758,23 @@
         const storage = getStorage(type);
         const item = storage.getItem(key);
         if (item === null) return defaultValue;
-        const decrypted = encryptKey ? decrypt(item, encryptKey) : item;
+
+        // Use crypto module for secure decryption if available and key provided
+        let decrypted = item;
+        if (encryptKey && ok.crypto && ok.crypto.decrypt) {
+          // Use Web Crypto API for secure decryption - return Promise
+          return ok.crypto.decrypt(item, encryptKey).then(decryptedData => {
+            const parsed = JSON.parse(decryptedData);
+            return deepCloneSafe(parsed);
+          }).catch(e => {
+            console.error('Error decrypting stored value:', e);
+            return defaultValue;
+          });
+        } else if (encryptKey) {
+          // Fallback to simple XOR decryption
+          decrypted = decrypt(item, encryptKey);
+        }
+
         const parsed = JSON.parse(decrypted);
         // Return sanitized clone to prevent prototype pollution
         return deepCloneSafe(parsed);
@@ -2894,9 +2911,978 @@
     ok.storage = { set: safeSet, get, remove, clear, keys, reactive, collection, encrypt, decrypt };
   });
 
+  // Crypto Module
+  ok.module('crypto', function() {
+    const cryptoAPI = window.crypto || window.msCrypto;
+
+    function hash(data, algorithm = 'SHA-256') {
+      if (!cryptoAPI || !cryptoAPI.subtle) {
+        console.warn('Web Crypto API not available, falling back to basic hash');
+        return Promise.resolve(btoa(data).slice(0, 32));
+      }
+
+      return cryptoAPI.subtle.digest(algorithm, new TextEncoder().encode(data))
+        .then(hashBuffer => {
+          const hashArray = Array.from(new Uint8Array(hashBuffer));
+          return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        });
+    }
+
+    function generateKey(algorithm = 'AES-GCM', length = 256) {
+      if (!cryptoAPI || !cryptoAPI.subtle) {
+        console.warn('Web Crypto API not available, cannot generate secure key');
+        return Promise.reject(new Error('Web Crypto API not supported'));
+      }
+
+      return cryptoAPI.subtle.generateKey(
+        {
+          name: algorithm,
+          length: length
+        },
+        true,
+        ['encrypt', 'decrypt']
+      );
+    }
+
+    function encrypt(data, key, algorithm = 'AES-GCM', iv = null) {
+      if (!cryptoAPI || !cryptoAPI.subtle) {
+        console.warn('Web Crypto API not available, using simple XOR encryption');
+        // Fallback to simple XOR (not secure)
+        const keyStr = typeof key === 'string' ? key : JSON.stringify(key);
+        const result = [];
+        for (let i = 0; i < data.length; i++) {
+          result.push(String.fromCharCode(data.charCodeAt(i) ^ keyStr.charCodeAt(i % keyStr.length)));
+        }
+        return Promise.resolve(btoa(result.join('')));
+      }
+
+      if (typeof key === 'string') {
+        // Convert string key to CryptoKey
+        return cryptoAPI.subtle.importKey(
+          'raw',
+          new TextEncoder().encode(key),
+          algorithm,
+          false,
+          ['encrypt']
+        ).then(cryptoKey => {
+          const initializationVector = iv || cryptoAPI.getRandomValues(new Uint8Array(12));
+          return cryptoAPI.subtle.encrypt(
+            {
+              name: algorithm,
+              iv: initializationVector
+            },
+            cryptoKey,
+            new TextEncoder().encode(data)
+          ).then(encrypted => {
+            const result = new Uint8Array(initializationVector.length + encrypted.byteLength);
+            result.set(initializationVector);
+            result.set(new Uint8Array(encrypted), initializationVector.length);
+            return btoa(String.fromCharCode.apply(null, result));
+          });
+        });
+      } else {
+        // Assume key is already a CryptoKey
+        const initializationVector = iv || cryptoAPI.getRandomValues(new Uint8Array(12));
+        return cryptoAPI.subtle.encrypt(
+          {
+            name: algorithm,
+            iv: initializationVector
+          },
+          key,
+          new TextEncoder().encode(data)
+        ).then(encrypted => {
+          const result = new Uint8Array(initializationVector.length + encrypted.byteLength);
+          result.set(initializationVector);
+          result.set(new Uint8Array(encrypted), initializationVector.length);
+          return btoa(String.fromCharCode.apply(null, result));
+        });
+      }
+    }
+
+    function decrypt(encryptedData, key, algorithm = 'AES-GCM') {
+      if (!cryptoAPI || !cryptoAPI.subtle) {
+        console.warn('Web Crypto API not available, using simple XOR decryption');
+        // Fallback to simple XOR (not secure)
+        const keyStr = typeof key === 'string' ? key : JSON.stringify(key);
+        const decoded = atob(encryptedData);
+        const result = [];
+        for (let i = 0; i < decoded.length; i++) {
+          result.push(String.fromCharCode(decoded.charCodeAt(i) ^ keyStr.charCodeAt(i % keyStr.length)));
+        }
+        return Promise.resolve(result.join(''));
+      }
+
+      const encryptedBytes = Uint8Array.from(atob(encryptedData), c => c.charCodeAt(0));
+      const iv = encryptedBytes.slice(0, 12);
+      const data = encryptedBytes.slice(12);
+
+      if (typeof key === 'string') {
+        // Convert string key to CryptoKey
+        return cryptoAPI.subtle.importKey(
+          'raw',
+          new TextEncoder().encode(key),
+          algorithm,
+          false,
+          ['decrypt']
+        ).then(cryptoKey => {
+          return cryptoAPI.subtle.decrypt(
+            {
+              name: algorithm,
+              iv: iv
+            },
+            cryptoKey,
+            data
+          ).then(decrypted => {
+            return new TextDecoder().decode(decrypted);
+          });
+        });
+      } else {
+        // Assume key is already a CryptoKey
+        return cryptoAPI.subtle.decrypt(
+          {
+            name: algorithm,
+            iv: iv
+          },
+          key,
+          data
+        ).then(decrypted => {
+          return new TextDecoder().decode(decrypted);
+        });
+      }
+    }
+
+    function randomBytes(length) {
+      if (!cryptoAPI || !cryptoAPI.getRandomValues) {
+        console.warn('Web Crypto API not available, using Math.random');
+        const result = new Uint8Array(length);
+        for (let i = 0; i < length; i++) {
+          result[i] = Math.floor(Math.random() * 256);
+        }
+        return result;
+      }
+
+      return cryptoAPI.getRandomValues(new Uint8Array(length));
+    }
+
+    function hmac(data, key, algorithm = 'SHA-256') {
+      if (!cryptoAPI || !cryptoAPI.subtle) {
+        console.warn('Web Crypto API not available, cannot generate HMAC');
+        return Promise.reject(new Error('Web Crypto API not supported'));
+      }
+
+      return cryptoAPI.subtle.importKey(
+        'raw',
+        new TextEncoder().encode(key),
+        {
+          name: 'HMAC',
+          hash: algorithm
+        },
+        false,
+        ['sign']
+      ).then(cryptoKey => {
+        return cryptoAPI.subtle.sign('HMAC', cryptoKey, new TextEncoder().encode(data));
+      }).then(signature => {
+        const hashArray = Array.from(new Uint8Array(signature));
+        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      });
+    }
+
+    function pbkdf2(password, salt, iterations = 100000, keyLength = 256, hash = 'SHA-256') {
+      if (!cryptoAPI || !cryptoAPI.subtle) {
+        console.warn('Web Crypto API not available, cannot derive key');
+        return Promise.reject(new Error('Web Crypto API not supported'));
+      }
+
+      return cryptoAPI.subtle.importKey(
+        'raw',
+        new TextEncoder().encode(password),
+        'PBKDF2',
+        false,
+        ['deriveBits']
+      ).then(key => {
+        return cryptoAPI.subtle.deriveBits(
+          {
+            name: 'PBKDF2',
+            salt: new TextEncoder().encode(salt),
+            iterations: iterations,
+            hash: hash
+          },
+          key,
+          keyLength
+        );
+      }).then(bits => {
+        return new Uint8Array(bits);
+      });
+    }
+
+    ok.crypto = { hash, generateKey, encrypt, decrypt, randomBytes, hmac, pbkdf2 };
+  });
+
+  // Physics Module for physics-based animations
+  ok.module('physics', function() {
+    const physicsElements = new Map();
+
+    function physics(selector, options = {}) {
+      const elements = ok(selector).elements;
+      const defaultOptions = {
+        gravity: 0.5,
+        bounce: 0.7,
+        friction: 0.1,
+        velocityX: 0,
+        velocityY: 0
+      };
+
+      const finalOptions = { ...defaultOptions, ...options };
+
+      elements.forEach(el => {
+        const rect = el.getBoundingClientRect();
+        const physicsData = {
+          ...finalOptions,
+          x: rect.left,
+          y: rect.top,
+          originalX: rect.left,
+          originalY: rect.top,
+          isAnimating: false
+        };
+
+        physicsElements.set(el, physicsData);
+
+        // Add drag functionality
+        let isDragging = false;
+        let dragStartX, dragStartY;
+
+        el.addEventListener('mousedown', (e) => {
+          isDragging = true;
+          dragStartX = e.clientX - physicsData.x;
+          dragStartY = e.clientY - physicsData.y;
+          physicsData.isAnimating = false;
+        });
+
+        document.addEventListener('mousemove', (e) => {
+          if (isDragging) {
+            physicsData.x = e.clientX - dragStartX;
+            physicsData.y = e.clientY - dragStartY;
+            el.style.transform = `translate(${physicsData.x - physicsData.originalX}px, ${physicsData.y - physicsData.originalY}px)`;
+          }
+        });
+
+        document.addEventListener('mouseup', () => {
+          if (isDragging) {
+            isDragging = false;
+            physicsData.velocityX = 0;
+            physicsData.velocityY = 0;
+            physicsData.isAnimating = true;
+            animatePhysics(el, physicsData);
+          }
+        });
+      });
+
+      return this;
+    }
+
+    function animatePhysics(el, data) {
+      if (!data.isAnimating) return;
+
+      // Apply gravity
+      data.velocityY += data.gravity;
+
+      // Apply friction
+      data.velocityX *= (1 - data.friction);
+      data.velocityY *= (1 - data.friction);
+
+      // Update position
+      data.x += data.velocityX;
+      data.y += data.velocityY;
+
+      // Bounce off edges
+      const rect = el.getBoundingClientRect();
+      const windowWidth = window.innerWidth;
+      const windowHeight = window.innerHeight;
+
+      if (data.x <= 0 || data.x + rect.width >= windowWidth) {
+        data.velocityX *= -data.bounce;
+        data.x = Math.max(0, Math.min(data.x, windowWidth - rect.width));
+      }
+
+      if (data.y <= 0 || data.y + rect.height >= windowHeight) {
+        data.velocityY *= -data.bounce;
+        data.y = Math.max(0, Math.min(data.y, windowHeight - rect.height));
+      }
+
+      el.style.transform = `translate(${data.x - data.originalX}px, ${data.y - data.originalY}px)`;
+
+      // Continue animation if still moving
+      if (Math.abs(data.velocityX) > 0.1 || Math.abs(data.velocityY) > 0.1) {
+        requestAnimationFrame(() => animatePhysics(el, data));
+      } else {
+        data.isAnimating = false;
+      }
+    }
+
+    // Spring physics for connected elements
+    function spring(anchorSelector, options = {}) {
+      const anchor = ok(anchorSelector).first().elements[0];
+      if (!anchor) return this;
+
+      const defaultOptions = {
+        stiffness: 0.2,
+        damping: 0.1
+      };
+
+      const finalOptions = { ...defaultOptions, ...options };
+
+      return this.each(function() {
+        const el = this;
+        const anchorRect = anchor.getBoundingClientRect();
+        const elRect = el.getBoundingClientRect();
+
+        const springData = {
+          anchorX: anchorRect.left + anchorRect.width / 2,
+          anchorY: anchorRect.top + anchorRect.height / 2,
+          ...finalOptions,
+          velocityX: 0,
+          velocityY: 0
+        };
+
+        function updateSpring() {
+          const currentRect = el.getBoundingClientRect();
+          const currentX = currentRect.left + currentRect.width / 2;
+          const currentY = currentRect.top + currentRect.height / 2;
+
+          const deltaX = springData.anchorX - currentX;
+          const deltaY = springData.anchorY - currentY;
+
+          const forceX = deltaX * springData.stiffness;
+          const forceY = deltaY * springData.stiffness;
+
+          springData.velocityX += forceX;
+          springData.velocityY += forceY;
+
+          springData.velocityX *= (1 - springData.damping);
+          springData.velocityY *= (1 - springData.damping);
+
+          const newX = currentX + springData.velocityX;
+          const newY = currentY + springData.velocityY;
+
+          el.style.transform = `translate(${newX - currentX}px, ${newY - currentY}px)`;
+
+          requestAnimationFrame(updateSpring);
+        }
+
+        updateSpring();
+      });
+    }
+
+    OneKit.prototype.physics = physics;
+    OneKit.prototype.spring = spring;
+  });
+
+  // Timeline Animation System Module
+  ok.module('timeline', function() {
+    class Timeline {
+      constructor() {
+        this.animations = [];
+        this.currentTime = 0;
+        this.isPlaying = false;
+        this.isPaused = false;
+      }
+
+      to(selector, props, duration = 1000, options = {}) {
+        const elements = ok(selector).elements;
+        const animation = {
+          type: 'to',
+          elements,
+          props,
+          duration,
+          startTime: this.currentTime,
+          endTime: this.currentTime + duration,
+          easing: options.easing || 'ease-out',
+          stagger: options.stagger || 0,
+          ...options
+        };
+        this.animations.push(animation);
+        this.currentTime += duration + (options.delay || 0);
+        return this;
+      }
+
+      from(selector, props, duration = 1000, options = {}) {
+        const elements = ok(selector).elements;
+        const animation = {
+          type: 'from',
+          elements,
+          props,
+          duration,
+          startTime: this.currentTime,
+          endTime: this.currentTime + duration,
+          easing: options.easing || 'ease-out',
+          stagger: options.stagger || 0,
+          ...options
+        };
+        this.animations.push(animation);
+        this.currentTime += duration + (options.delay || 0);
+        return this;
+      }
+
+      add(callback) {
+        const animation = {
+          type: 'callback',
+          callback,
+          startTime: this.currentTime,
+          endTime: this.currentTime
+        };
+        this.animations.push(animation);
+        return this;
+      }
+
+      play() {
+        if (this.isPlaying) return;
+        this.isPlaying = true;
+        this.isPaused = false;
+        this.startTime = performance.now();
+        this.animate();
+      }
+
+      pause() {
+        this.isPaused = true;
+      }
+
+      resume() {
+        if (this.isPaused) {
+          this.isPaused = false;
+          this.startTime = performance.now() - this.currentTime;
+          this.animate();
+        }
+      }
+
+      stop() {
+        this.isPlaying = false;
+        this.isPaused = false;
+        this.currentTime = 0;
+      }
+
+      animate() {
+        if (!this.isPlaying || this.isPaused) return;
+
+        const now = performance.now();
+        const elapsed = now - this.startTime;
+
+        this.animations.forEach((animation, index) => {
+          if (elapsed >= animation.startTime && elapsed <= animation.endTime) {
+            const progress = (elapsed - animation.startTime) / animation.duration;
+
+            if (animation.type === 'callback') {
+              if (!animation.executed) {
+                animation.callback();
+                animation.executed = true;
+              }
+            } else {
+              const easedProgress = this.ease(progress, animation.easing);
+
+              animation.elements.forEach((el, elIndex) => {
+                const delay = elIndex * (animation.stagger || 0);
+                const elementProgress = Math.max(0, Math.min(1, (elapsed - animation.startTime - delay) / animation.duration));
+
+                if (elementProgress > 0 && elementProgress <= 1) {
+                  const easedElementProgress = this.ease(elementProgress, animation.easing);
+
+                  Object.keys(animation.props).forEach(prop => {
+                    const startValue = animation.type === 'from' ? animation.props[prop] : parseFloat(window.getComputedStyle(el)[prop]) || 0;
+                    const endValue = animation.type === 'from' ? (parseFloat(window.getComputedStyle(el)[prop]) || 0) : animation.props[prop];
+                    const currentValue = startValue + (endValue - startValue) * easedElementProgress;
+
+                    if (typeof animation.props[prop] === 'string' && animation.props[prop].includes('px')) {
+                      el.style[prop] = currentValue + 'px';
+                    } else {
+                      el.style[prop] = currentValue;
+                    }
+                  });
+                }
+              });
+            }
+          }
+        });
+
+        if (elapsed < this.currentTime) {
+          requestAnimationFrame(() => this.animate());
+        } else {
+          this.isPlaying = false;
+        }
+      }
+
+      ease(t, type = 'ease-out') {
+        switch (type) {
+          case 'linear': return t;
+          case 'ease-in': return t * t;
+          case 'ease-out': return t * (2 - t);
+          case 'ease-in-out': return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+          default: return t;
+        }
+      }
+    }
+
+    ok.timeline = () => new Timeline();
+  });
+
+  // 3D Scene Helper Module
+  ok.module('scene3d', function() {
+    class Scene3D {
+      constructor(container) {
+        this.container = ok(container).first().elements[0];
+        this.camera = { x: 0, y: 0, z: 0, rotationX: 0, rotationY: 0, rotationZ: 0 };
+        this.objects = [];
+        this.container.style.perspective = '1000px';
+        this.container.style.transformStyle = 'preserve-3d';
+      }
+
+      add(selector) {
+        const element = ok(selector).first().elements[0];
+        if (element) {
+          element.style.transformStyle = 'preserve-3d';
+          element.style.position = 'absolute';
+          const obj = {
+            element,
+            x: 0, y: 0, z: 0,
+            rotationX: 0, rotationY: 0, rotationZ: 0,
+            scale: 1
+          };
+          this.objects.push(obj);
+          this.updateTransform(obj);
+          return obj;
+        }
+        return null;
+      }
+
+      updateTransform(obj) {
+        obj.element.style.transform = `
+          translate3d(${obj.x}px, ${obj.y}px, ${obj.z}px)
+          rotateX(${obj.rotationX}deg)
+          rotateY(${obj.rotationY}deg)
+          rotateZ(${obj.rotationZ}deg)
+          scale(${obj.scale})
+        `;
+      }
+
+      rotateX(obj, angle) {
+        if (obj) {
+          obj.rotationX = angle;
+          this.updateTransform(obj);
+        }
+        return this;
+      }
+
+      rotateY(obj, angle) {
+        if (obj) {
+          obj.rotationY = angle;
+          this.updateTransform(obj);
+        }
+        return this;
+      }
+
+      translateZ(obj, z) {
+        if (obj) {
+          obj.z = z;
+          this.updateTransform(obj);
+        }
+        return this;
+      }
+    }
+
+    ok.scene3d = (container) => new Scene3D(container);
+  });
+
+  // Content Security Policy Helper Module
+  ok.module('csp', function() {
+    let currentPolicy = {};
+    const violations = [];
+
+    function policy(newPolicy) {
+      currentPolicy = { ...currentPolicy, ...newPolicy };
+      return this;
+    }
+
+    function apply() {
+      const directives = [];
+
+      for (const [directive, values] of Object.entries(currentPolicy)) {
+        if (Array.isArray(values)) {
+          directives.push(`${directive} ${values.join(' ')}`);
+        } else {
+          directives.push(`${directive} ${values}`);
+        }
+      }
+
+      const metaTag = document.querySelector('meta[http-equiv="Content-Security-Policy"]');
+      if (metaTag) {
+        metaTag.setAttribute('content', directives.join('; '));
+      } else {
+        const newMetaTag = document.createElement('meta');
+        newMetaTag.setAttribute('http-equiv', 'Content-Security-Policy');
+        newMetaTag.setAttribute('content', directives.join('; '));
+        document.head.appendChild(newMetaTag);
+      }
+
+      return this;
+    }
+
+    function generateNonce() {
+      const array = new Uint8Array(16);
+      crypto.getRandomValues(array);
+      return btoa(String.fromCharCode.apply(null, array)).replace(/[^a-zA-Z0-9]/g, '');
+    }
+
+    function onViolation(callback) {
+      document.addEventListener('securitypolicyviolation', (e) => {
+        const violation = {
+          documentURI: e.documentURI,
+          violatedDirective: e.violatedDirective,
+          effectiveDirective: e.effectiveDirective,
+          originalPolicy: e.originalPolicy,
+          blockedURI: e.blockedURI,
+          statusCode: e.statusCode,
+          timestamp: Date.now()
+        };
+        violations.push(violation);
+        callback(violation);
+      });
+      return this;
+    }
+
+    function getViolations() {
+      return [...violations];
+    }
+
+    function reportTo(endpoint) {
+      onViolation((violation) => {
+        ok.http.post(endpoint, violation);
+      });
+      return this;
+    }
+
+    ok.csp = { policy, apply, generateNonce, onViolation, getViolations, reportTo };
+  });
+
+  // Command Line Interface Module
+  ok.module('cli', function() {
+    const commands = {};
+    const history = [];
+    let currentPrompt = '> ';
+
+    function register(name, handler, description = '') {
+      commands[name] = { handler, description };
+      return this;
+    }
+
+    function execute(commandString) {
+      const args = commandString.trim().split(/\s+/);
+      const command = args.shift();
+
+      if (command === 'help') {
+        const output = ['Available commands:'];
+        for (const [name, cmd] of Object.entries(commands)) {
+          output.push(`${name}: ${cmd.description}`);
+        }
+        output.push('help: Show this help message');
+        output.push('clear: Clear the console');
+        output.push('history: Show command history');
+        return output.join('\n');
+      }
+
+      if (command === 'clear') {
+        return '';
+      }
+
+      if (command === 'history') {
+        return history.join('\n');
+      }
+
+      if (commands[command]) {
+        history.push(commandString);
+        try {
+          return commands[command].handler(...args);
+        } catch (error) {
+          return `Error executing command '${command}': ${error.message}`;
+        }
+      }
+
+      return `Unknown command: ${command}. Type 'help' for available commands.`;
+    }
+
+    function setPrompt(prompt) {
+      currentPrompt = prompt;
+      return this;
+    }
+
+    function getPrompt() {
+      return currentPrompt;
+    }
+
+    function getHistory() {
+      return [...history];
+    }
+
+    function clearHistory() {
+      history.length = 0;
+      return this;
+    }
+
+    // Built-in commands
+    register('version', () => `OneKit CLI v${ok.version || '2.2.0'}`, 'Show OneKit version');
+    register('modules', () => Object.keys(modules).join(', '), 'List loaded modules');
+    register('elements', () => `Total elements tracked: ${document.querySelectorAll('*').length}`, 'Show DOM element count');
+    register('storage', () => {
+      const keys = ok.storage.keys();
+      return `Storage keys: ${keys.join(', ')}`;
+    }, 'Show storage keys');
+
+    ok.cli = { register, execute, setPrompt, getPrompt, getHistory, clearHistory };
+  });
+
+  // Component Stories Module
+  ok.module('stories', function() {
+    const stories = {};
+    let currentStorybook = null;
+
+    function add(category, name, story) {
+      if (!stories[category]) {
+        stories[category] = {};
+      }
+      stories[category][name] = story;
+      return this;
+    }
+
+    function get(category, name) {
+      return stories[category] && stories[category][name];
+    }
+
+    function getAll() {
+      return { ...stories };
+    }
+
+    function renderStorybook(container = null) {
+      const target = container || document.body;
+
+      if (currentStorybook) {
+        currentStorybook.remove();
+      }
+
+      currentStorybook = document.createElement('div');
+      currentStorybook.className = 'ok-storybook';
+      currentStorybook.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: #f5f5f5;
+        z-index: 9999;
+        overflow: auto;
+        font-family: Arial, sans-serif;
+      `;
+
+      const header = document.createElement('div');
+      header.style.cssText = `
+        background: #333;
+        color: white;
+        padding: 20px;
+        text-align: center;
+      `;
+      header.innerHTML = '<h1>OneKit Component Stories</h1>';
+      currentStorybook.appendChild(header);
+
+      const nav = document.createElement('div');
+      nav.style.cssText = `
+        background: #444;
+        padding: 10px;
+        display: flex;
+        flex-wrap: wrap;
+      `;
+
+      for (const category in stories) {
+        const catBtn = document.createElement('button');
+        catBtn.textContent = category;
+        catBtn.style.cssText = `
+          background: #555;
+          color: white;
+          border: none;
+          padding: 10px 15px;
+          margin: 5px;
+          cursor: pointer;
+          border-radius: 4px;
+        `;
+        catBtn.onclick = () => renderCategory(category);
+        nav.appendChild(catBtn);
+      }
+
+      currentStorybook.appendChild(nav);
+
+      const content = document.createElement('div');
+      content.id = 'ok-story-content';
+      content.style.cssText = `
+        padding: 20px;
+      `;
+      currentStorybook.appendChild(content);
+
+      target.appendChild(currentStorybook);
+
+      // Render first category by default
+      const firstCategory = Object.keys(stories)[0];
+      if (firstCategory) {
+        renderCategory(firstCategory);
+      }
+    }
+
+    function renderCategory(category) {
+      const content = document.getElementById('ok-story-content');
+      if (!content) return;
+
+      content.innerHTML = `<h2>${category}</h2>`;
+
+      for (const name in stories[category]) {
+        const story = stories[category][name];
+        const storyDiv = document.createElement('div');
+        storyDiv.style.cssText = `
+          border: 1px solid #ddd;
+          margin: 20px 0;
+          padding: 20px;
+          background: white;
+          border-radius: 8px;
+        `;
+
+        const title = document.createElement('h3');
+        title.textContent = name;
+        storyDiv.appendChild(title);
+
+        if (story.description) {
+          const desc = document.createElement('p');
+          desc.textContent = story.description;
+          desc.style.cssText = `
+            color: #666;
+            margin-bottom: 15px;
+          `;
+          storyDiv.appendChild(desc);
+        }
+
+        const componentDiv = document.createElement('div');
+        componentDiv.className = 'story-component';
+        storyDiv.appendChild(componentDiv);
+
+        if (typeof story.component === 'string') {
+          componentDiv.innerHTML = story.component;
+        } else if (typeof story.component === 'function') {
+          const result = story.component();
+          if (typeof result === 'string') {
+            componentDiv.innerHTML = result;
+          } else {
+            ok.component.mount(result, componentDiv);
+          }
+        }
+
+        content.appendChild(storyDiv);
+      }
+    }
+
+    function closeStorybook() {
+      if (currentStorybook) {
+        currentStorybook.remove();
+        currentStorybook = null;
+      }
+    }
+
+    ok.stories = { add, get, getAll, render: renderStorybook, close: closeStorybook };
+  });
+
+  // WebAssembly Loader Module
+  ok.module('wasm', function() {
+    const loadedModules = new Map();
+    const defaultImports = {
+      env: {
+        memory: new WebAssembly.Memory({ initial: 256 }),
+        table: new WebAssembly.Table({ initial: 0, element: 'anyfunc' }),
+        abort: function() { throw new Error('WebAssembly abort'); }
+      }
+    };
+
+    function load(url, imports = {}) {
+      if (loadedModules.has(url)) {
+        return Promise.resolve(loadedModules.get(url));
+      }
+
+      return fetch(url)
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`Failed to fetch WebAssembly module: ${response.status}`);
+          }
+          return response.arrayBuffer();
+        })
+        .then(bytes => WebAssembly.instantiate(bytes, { ...defaultImports, ...imports }))
+        .then(result => {
+          loadedModules.set(url, result.instance);
+          return result.instance;
+        })
+        .catch(error => {
+          console.error('WebAssembly loading error:', error);
+          throw error;
+        });
+    }
+
+    function loadFromBuffer(buffer, imports = {}) {
+      return WebAssembly.instantiate(buffer, { ...defaultImports, ...imports })
+        .then(result => result.instance)
+        .catch(error => {
+          console.error('WebAssembly instantiation error:', error);
+          throw error;
+        });
+    }
+
+    function compile(url) {
+      return fetch(url)
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`Failed to fetch WebAssembly module: ${response.status}`);
+          }
+          return response.arrayBuffer();
+        })
+        .then(bytes => WebAssembly.compile(bytes))
+        .catch(error => {
+          console.error('WebAssembly compilation error:', error);
+          throw error;
+        });
+    }
+
+    function instantiate(module, imports = {}) {
+      return WebAssembly.instantiate(module, { ...defaultImports, ...imports })
+        .then(result => result.instance)
+        .catch(error => {
+          console.error('WebAssembly instantiation error:', error);
+          throw error;
+        });
+    }
+
+    function setDefaultImports(imports) {
+      Object.assign(defaultImports, imports);
+      return this;
+    }
+
+    function getLoadedModules() {
+      return Array.from(loadedModules.keys());
+    }
+
+    function unload(url) {
+      loadedModules.delete(url);
+      return this;
+    }
+
+    function clearCache() {
+      loadedModules.clear();
+      return this;
+    }
+
+    ok.wasm = { load, loadFromBuffer, compile, instantiate, setDefaultImports, getLoadedModules, unload, clearCache };
+  });
+
   // ==================== INITIALIZATION ====================
 
-  const moduleNames = ['component', 'reactive', 'vdom', 'animation', 'gesture', 'api', 'utils', 'form', 'plugin', 'a11y', 'theme', 'router', 'storage'];
+  const moduleNames = ['component', 'reactive', 'vdom', 'animation', 'gesture', 'api', 'utils', 'form', 'plugin', 'a11y', 'theme', 'router', 'storage', 'crypto', 'physics', 'timeline', 'scene3d', 'csp', 'cli', 'stories', 'wasm', 'worker'];
   moduleNames.forEach(name => {
     if (modules[name]) {
       modules[name]();
