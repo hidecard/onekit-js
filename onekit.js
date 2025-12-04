@@ -2,8 +2,9 @@
  * OneKit - A lightweight, modern JavaScript library for DOM manipulation,
  * animations, reactive state, and API integration.
  *
- * Version: 2.0.5
+ * Version: 2.2.0
  * Author: OneKit Team
+
  */
 
 (function(global) {
@@ -36,6 +37,194 @@
     };
   }
 
+  // ==================== SECURITY UTILITIES ====================
+  
+  // Security configuration
+  const SecurityConfig = {
+    // Allowed HTML tags (whitelist approach)
+    ALLOWED_TAGS: ['div', 'span', 'p', 'a', 'img', 'strong', 'em', 'ul', 'ol', 'li', 
+                   'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'br', 'hr', 'blockquote', 
+                   'code', 'pre', 'table', 'thead', 'tbody', 'tr', 'td', 'th', 'button', 'input', 'form', 'label'],
+    
+    // Allowed attributes per tag
+    ALLOWED_ATTRIBUTES: {
+      'a': ['href', 'title', 'target', 'rel'],
+      'img': ['src', 'alt', 'title', 'width', 'height'],
+      'input': ['type', 'name', 'value', 'placeholder', 'required', 'disabled', 'readonly'],
+      'button': ['type', 'disabled', 'class', 'id'],
+      '*': ['class', 'id', 'data-*', 'style']
+    },
+    
+    // Dangerous patterns to detect
+    DANGEROUS_PATTERNS: [
+      /javascript:/gi,
+      /on\w+\s*=/gi,
+      /<script/gi,
+      /<\/script>/gi,
+      /<iframe/gi,
+      /<object/gi,
+      /<embed/gi,
+      /expression\s*\(/gi,
+      /vbscript:/gi,
+      /data:text\/html/gi
+    ],
+    
+    // Enable security features by default
+    ENABLE_SANITIZATION: true,
+    ENABLE_VALIDATION: true
+  };
+
+  // Enhanced HTML sanitization
+  function sanitizeHTML(html) {
+    if (typeof html !== 'string' || !SecurityConfig.ENABLE_SANITIZATION) {
+      return html;
+    }
+
+    // Check for dangerous patterns first
+    for (const pattern of SecurityConfig.DANGEROUS_PATTERNS) {
+      if (pattern.test(html)) {
+        console.warn('OneKit Security: Dangerous pattern detected and removed');
+        html = html.replace(pattern, '');
+      }
+    }
+
+    // Create a temporary container
+    const temp = document.createElement('div');
+    temp.innerHTML = html;
+
+    // Remove dangerous tags
+    const dangerousTags = temp.querySelectorAll('script, iframe, object, embed, link, meta, style');
+    dangerousTags.forEach(el => el.remove());
+
+    // Sanitize all elements
+    const allElements = temp.querySelectorAll('*');
+    allElements.forEach(el => {
+      // Remove dangerous attributes
+      const attrs = Array.from(el.attributes);
+      attrs.forEach(attr => {
+        const attrName = attr.name.toLowerCase();
+        
+        // Remove event handlers
+        if (attrName.startsWith('on')) {
+          el.removeAttribute(attrName);
+          return;
+        }
+
+        // Remove javascript: protocol
+        if (attr.value && attr.value.toLowerCase().startsWith('javascript:')) {
+          el.removeAttribute(attrName);
+          return;
+        }
+
+        // Check if attribute is allowed
+        const tagName = el.tagName.toLowerCase();
+        const allowedAttrs = SecurityConfig.ALLOWED_ATTRIBUTES[tagName] || SecurityConfig.ALLOWED_ATTRIBUTES['*'];
+        
+        const isAllowed = allowedAttrs.some(allowed => {
+          if (allowed.endsWith('*')) {
+            return attrName.startsWith(allowed.slice(0, -1));
+          }
+          return attrName === allowed;
+        });
+
+        if (!isAllowed) {
+          el.removeAttribute(attrName);
+        }
+      });
+    });
+
+    return temp.innerHTML;
+  }
+
+  // Validate CSS selector to prevent injection
+  function validateSelector(selector) {
+    if (typeof selector !== 'string' || !SecurityConfig.ENABLE_VALIDATION) {
+      return true;
+    }
+
+    // Dangerous patterns in selectors
+    const dangerous = [
+      /<script/gi,
+      /javascript:/gi,
+      /on\w+\s*=/gi,
+      /expression\s*\(/gi
+    ];
+
+    for (const pattern of dangerous) {
+      if (pattern.test(selector)) {
+        console.error('OneKit Security: Invalid selector detected');
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  // Sanitize URL to prevent XSS
+  function sanitizeURL(url) {
+    if (typeof url !== 'string') {
+      return '';
+    }
+
+    // Remove dangerous protocols
+    const dangerousProtocols = ['javascript:', 'data:', 'vbscript:'];
+    const lowerUrl = url.toLowerCase().trim();
+
+    for (const protocol of dangerousProtocols) {
+      if (lowerUrl.startsWith(protocol)) {
+        console.warn('OneKit Security: Dangerous URL protocol blocked');
+        return '#';
+      }
+    }
+
+    return url;
+  }
+
+  // Deep clone with prototype pollution protection
+  function deepCloneSafe(obj) {
+    if (obj === null || typeof obj !== 'object') {
+      return obj;
+    }
+
+    // Prevent prototype pollution
+    if (obj.constructor !== Object && obj.constructor !== Array) {
+      return obj;
+    }
+
+    const clone = Array.isArray(obj) ? [] : {};
+
+    for (const key in obj) {
+      // Skip prototype properties
+      if (!obj.hasOwnProperty(key)) {
+        continue;
+      }
+
+      // Prevent __proto__ and constructor pollution
+      if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+        continue;
+      }
+
+      clone[key] = typeof obj[key] === 'object' ? deepCloneSafe(obj[key]) : obj[key];
+    }
+
+    return clone;
+  }
+
+  // Validate storage key to prevent prototype pollution
+  function validateStorageKey(key) {
+    if (typeof key !== 'string' || key.length === 0 || key.length > 100) {
+      return false;
+    }
+
+    // Prevent prototype pollution
+    if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+      console.error('OneKit Security: Invalid storage key (prototype pollution attempt blocked)');
+      return false;
+    }
+
+    return true;
+  }
+
   // Core OneKit function
   function ok(selector) {
     return new OneKit(selector);
@@ -66,9 +255,17 @@
 
       // Handle HTML strings
       if (typeof selector === 'string') {
+        // Validate selector for security
+        if (!validateSelector(selector)) {
+          console.error('OneKit: Invalid selector - potential security risk');
+          return this;
+        }
+
         if (selector.charAt(0) === '<' && selector.charAt(selector.length - 1) === '>') {
+          // Sanitize HTML before inserting
+          const sanitized = sanitizeHTML(selector);
           const div = document.createElement('div');
-          div.innerHTML = selector;
+          div.innerHTML = sanitized;
           for (let i = 0; i < div.childNodes.length; i++) {
             this.elements.push(div.childNodes[i]);
           }
@@ -188,13 +385,14 @@
       });
     }
 
-    // Get or set HTML content
+    // Get or set HTML content (with security sanitization)
     html(content) {
       if (content === undefined) {
         return this.elements.length > 0 ? this.elements[0].innerHTML : null;
       }
       return this.each(function() {
-        this.innerHTML = content;
+        // Sanitize HTML content to prevent XSS
+        this.innerHTML = sanitizeHTML(content);
       });
     }
 
@@ -323,11 +521,13 @@
       return new OneKit(elements);
     }
 
-    // Append elements
+    // Append elements (with security sanitization)
     append(content) {
       return this.each(function() {
         if (typeof content === 'string') {
-          this.insertAdjacentHTML('beforeend', content);
+          // Sanitize HTML before inserting
+          const sanitized = sanitizeHTML(content);
+          this.insertAdjacentHTML('beforeend', sanitized);
         } else if (content.nodeType) {
           this.appendChild(content);
         } else if (content.elements) {
@@ -338,11 +538,13 @@
       });
     }
 
-    // Prepend elements
+    // Prepend elements (with security sanitization)
     prepend(content) {
       return this.each(function() {
         if (typeof content === 'string') {
-          this.insertAdjacentHTML('afterbegin', content);
+          // Sanitize HTML before inserting
+          const sanitized = sanitizeHTML(content);
+          this.insertAdjacentHTML('afterbegin', sanitized);
         } else if (content.nodeType) {
           this.insertBefore(content, this.firstChild);
         } else if (content.elements) {
@@ -418,11 +620,11 @@
           const start = performance.now();
           
           function animate(time) {
-            const timeFraction = (time - start) / duration;
+            let timeFraction = (time - start) / duration;
             if (timeFraction > 1) timeFraction = 1;
-            
+
             element.style.opacity = timeFraction;
-            
+
             if (timeFraction < 1) {
               requestAnimationFrame(animate);
             } else {
@@ -447,11 +649,11 @@
           const start = performance.now();
           
           function animate(time) {
-            const timeFraction = (time - start) / duration;
+            let timeFraction = (time - start) / duration;
             if (timeFraction > 1) timeFraction = 1;
-            
+
             element.style.opacity = startOpacity * (1 - timeFraction);
-            
+
             if (timeFraction < 1) {
               requestAnimationFrame(animate);
             } else {
@@ -833,28 +1035,13 @@
       });
     }
 
-    // Sanitize HTML string before insertion
+    // Sanitize HTML string before insertion (enhanced security)
     clean(dirtyHtml) {
-      const div = document.createElement('div');
-      div.innerHTML = dirtyHtml;
-      
-      // Remove script tags
-      const scripts = div.querySelectorAll('script');
-      scripts.forEach(script => script.remove());
-      
-      // Remove elements with on* attributes
-      const allElements = div.querySelectorAll('*');
-      allElements.forEach(el => {
-        const attributes = el.attributes;
-        for (let i = attributes.length - 1; i >= 0; i--) {
-          const attrName = attributes[i].name;
-          if (attrName.startsWith('on')) {
-            el.removeAttribute(attrName);
-          }
-        }
-      });
-      
-      return div.innerHTML;
+      if (typeof dirtyHtml !== 'string') {
+        return '';
+      }
+      // Use the enhanced sanitizeHTML function
+      return sanitizeHTML(dirtyHtml);
     }
 
     // Debug: log element to console
@@ -1130,7 +1317,9 @@
           }
           
           if (html) {
-            const newElement = ok(html).first().elements[0];
+            // Sanitize HTML before rendering
+            const sanitized = sanitizeHTML(html);
+            const newElement = ok(sanitized).first().elements[0];
             this.element.innerHTML = newElement.innerHTML;
             
             // Re-attach event listeners after update
@@ -1168,10 +1357,14 @@
         html = html.replace(/<slot name="([^"]+)"><\/slot>/gi, (match, slotName) => {
           return instance.slots[slotName] || '';
         });
-        instance.element = ok(html).first().elements[0];
+        // Sanitize HTML before creating element
+        const sanitized = sanitizeHTML(html);
+        instance.element = ok(sanitized).first().elements[0];
       } else if (definition.render) {
         html = definition.render.call(instance);
-        instance.element = ok(html).first().elements[0];
+        // Sanitize HTML before creating element
+        const sanitized = sanitizeHTML(html);
+        instance.element = ok(sanitized).first().elements[0];
       }
       
       // Add lifecycle hooks
@@ -1290,16 +1483,33 @@
       const el = ok(element).first().elements[0];
       if (!el) return;
       
+      // Validate stateKey to prevent prototype pollution
+      if (stateKey === '__proto__' || stateKey === 'constructor' || stateKey === 'prototype') {
+        console.error('OneKit Security: Invalid state key (prototype pollution attempt blocked)');
+        return;
+      }
+      
       if (state[stateKey] !== undefined) {
         el[attribute] = state[stateKey];
       }
       
       el.addEventListener('input', function() {
-        state[stateKey] = el[attribute];
+        // Sanitize input value
+        let value = el[attribute];
+        if (typeof value === 'string') {
+          // For text inputs, sanitize but preserve content
+          value = value.replace(/\0/g, ''); // Remove null bytes
+        }
+        state[stateKey] = value;
       });
       
       watch(stateKey, function(newValue) {
-        el[attribute] = newValue;
+        // Sanitize output value for HTML attributes
+        if (typeof newValue === 'string' && attribute === 'innerHTML') {
+          el[attribute] = sanitizeHTML(newValue);
+        } else {
+          el[attribute] = newValue;
+        }
       });
     }
     
@@ -1682,6 +1892,12 @@
     }
     
     function request(url, options = {}) {
+      // Sanitize URL to prevent XSS
+      url = sanitizeURL(url);
+      if (url === '#') {
+        return Promise.reject(new Error('Invalid or dangerous URL blocked'));
+      }
+
       const { 
         method = 'GET', 
         headers = {}, 
@@ -1716,9 +1932,13 @@
       
       let processedBody = body;
       if (body && typeof body === 'object' && !(body instanceof FormData)) {
-        processedBody = JSON.stringify(body);
+        // Sanitize body to prevent prototype pollution
+        processedBody = JSON.stringify(deepCloneSafe(body));
         headers['Content-Type'] = headers['Content-Type'] || 'application/json';
       }
+      
+      // Add security headers
+      headers['X-Requested-With'] = headers['X-Requested-With'] || 'XMLHttpRequest';
       
       const makeRequest = (attempt = 0) => {
         return fetch(url, { method, headers, body: processedBody, signal: controller.signal })
@@ -2359,52 +2579,67 @@
     }
     
     function navigate(path, state = {}, replace = false) {
+      // Sanitize path to prevent XSS
+      if (typeof path === 'string') {
+        const sanitized = sanitizeURL(path);
+        if (sanitized === '#') {
+          console.error('OneKit Router: Invalid path');
+          return false;
+        }
+        path = sanitized;
+      }
+
       const match = matchRoute(path);
-      
+
       if (match) {
         const { route, params } = match;
-        
-        if (replace) {
-          history.replaceState(state, '', base + path);
-        } else {
-          history.pushState(state, '', base + path);
-        }
-        
+
+        window.location.hash = path;
+
         if (typeof route.component === 'string') {
-          const component = ok.component.create(route.component, { ...params, ...state });
+          // Sanitize params and state to prevent prototype pollution
+          const safeParams = deepCloneSafe({ ...params, ...state });
+          const component = ok.component.create(route.component, safeParams);
           ok.component.mount(component, '#app');
         } else if (typeof route.component === 'function') {
-          const result = route.component(params, state);
+          // Sanitize params and state
+          const safeParams = deepCloneSafe(params);
+          const safeState = deepCloneSafe(state);
+          const result = route.component(safeParams, safeState);
           if (typeof result === 'string') {
-            ok('#app').html(result);
+            ok('#app').html(result); // html() method will sanitize
           } else {
             ok.component.mount(result, '#app');
           }
         }
-        
-        currentRoute = { path, params, state };
-        
+
+        currentRoute = { path, params: deepCloneSafe(params), state: deepCloneSafe(state) };
+
         const event = new CustomEvent('routechange', { detail: { path, params, state }, bubbles: true, cancelable: true });
         document.dispatchEvent(event);
-        
+
         return true;
       } else if (notFoundRoute) {
+        window.location.hash = path;
+
         if (typeof notFoundRoute === 'string') {
-          const component = ok.component.create(notFoundRoute, { path });
+          const safePath = deepCloneSafe({ path });
+          const component = ok.component.create(notFoundRoute, safePath);
           ok.component.mount(component, '#app');
         } else if (typeof notFoundRoute === 'function') {
-          const result = notFoundRoute(path);
+          const safePath = typeof path === 'string' ? sanitizeURL(path) : path;
+          const result = notFoundRoute(safePath);
           if (typeof result === 'string') {
-            ok('#app').html(result);
+            ok('#app').html(result); // html() method will sanitize
           } else {
             ok.component.mount(result, '#app');
           }
         }
-        
-        currentRoute = { path: '404', params: { requestedPath: path }, state };
+
+        currentRoute = { path: '404', params: { requestedPath: path }, state: deepCloneSafe(state) };
         return false;
       }
-      
+
       return false;
     }
 
@@ -2420,25 +2655,39 @@
     
     function init() {
       window.addEventListener('popstate', handlePopState);
-      
+      window.addEventListener('hashchange', function(e) {
+        const hash = window.location.hash.substring(1);
+        if (hash) {
+          navigate(hash);
+        }
+      });
+
       document.addEventListener('click', function(e) {
         const target = e.target.closest('a');
         if (!target) return;
-        
+
         const href = target.getAttribute('href');
-        if (!href || href.startsWith('http') || href.startsWith('//') || href.startsWith('#')) {
+        if (!href || href.startsWith('http') || href.startsWith('//')) {
           return;
         }
-        
-        if (href.startsWith(base) || (base === '/' && href.startsWith('/'))) {
+
+        if (href.startsWith('#/')) {
+          e.preventDefault();
+          const path = href.substring(1);
+          navigate(path);
+        } else if (href.startsWith(base) || (base === '/' && href.startsWith('/'))) {
           e.preventDefault();
           navigate(href);
         }
       });
-      
-      const initialPath = window.location.pathname;
-      navigate(initialPath);
-      
+
+      const initialHash = window.location.hash.substring(1);
+      if (initialHash) {
+        navigate(initialHash);
+      } else {
+        navigate('/');
+      }
+
       return this;
     }
     
@@ -2479,9 +2728,16 @@
     }
     
     function safeSet(key, value, type = 'local', encryptKey = null) {
+      // Validate storage key to prevent prototype pollution
+      if (!validateStorageKey(key)) {
+        return false;
+      }
+
       try {
         const storage = getStorage(type);
-        const serialized = JSON.stringify(value);
+        // Sanitize value to prevent prototype pollution
+        const sanitizedValue = deepCloneSafe(value);
+        const serialized = JSON.stringify(sanitizedValue);
         const encrypted = encryptKey ? encrypt(serialized, encryptKey) : serialized;
         storage.setItem(key, encrypted);
         return true;
@@ -2492,12 +2748,19 @@
     }
     
     function get(key, defaultValue = null, type = 'local', encryptKey = null) {
+      // Validate storage key
+      if (!validateStorageKey(key)) {
+        return defaultValue;
+      }
+
       try {
         const storage = getStorage(type);
         const item = storage.getItem(key);
         if (item === null) return defaultValue;
         const decrypted = encryptKey ? decrypt(item, encryptKey) : item;
-        return JSON.parse(decrypted);
+        const parsed = JSON.parse(decrypted);
+        // Return sanitized clone to prevent prototype pollution
+        return deepCloneSafe(parsed);
       } catch (e) {
         console.error('Error parsing stored value:', e);
         return defaultValue;
@@ -2505,6 +2768,11 @@
     }
     
     function remove(key, type = 'local') {
+      // Validate storage key
+      if (!validateStorageKey(key)) {
+        return false;
+      }
+
       try {
         const storage = getStorage(type);
         storage.removeItem(key);
@@ -2636,14 +2904,62 @@
   });
 
   ok.store = {
-    set(key, value) { if (typeof value === 'object') { value = JSON.stringify(value); } localStorage.setItem(key, value); },
-    get(key) { const v = localStorage.getItem(key); try { return JSON.parse(v); } catch (e) { return v; } },
-    del(key) { localStorage.removeItem(key); }
+    set(key, value) { 
+      // Validate key to prevent prototype pollution
+      if (!validateStorageKey(key)) {
+        return false;
+      }
+      if (typeof value === 'object') { 
+        value = JSON.stringify(deepCloneSafe(value)); 
+      } 
+      localStorage.setItem(key, value);
+      return true;
+    },
+    get(key) { 
+      // Validate key
+      if (!validateStorageKey(key)) {
+        return null;
+      }
+      const v = localStorage.getItem(key); 
+      try { 
+        const parsed = JSON.parse(v);
+        return deepCloneSafe(parsed);
+      } catch (e) { 
+        return v; 
+      } 
+    },
+    del(key) { 
+      // Validate key
+      if (!validateStorageKey(key)) {
+        return false;
+      }
+      localStorage.removeItem(key);
+      return true;
+    }
   };
 
   ok.wait = ok.utils.debounce;
   ok.flow = ok.utils.throttle;
   ok.plug = function(name, fn) { OneKit.prototype[name] = fn; };
+
+  // Expose security utilities
+  ok.security = {
+    sanitizeHTML: sanitizeHTML,
+    validateSelector: validateSelector,
+    sanitizeURL: sanitizeURL,
+    deepCloneSafe: deepCloneSafe,
+    validateStorageKey: validateStorageKey,
+    config: SecurityConfig,
+    // Enable/disable security features
+    enable: function() {
+      SecurityConfig.ENABLE_SANITIZATION = true;
+      SecurityConfig.ENABLE_VALIDATION = true;
+    },
+    disable: function() {
+      SecurityConfig.ENABLE_SANITIZATION = false;
+      SecurityConfig.ENABLE_VALIDATION = false;
+    }
+  };
 
   global.ok = ok;
   global.OneKit = OneKit;
@@ -2660,7 +2976,7 @@
 
   document.addEventListener('DOMContentLoaded', function() {
     if (ok.theme && ok.theme.load) { ok.theme.load(); }
-    if (ok.router && typeof ok.router.init === 'function') { ok.router.init(); }
+    // Router initialization is left to the user
   });
 
 })(typeof window !== 'undefined' ? window : this);
