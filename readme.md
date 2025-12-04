@@ -53,7 +53,7 @@ OneKit is a modern, lightweight JavaScript library for DOM manipulation, reactiv
 </html>
 ```
 
-## 🔒 Security
+## Security
 
 OneKit 2.2.0 includes **built-in security features** that protect against common web vulnerabilities:
 
@@ -763,7 +763,6 @@ ok.http.get('javascript:alert(1)'); // URL sanitized, request fails safely
 ok.http.get('data:text/html,<script>alert(1)</script>'); // Blocked
 ```
 
-For more details, see [SECURITY_CHANGES.md](./SECURITY_CHANGES.md)
 
 ## License
 
