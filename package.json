@@ -1,10 +1,21 @@
 {
   "name": "onekit-js",
-  "version": "2.2.0",
+  "version": "3.0.0",
   "description": "Javascript lib",
-  "main": "onekit.js",
+  "main": "dist/onekit.cjs.js",
+  "module": "dist/onekit.esm.js",
+  "browser": "dist/onekit.js",
+  "types": "types/index.d.ts",
+  "files": [
+    "dist",
+    "types",
+    "src"
+  ],
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "rollup -c",
+    "dev": "rollup -c -w",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "type-check": "tsc --noEmit"
   },
   "repository": {
     "type": "git",
@@ -15,5 +26,18 @@
   "bugs": {
     "url": "https://github.com/hidecard/onekit-js/issues"
   },
-  "homepage": "https://github.com/hidecard/onekit-js#readme"
+  "homepage": "https://github.com/hidecard/onekit-js#readme",
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^29.0.0",
+    "@rollup/plugin-node-resolve": "^16.0.3",
+    "@rollup/plugin-terser": "^0.4.4",
+    "@rollup/plugin-typescript": "^12.3.0",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^24.10.1",
+    "jest": "^30.2.0",
+    "rollup": "^4.53.3",
+    "ts-jest": "^29.4.6",
+    "tslib": "^2.8.1",
+    "typescript": "^5.9.3"
+  }
 }
