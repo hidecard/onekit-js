@@ -1,11 +1,11 @@
 // Virtual DOM Module
 import { sanitizeHTML } from '../core/security';
 
-interface VNodeProps {
+export interface VNodeProps {
   [key: string]: unknown;
 }
 
-interface VNode {
+export interface VNode {
   tag: string;
   props: VNodeProps;
   children: (VNode | string)[];

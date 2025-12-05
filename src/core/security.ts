@@ -24,7 +24,7 @@ const DEFAULT_SECURITY_CONFIG: SecurityConfig = {
 
 let securityConfig = { ...DEFAULT_SECURITY_CONFIG };
 
-// Sanitize HTML content
+// Sanitize HTML content with enhanced security
 export function sanitizeHTML(html: string): string {
   if (!securityConfig.enableSanitization) return html;
 
@@ -41,10 +41,25 @@ export function sanitizeHTML(html: string): string {
         return;
       }
 
-      // Remove disallowed attributes
+      // Remove disallowed attributes and dangerous ones
       const attributes = Array.from(element.attributes);
       for (const attr of attributes) {
         const attrName = attr.name.toLowerCase();
+        const attrValue = attr.value;
+
+        // Check for dangerous attribute patterns
+        const dangerousAttrPatterns = [
+          /^on\w+$/i, // Event handlers
+          /^javascript:/i,
+          /^vbscript:/i,
+          /^data:/i,
+          /expression\s*\(/i,
+          /eval\s*\(/i,
+          /Function\s*\(/i
+        ];
+
+        const isDangerous = dangerousAttrPatterns.some(pattern => pattern.test(attrName) || pattern.test(attrValue));
+
         const isAllowed = securityConfig.ALLOWED_ATTRIBUTES.some(allowed => {
           if (allowed.endsWith('*')) {
             return attrName.startsWith(allowed.slice(0, -1));
@@ -52,7 +67,7 @@ export function sanitizeHTML(html: string): string {
           return attrName === allowed;
         });
 
-        if (!isAllowed) {
+        if (!isAllowed || isDangerous) {
           element.removeAttribute(attr.name);
         }
       }
@@ -61,6 +76,19 @@ export function sanitizeHTML(html: string): string {
       const children = Array.from(element.childNodes);
       for (const child of children) {
         sanitizeNode(child);
+      }
+    } else if (node.nodeType === Node.TEXT_NODE) {
+      // Ensure text nodes don't contain dangerous content
+      const textContent = node.textContent || '';
+      const dangerousTextPatterns = [
+        /javascript:/i,
+        /vbscript:/i,
+        /data:/i,
+        /on\w+\s*=/i
+      ];
+
+      if (dangerousTextPatterns.some(pattern => pattern.test(textContent))) {
+        node.textContent = textContent.replace(/javascript:|vbscript:|data:|on\w+=/gi, '');
       }
     }
   };
@@ -148,4 +176,57 @@ export function updateSecurityConfig(config: Partial<SecurityConfig>): void {
 // Get current security configuration
 export function getSecurityConfig(): SecurityConfig {
   return { ...securityConfig };
+}
+
+// Generate Content Security Policy header
+export function generateCSPHeader(directives?: Record<string, string[]>): string {
+  const defaultDirectives = {
+    'default-src': ["'self'"],
+    'script-src': ["'self'"],
+    'style-src': ["'self'", "'unsafe-inline'"],
+    'img-src': ["'self'", 'data:', 'https:'],
+    'font-src': ["'self'"],
+    'connect-src': ["'self'"],
+    'object-src': ["'none'"],
+    'base-uri': ["'self'"],
+    'form-action': ["'self'"]
+  };
+
+  const finalDirectives = { ...defaultDirectives, ...directives };
+  return Object.entries(finalDirectives)
+    .map(([key, values]) => `${key} ${values.join(' ')}`)
+    .join('; ');
+}
+
+// Validate JSON input for security
+export function validateJSON(jsonString: string): boolean {
+  if (!securityConfig.enableValidation) return true;
+
+  try {
+    const parsed = JSON.parse(jsonString);
+    // Check for prototype pollution attempts
+    const checkObject = (obj: any): boolean => {
+      if (obj === null || typeof obj !== 'object') return true;
+      if (Array.isArray(obj)) return obj.every(checkObject);
+      return Object.keys(obj).every(key => {
+        if (['__proto__', 'constructor', 'prototype'].includes(key)) return false;
+        return checkObject(obj[key]);
+      });
+    };
+    return checkObject(parsed);
+  } catch {
+    return false;
+  }
+}
+
+// Sanitize user input for database/storage
+export function sanitizeInput(input: string): string {
+  if (!securityConfig.enableSanitization) return input;
+
+  return input
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    .replace(/javascript:/gi, '')
+    .replace(/vbscript:/gi, '')
+    .replace(/on\w+\s*=/gi, '')
+    .replace(/\0/g, ''); // Remove null bytes
 }

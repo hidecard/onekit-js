@@ -1,0 +1,13 @@
+export * from './core/index';
+export * from './core/di';
+export * from './core/plugin';
+export * from './modules/component';
+export * from './modules/reactive';
+export { createElement, render, patch as vdomPatch } from './modules/vdom';
+export * from './modules/animation';
+export { request, get, post, put, del, API, patch as apiPatch } from './modules/api';
+export * from './modules/router';
+export * from './modules/storage';
+export * from './modules/utils';
+export * from './modules/a11y';
+export declare const VERSION = "3.0.0-alpha";

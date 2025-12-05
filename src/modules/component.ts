@@ -1,6 +1,7 @@
 // Component System Module
 import { sanitizeHTML } from '../core/security';
 import { deepCloneSafe } from '../core/security';
+import { di } from '../core/di';
 
 interface ComponentProps {
   [key: string]: unknown;
@@ -10,18 +11,25 @@ interface ComponentState {
   [key: string]: unknown;
 }
 
-interface ComponentDefinition {
+export interface ComponentDefinition {
+  name?: string;
   props?: ComponentProps;
   data?: () => ComponentState;
   template?: string;
   render?: (this: ComponentInstance) => string;
   methods?: { [key: string]: (...args: unknown[]) => unknown };
+  inject?: string[];
+  beforeCreate?: (this: ComponentInstance) => void;
   created?: (this: ComponentInstance) => void;
+  beforeMount?: (this: ComponentInstance) => void;
   mounted?: (this: ComponentInstance) => void;
-  beforeDestroy?: (this: ComponentInstance) => void;
+  beforeUpdate?: (this: ComponentInstance) => void;
+  updated?: (this: ComponentInstance) => void;
+  beforeUnmount?: (this: ComponentInstance) => void;
+  unmounted?: (this: ComponentInstance) => void;
 }
 
-interface ComponentInstance {
+export interface ComponentInstance {
   name: string;
   props: ComponentProps;
   slots: { [key: string]: string };
@@ -73,6 +81,10 @@ export function create(name: string, props: ComponentProps = {}, slots: { [key: 
   // Unified update method for reactive updates
   instance.update = function() {
     if (this.element) {
+      if (definition.beforeUpdate) {
+        definition.beforeUpdate.call(this);
+      }
+
       let html = '';
       if (definition.template) {
         html = definition.template.replace(/\{\{([^}]+)\}\}/g, (match, key) => {
@@ -122,6 +134,8 @@ export function create(name: string, props: ComponentProps = {}, slots: { [key: 
           });
         }
       }
+
+      definition.updated?.call(this);
     }
   };
 
@@ -159,9 +173,8 @@ export function create(name: string, props: ComponentProps = {}, slots: { [key: 
   }
 
   // Add lifecycle hooks
-  if (definition.created) {
-    definition.created.call(instance);
-  }
+  definition.beforeCreate?.call(instance);
+  definition.created?.call(instance);
 
   // Store instance
   if (instance.element) {
@@ -171,7 +184,7 @@ export function create(name: string, props: ComponentProps = {}, slots: { [key: 
   return instance;
 }
 
-export function mount(component: ComponentInstance | string, target: string | Element): ComponentInstance | null {
+export function mount(component: ComponentInstance | string, target: string | Element | ShadowRoot): ComponentInstance | null {
   let comp: ComponentInstance | null;
   if (typeof component === 'string') {
     comp = create(component);
@@ -194,9 +207,7 @@ export function mount(component: ComponentInstance | string, target: string | El
   comp.mounted = true;
 
   const definition = components[comp.name];
-  if (definition && definition.mounted) {
-    definition.mounted.call(comp);
-  }
+  definition?.mounted?.call(comp);
 
   return comp;
 }
@@ -209,9 +220,7 @@ export function destroy(component: ComponentInstance): void {
   if (!component || !component.element) return;
 
   const definition = components[component.name];
-  if (definition && definition.beforeDestroy) {
-    definition.beforeDestroy.call(component);
-  }
+  definition?.beforeUnmount?.call(component);
 
   if (component.element.parentNode) {
     component.element.parentNode.removeChild(component.element);
@@ -226,4 +235,8 @@ export function destroy(component: ComponentInstance): void {
 
   componentInstances.delete(component.element);
   component.mounted = false;
+
+  if (definition && definition.unmounted) {
+    definition.unmounted.call(component);
+  }
 }

@@ -1,11 +1,32 @@
 {
   "name": "onekit-js",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "description": "Javascript lib",
+  "type": "module",
   "main": "dist/onekit.cjs.js",
   "module": "dist/onekit.esm.js",
   "browser": "dist/onekit.js",
   "types": "types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./types/index.d.ts",
+      "import": "./dist/onekit.esm.js",
+      "require": "./dist/onekit.cjs.js",
+      "browser": "./dist/onekit.js"
+    },
+    "./core": {
+      "types": "./types/core/index.d.ts",
+      "import": "./dist/onekit-core.esm.js"
+    },
+    "./components": {
+      "types": "./types/modules/component.d.ts",
+      "import": "./dist/onekit-components.esm.js"
+    },
+    "./reactive": {
+      "types": "./types/modules/reactive.d.ts",
+      "import": "./dist/onekit-reactive.esm.js"
+    }
+  },
   "files": [
     "dist",
     "types",
@@ -14,7 +35,7 @@
   "scripts": {
     "build": "rollup -c",
     "dev": "rollup -c -w",
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "jest",
     "type-check": "tsc --noEmit"
   },
   "repository": {
@@ -35,6 +56,7 @@
     "@types/jest": "^30.0.0",
     "@types/node": "^24.10.1",
     "jest": "^30.2.0",
+    "jest-environment-jsdom": "^30.2.0",
     "rollup": "^4.53.3",
     "ts-jest": "^29.4.6",
     "tslib": "^2.8.1",

@@ -1,11 +1,12 @@
 
 
-# OneKit 2.2.0 - Lightweight JavaScript Library
+# OneKit 3.1.0 - Lightweight JavaScript Library
 
 OneKit is a modern, lightweight JavaScript library for DOM manipulation, reactive state management, animations, and more. Inspired by jQuery but built with modern JavaScript features and enterprise-grade security.
 
 ## Features
 
+- **OKJS Template Syntax**: Custom bracket-based template syntax for components
 - **DOM Manipulation**: Chainable API for selecting and manipulating elements
 - **Reactive State**: Automatic UI updates when data changes
 - **Animations**: Promise-based animations with hardware acceleration
@@ -241,7 +242,7 @@ ok('.temp').remove();
 **Example from dom-manipulation.html:**
 ```javascript
 ok('#add-item').click(() => {
-    ok('#list').append('<li>New Item</li>');
+    ok('#list').append(okjs`[li]New Item[/li]`);
 });
 
 ok('#remove-first').click(() => {
@@ -375,16 +376,16 @@ ok('input[name="date"]').applyMask('date');
 ## Component System
 
 ```javascript
-// Register component
+// Register component with OKJS template
 ok.component.register('my-card', {
     props: { title: 'Default' },
     data: { count: 0 },
-    template: `
-        <div class="card">
-            <h3>{{props.title}}</h3>
-            <p>Count: {{state.count}}</p>
-            <button onclick="this.methods.increment()">+</button>
-        </div>
+    template: okjs`
+        [div class="card"]
+            [h3]{{props.title}}[/h3]
+            [p]Count: {{state.count}}[/p]
+            [button onclick="this.methods.increment()"]+[/button]
+        [/div]
     `,
     methods: {
         increment() {
@@ -403,13 +404,13 @@ ok.component.mount(card, '#app');
 ```javascript
 ok.component.register('todo-item', {
     props: { text: '', done: false },
-    template: `
-        <div class="todo-item {{state.done ? 'done' : ''}}">
-            <input type="checkbox" {{props.done ? 'checked' : ''}} 
-                   onchange="this.methods.toggle()">
-            <span>{{props.text}}</span>
-            <button onclick="this.methods.remove()">×</button>
-        </div>
+    template: okjs`
+        [div class="todo-item {{state.done ? 'done' : ''}}"]
+            [input type="checkbox" {{props.done ? 'checked' : ''}}
+                   onchange="this.methods.toggle()" /]
+            [span]{{props.text}}[/span]
+            [button onclick="this.methods.remove()"]×[/button]
+        [/div]
     `,
     methods: {
         toggle() {
@@ -445,8 +446,8 @@ ws.send({ type: 'hello' });
 ok('#load-users').click(() => {
     ok.http.get('/api/users')
         .then(users => {
-            const html = users.map(user => 
-                `<li>${user.name} (${user.email})</li>`
+            const html = users.map(user =>
+                okjs`[li]${user.name} (${user.email})[/li]`
             ).join('');
             ok('#users-list').html(html);
         })
@@ -458,7 +459,7 @@ ok('#load-users').click(() => {
 ok('#create-user-form').on('submit', function(e) {
     e.preventDefault();
     const data = ok(this).form_data();
-    
+
     ok.http.post('/api/users', data)
         .then(user => {
             console.log('User created:', user);
