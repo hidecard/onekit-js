@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Test</title>
+
+</head>
+<body>
+<div id="app">
+  <h1>Hello <span id="name">World</span>!</h1>
+  <input id="input-name">
+  <button id="greet">Greet</button>
+</div>
+
+<script type="module">
+// Import like React style using bare module specifier
+import { ok, reactive, watch, announce } from 'onekit-js';
+
+if (!ok) {
+  console.error('onekit failed to load');
+} else {
+  // Greet demo: read input value and update DOM
+  ok('#greet').click(() => {
+    const inputKit = ok('#input-name').first();
+    const name = (inputKit.elements && inputKit.elements[0])
+      ? inputKit.elements[0].value
+      : document.getElementById('input-name').value;
+    ok('#name').text(name || 'World');
+    announce(`Greeted ${name || 'World'}`);
+  });
+
+  // Reactive counter demo
+  const state = reactive({ count: 0 });
+
+  // Show initial count
+  ok('#count').text(String(state.count));
+
+  // Watch for changes to `count`
+  watch(state, 'count', (newVal, oldVal) => {
+    ok('#count').text(String(newVal));
+    console.log('count changed', oldVal, '=>', newVal);
+  });
+
+  // Buttons to modify reactive state
+  ok('#inc').click(() => state.count++);
+  ok('#dec').click(() => state.count--);
+
+  // Add list items (demonstrates sanitized append)
+  ok('#add-item').click(() => {
+    const value = (ok('#new-item').first().elements[0] || {}).value || ok('#new-item').first().text() || 'New';
+    ok('#items').append('<li>' + value + '</li>');
+    ok('#new-item').first().elements[0].value = '';
+  });
+}
+</script>
+
+</body>
+</html>

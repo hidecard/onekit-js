@@ -1,8 +1,8 @@
 
 
-# OneKit 3.1.0 - Lightweight JavaScript Library
+# OneKit 3.1.3 - Modern JavaScript Framework
 
-OneKit is a modern, lightweight JavaScript library for DOM manipulation, reactive state management, animations, and more. Inspired by jQuery but built with modern JavaScript features and enterprise-grade security.
+OneKit is a modern, lightweight JavaScript framework for DOM manipulation, reactive state management, animations, and more. Built with TypeScript, ES modules, and enterprise-grade security. Features tree-shaking, JSX support, and web components.
 
 ## Features
 
@@ -23,11 +23,22 @@ OneKit is a modern, lightweight JavaScript library for DOM manipulation, reactiv
 
 ## Quick Start
 
+### Installation
+
+```bash
+npm install onekit-js
+```
+
+### Basic Usage
+
 ```html
 <!DOCTYPE html>
 <html>
 <head>
-    <script src="onekit.js"></script>
+    <script type="module">
+        import { ok } from './node_modules/onekit/dist/onekit.esm.js';
+        // Or for production: import { ok } from 'https://cdn.jsdelivr.net/npm/onekit@3.1.0/dist/onekit.esm.min.js';
+    </script>
 </head>
 <body>
     <div id="app">
@@ -36,7 +47,9 @@ OneKit is a modern, lightweight JavaScript library for DOM manipulation, reactiv
         <button id="greet">Greet</button>
     </div>
 
-    <script>
+    <script type="module">
+        import { ok } from './node_modules/onekit/dist/onekit.esm.js';
+
         // DOM manipulation
         ok('#greet').click(() => {
             const name = ok('#input-name').val();
@@ -44,14 +57,29 @@ OneKit is a modern, lightweight JavaScript library for DOM manipulation, reactiv
         });
 
         // Reactive state
-        const state = ok.reactive.reactive({ message: 'Hello' });
-        ok.reactive.watch('message', (newVal) => {
+        const state = ok.reactive({ message: 'Hello' });
+        ok.watch('message', (newVal) => {
             console.log('Message changed to:', newVal);
         });
         state.message = 'Hi there!';
     </script>
 </body>
 </html>
+```
+
+### With Bundler (Recommended)
+
+```javascript
+// main.js
+import { ok } from 'onekit-js';
+
+const state = ok.reactive({ count: 0 });
+ok('#counter').text(state.count);
+
+ok('#increment').click(() => {
+    state.count++;
+    ok('#counter').text(state.count);
+});
 ```
 
 ## Security
@@ -152,13 +180,15 @@ ok('p')
 Create reactive objects that automatically update the UI:
 
 ```javascript
-const state = ok.reactive.reactive({
+import { ok } from 'onekit';
+
+const state = ok.reactive({
     count: 0,
     name: 'World'
 });
 
 // Watch for changes
-ok.reactive.watch('count', (newValue) => {
+ok.watch('count', (newValue) => {
     ok('#counter').text(newValue);
 });
 
@@ -166,9 +196,11 @@ ok.reactive.watch('count', (newValue) => {
 state.count++;
 ```
 
-**Example from reactive-state.html:**
+**Example:**
 ```javascript
-const counterState = ok.reactive.reactive({
+import { ok } from 'onekit';
+
+const counterState = ok.reactive({
     count: 0,
     name: ''
 });
@@ -176,7 +208,7 @@ const counterState = ok.reactive.reactive({
 ok('#increment').click(() => counterState.count++);
 ok('#decrement').click(() => counterState.count--);
 
-ok.reactive.watch('count', (newValue) => {
+ok.watch('count', (newValue) => {
     ok('#count-display').text(newValue);
 });
 
@@ -185,7 +217,7 @@ ok('#name-input').on('input', function() {
     counterState.name = this.value;
 });
 
-ok.reactive.watch('name', (newValue) => {
+ok.watch('name', (newValue) => {
     ok('#name-display').text(newValue || 'World');
     ok('#name-input').attr('value', newValue || '');
 });
@@ -427,6 +459,8 @@ ok.component.register('todo-item', {
 ## HTTP Requests
 
 ```javascript
+import { ok } from 'onekit';
+
 // GET request
 ok.http.get('/api/users')
     .then(users => console.log(users))
@@ -441,13 +475,15 @@ ws.on('message', data => console.log('Received:', data));
 ws.send({ type: 'hello' });
 ```
 
-**Example from api-requests.html:**
+**Example:**
 ```javascript
+import { ok } from 'onekit';
+
 ok('#load-users').click(() => {
     ok.http.get('/api/users')
         .then(users => {
             const html = users.map(user =>
-                okjs`[li]${user.name} (${user.email})[/li]`
+                `<li>${user.name} (${user.email})</li>`
             ).join('');
             ok('#users-list').html(html);
         })
@@ -513,6 +549,8 @@ function renderTodos() {
 ## Routing
 
 ```javascript
+import { ok } from 'onekit';
+
 ok.router.add('/', 'home-component');
 ok.router.add('/about', 'about-component');
 ok.router.add('/users/:id', (params) => {
@@ -522,8 +560,10 @@ ok.router.add('/users/:id', (params) => {
 ok.router.init(); // Start routing
 ```
 
-**Example from router demo:**
+**Example:**
 ```javascript
+import { ok } from 'onekit';
+
 ok.router.add('/', () => '<h1>Home</h1><p>Welcome to the home page!</p>');
 ok.router.add('/about', () => '<h1>About</h1><p>About this app...</p>');
 ok.router.add('/contact', () => '<h1>Contact</h1><p>Get in touch...</p>');
@@ -818,10 +858,14 @@ npm install onekit
 
 ## Browser Support
 
-- Chrome 60+
-- Firefox 55+
-- Safari 12+
+OneKit 3.1.0 requires modern browsers with ES module support:
+
+- Chrome 61+
+- Firefox 60+
+- Safari 11+
 - Edge 79+
+
+For older browsers, use a bundler like Webpack or Rollup with transpilation.
 
 ## Security Features
 
@@ -1707,40 +1751,67 @@ An alias for `ok.plugin.register`.
 
 ## Changelog
 
-### Version 2.2.0 (Current)
+### Version 3.1.0 (Current)
+
+**🚀 New Features:**
+- **JSX Support**: Native JSX rendering with `ok.jsx()`
+- **Web Components**: Custom element registration and lifecycle management
+- **Enhanced TypeScript**: Full type definitions and IntelliSense support
+- **Tree Shaking**: Import only needed modules for smaller bundles
+- **Multiple Build Formats**: UMD, ESM, CommonJS with minification
 
 **🔒 Security Enhancements:**
+- Automatic HTML sanitization to prevent XSS attacks
+- Input validation for selectors and URLs
+- Prototype pollution prevention in storage and reactive state
+- URL sanitization to block dangerous protocols
+- Component template security
+- Secure deep cloning with pollution protection
+
+**✨ Improvements:**
+- Modular architecture with ES modules
+- Better performance with optimized DOM operations
+- Enhanced error handling and security warnings
+- Improved API request security
+- Router path sanitization
+
+**📝 Breaking Changes:**
+- Requires ES module imports instead of global script
+- API changes: `ok.store` → `ok.storage`, `ok.wait` → `ok.utils.debounce`
+- Component system uses `state` instead of `data`
+
+### Version 3.0.0
+
+**🚀 Major Rewrite:**
+- Complete rewrite as ES modules with tree-shaking support
+- TypeScript support with full type definitions
+- Multiple build formats (UMD, ESM, CommonJS)
+- Automated testing with Jest
+- Performance benchmarks built-in
+
+**🔄 API Changes:**
+- `ok.store` → `ok.storage` (renamed for clarity)
+- `ok.wait` → `ok.utils.debounce` (moved to utils module)
+- `ok.flow` → `ok.utils.throttle` (moved to utils module)
+- `ok.plug` → `ok.plugin.register` (moved to plugin module)
+- Component system: `data` → `state` for consistency
+
+### Version 2.2.0
+
+**🔒 Security Focus:**
 - Added automatic HTML sanitization to prevent XSS attacks
 - Implemented input validation for selectors and URLs
 - Added prototype pollution prevention in storage and reactive state
 - Enhanced URL sanitization to block dangerous protocols
 - Improved component template security
 - Added secure deep cloning with pollution protection
-- Exposed security API via `ok.security`
-
-**✨ Improvements:**
-- Better error handling and security warnings
-- Enhanced storage operations with validation
-- Improved API request security
-- Router path sanitization
-
-**📝 Breaking Changes:**
-- None! All security features are backward compatible
 
 ### Version 2.1.0
 
 - Initial release with core features
-- DOM manipulation
-- Reactive state management
-- Component system
-- Router module
-- Storage module
-- Animation module
-- Form handling
-- Gesture support
-- Accessibility features
-- Theme management
-- Utility functions
+- DOM manipulation, reactive state, components
+- Router, storage, animations, forms
+- Gestures, accessibility, theming, utilities
 
 ---
 
