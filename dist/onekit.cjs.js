@@ -826,9 +826,617 @@ class OneKitPluginManager {
 }
 const pluginManager = new OneKitPluginManager();
 
+// Reactive State Management Module (Vue 3-style)
+// Global state
+const state = {};
+const watchers = {};
+// Dependency tracking
+const targetMap = new WeakMap();
+let activeEffect = null;
+const effectStack = [];
+// Batch updates
+let isBatching = false;
+const updateQueue = new Set();
+let isFlushing = false;
+function queueJob(job) {
+    if (!updateQueue.has(job)) {
+        updateQueue.add(job);
+        if (!isFlushing) {
+            isFlushing = true;
+            queueMicrotask(flushJobs);
+        }
+    }
+}
+function flushJobs() {
+    updateQueue.forEach(job => job());
+    updateQueue.clear();
+    isFlushing = false;
+}
+function track(target, key) {
+    if (!activeEffect)
+        return;
+    let depsMap = targetMap.get(target);
+    if (!depsMap) {
+        depsMap = new Map();
+        targetMap.set(target, depsMap);
+    }
+    let dep = depsMap.get(key);
+    if (!dep) {
+        dep = new Set();
+        depsMap.set(key, dep);
+    }
+    dep.add(activeEffect);
+    activeEffect.deps.push(dep);
+}
+function trigger(target, key) {
+    const depsMap = targetMap.get(target);
+    if (!depsMap)
+        return;
+    const dep = depsMap.get(key);
+    if (!dep)
+        return;
+    const effectsToRun = new Set(dep);
+    effectsToRun.forEach(effect => {
+        if (effect.options?.scheduler) {
+            effect.options.scheduler(effect);
+        }
+        else {
+            if (isBatching) {
+                queueJob(effect);
+            }
+            else {
+                effect();
+            }
+        }
+    });
+}
+function reactive(obj) {
+    return new Proxy(obj, {
+        get(target, key, receiver) {
+            const result = Reflect.get(target, key, receiver);
+            track(target, key);
+            if (typeof result === 'object' && result !== null) {
+                return reactive(result);
+            }
+            return result;
+        },
+        set(target, key, value, receiver) {
+            const oldValue = Reflect.get(target, key, receiver);
+            const result = Reflect.set(target, key, value, receiver);
+            if (oldValue !== value) {
+                trigger(target, key);
+                // Also trigger watchers for backward compatibility
+                if (watchers[key]) {
+                    watchers[key].forEach(watcher => {
+                        watcher.callback(value, oldValue, watcher.property);
+                    });
+                }
+            }
+            return result;
+        }
+    });
+}
+function computed(getter) {
+    let value;
+    let dirty = true;
+    const effectFn = effect(() => {
+        value = getter();
+    }, {
+        lazy: true,
+        scheduler: () => {
+            dirty = true;
+            trigger(computedRef, 'value');
+        }
+    });
+    const computedRef = {
+        get value() {
+            if (dirty) {
+                effectFn();
+                dirty = false;
+            }
+            track(computedRef, 'value');
+            return value;
+        },
+        __isComputed: true
+    };
+    return computedRef;
+}
+function effect(fn, options = {}) {
+    const effectFn = (() => {
+        if (effectStack.includes(effectFn)) {
+            return; // Prevent infinite recursion
+        }
+        try {
+            effectStack.push(effectFn);
+            activeEffect = effectFn;
+            return fn();
+        }
+        finally {
+            effectStack.pop();
+            activeEffect = effectStack[effectStack.length - 1] || null;
+        }
+    });
+    effectFn.deps = [];
+    effectFn.options = options;
+    if (!options.lazy) {
+        effectFn();
+    }
+    return effectFn;
+}
+// Alias for effect
+const autorun = effect;
+function watch(source, callback, options = {}) {
+    let getter;
+    let oldValue;
+    if (typeof source === 'string' || typeof source === 'symbol') {
+        const key = source;
+        getter = () => state[key];
+        // Backward compatibility
+        if (!watchers[key]) {
+            watchers[key] = [];
+        }
+        const watcher = { callback: callback, property: key };
+        watchers[key].push(watcher);
+        return () => {
+            const index = watchers[key].indexOf(watcher);
+            if (index > -1) {
+                watchers[key].splice(index, 1);
+            }
+        };
+    }
+    else if (typeof source === 'function') {
+        getter = source;
+    }
+    else if (typeof source === 'object' && source !== null) {
+        getter = () => traverse(source, options.deep);
+    }
+    else {
+        throw new Error('Invalid watch source');
+    }
+    const job = () => {
+        const newValue = getter();
+        callback(newValue, oldValue);
+        oldValue = newValue;
+    };
+    effect(getter, {
+        lazy: true,
+        scheduler: job
+    });
+    if (options.immediate) {
+        job();
+    }
+    else {
+        oldValue = getter();
+    }
+    return () => {
+        // Cleanup effect
+    };
+}
+function traverse(value, deep = false) {
+    if (!deep || typeof value !== 'object' || value === null) {
+        return value;
+    }
+    for (const key in value) {
+        traverse(value[key], deep);
+    }
+    return value;
+}
+function batch(fn) {
+    isBatching = true;
+    try {
+        return fn();
+    }
+    finally {
+        isBatching = false;
+        flushJobs();
+    }
+}
+function snapshot(obj) {
+    return deepCloneSafe(obj);
+}
+function bind(element, reactiveObj, property, attribute = 'value') {
+    const el = typeof element === 'string' ? document.querySelector(element) : element;
+    if (!el)
+        return;
+    // Validate property to prevent prototype pollution
+    if (!validateStorageKey(property)) {
+        console.error('OneKit Security: Invalid property key (prototype pollution attempt blocked)');
+        return;
+    }
+    // Set initial value
+    const initialValue = reactiveObj[property];
+    if (initialValue !== undefined) {
+        el[attribute] = initialValue;
+    }
+    el.addEventListener('input', function () {
+        // Sanitize input value
+        let value = this[attribute];
+        if (typeof value === 'string') {
+            // For text inputs, sanitize but preserve content
+            value = value.replace(/\0/g, ''); // Remove null bytes
+        }
+        reactiveObj[property] = value;
+    });
+    watch(property, function (newValue) {
+        // Sanitize output value for HTML attributes
+        if (typeof newValue === 'string' && attribute === 'innerHTML') {
+            el[attribute] = newValue; // Note: sanitization should be handled by caller
+        }
+        else {
+            el[attribute] = newValue;
+        }
+    });
+}
+
+// Template Engine Module with Directives
+const directives = {};
+// Register a directive
+function registerDirective(name, handler) {
+    directives[name] = handler;
+}
+// Parse directive from attribute name
+function parseDirective(attrName) {
+    const directiveRegex = /^o-([a-zA-Z_][a-zA-Z0-9_]*)(?:\.(.*))?$/;
+    const match = attrName.match(directiveRegex);
+    if (!match)
+        return null;
+    const name = match[1];
+    const modifiers = match[2] ? match[2].split('.') : [];
+    return { name, modifiers, rawName: attrName };
+}
+// Evaluate expression in context
+function evaluateExpression(expression, context) {
+    try {
+        // Simple expression evaluation - in production, use a proper expression parser
+        const func = new Function('context', `with(context) { return ${expression}; }`);
+        return func(context);
+    }
+    catch (e) {
+        console.error('Template expression error:', expression, e);
+        return undefined;
+    }
+}
+// Compile template with directives
+function compileTemplate(template, context) {
+    // Create a temporary container
+    const container = document.createElement('div');
+    container.innerHTML = sanitizeHTML(template);
+    // Process all elements for directives
+    const elements = container.querySelectorAll('*');
+    const directiveBindings = [];
+    elements.forEach(element => {
+        const attributes = Array.from(element.attributes);
+        attributes.forEach(attr => {
+            const directive = parseDirective(attr.name);
+            if (!directive)
+                return;
+            const { name, modifiers, rawName } = directive;
+            const expression = attr.value;
+            // Remove the directive attribute
+            element.removeAttribute(rawName);
+            // Store binding for later processing
+            directiveBindings.push({
+                element,
+                directive: name,
+                expression,
+                modifiers
+            });
+        });
+    });
+    // Process directive bindings
+    directiveBindings.forEach(binding => {
+        const handler = directives[binding.directive];
+        if (!handler) {
+            console.warn(`Unknown directive: o-${binding.directive}`);
+            return;
+        }
+        const directiveCtx = {
+            element: binding.element,
+            expression: binding.expression,
+            modifiers: binding.modifiers
+        };
+        // Create reactive binding
+        const getter = () => evaluateExpression(binding.expression, context);
+        if (handler.bind) {
+            directiveCtx.value = getter();
+            handler.bind(directiveCtx);
+        }
+        if (handler.update) {
+            // Create effect for reactive updates
+            effect(() => {
+                const newValue = getter();
+                directiveCtx.oldValue = directiveCtx.value;
+                directiveCtx.value = newValue;
+                handler.update(directiveCtx);
+            });
+            binding.cleanup = () => {
+                // Cleanup effect
+            };
+        }
+    });
+    // Return the first child (the actual template content)
+    return container.firstElementChild || container;
+}
+// Built-in directives
+// o-if directive
+registerDirective('if', {
+    bind(ctx) {
+        ctx.element.style.display = ctx.value ? '' : 'none';
+    },
+    update(ctx) {
+        ctx.element.style.display = ctx.value ? '' : 'none';
+    }
+});
+// v-show directive
+registerDirective('show', {
+    bind(ctx) {
+        ctx.element.style.display = ctx.value ? '' : 'none';
+    },
+    update(ctx) {
+        ctx.element.style.display = ctx.value ? '' : 'none';
+    }
+});
+// o-for directive
+registerDirective('for', {
+    bind(ctx) {
+        // o-for="item in items" or o-for="(item, index) in items"
+        const forMatch = ctx.expression.match(/^\s*\(?(\w+)(?:\s*,\s*(\w+))?\)?\s+in\s+(.+)$/);
+        if (!forMatch) {
+            console.error('Invalid o-for expression:', ctx.expression);
+            return;
+        }
+        const [, itemName, indexName, collectionExpr] = forMatch;
+        const collection = evaluateExpression(collectionExpr, ctx.value);
+        if (!Array.isArray(collection)) {
+            console.error('o-for collection must be an array:', collectionExpr);
+            return;
+        }
+        // Store original element
+        const originalElement = ctx.element;
+        const parent = originalElement.parentElement;
+        if (!parent)
+            return;
+        // Remove original element
+        parent.removeChild(originalElement);
+        // Create elements for each item
+        collection.forEach((item, index) => {
+            const clone = originalElement.cloneNode(true);
+            // Create item context
+            const itemContext = { [itemName]: item };
+            if (indexName) {
+                itemContext[indexName] = index;
+            }
+            // Compile clone with item context
+            const compiledClone = compileTemplate(clone.outerHTML, { ...ctx.value, ...itemContext });
+            parent.appendChild(compiledClone);
+        });
+    }
+});
+// v-bind directive
+registerDirective('bind', {
+    bind(ctx) {
+        updateBind(ctx);
+    },
+    update(ctx) {
+        updateBind(ctx);
+    }
+});
+function updateBind(ctx) {
+    const element = ctx.element;
+    const attrName = ctx.modifiers[0] || 'value'; // Default to 'value' if no modifier
+    if (attrName === 'class') {
+        element.className = ctx.value;
+    }
+    else if (attrName === 'style') {
+        Object.assign(element.style, ctx.value);
+    }
+    else {
+        element.setAttribute(attrName, ctx.value);
+    }
+}
+// o-model directive
+registerDirective('model', {
+    bind(ctx) {
+        const element = ctx.element;
+        const eventType = getEventType(element);
+        // Set initial value
+        setElementValue(element, ctx.value);
+        // Listen for changes
+        const handler = () => {
+            const newValue = getElementValue(element);
+            // Update reactive value
+            const keys = ctx.expression.split('.');
+            let target = ctx.value;
+            for (let i = 0; i < keys.length - 1; i++) {
+                target = target[keys[i]];
+            }
+            target[keys[keys.length - 1]] = newValue;
+        };
+        element.addEventListener(eventType, handler);
+        // Store cleanup
+        element._vmodelCleanup = handler;
+    },
+    update(ctx) {
+        const element = ctx.element;
+        setElementValue(element, ctx.value);
+    },
+    unbind(ctx) {
+        const element = ctx.element;
+        const handler = element._vmodelCleanup;
+        if (handler) {
+            const eventType = getEventType(element);
+            element.removeEventListener(eventType, handler);
+        }
+    }
+});
+function getEventType(element) {
+    const tagName = element.tagName.toLowerCase();
+    const type = element.type;
+    if (tagName === 'select')
+        return 'change';
+    if (type === 'checkbox' || type === 'radio')
+        return 'change';
+    return 'input';
+}
+function getElementValue(element) {
+    const tagName = element.tagName.toLowerCase();
+    if (tagName === 'select') {
+        const select = element;
+        if (select.multiple) {
+            return Array.from(select.selectedOptions).map(option => option.value);
+        }
+        return select.value;
+    }
+    const inputElement = element;
+    const type = inputElement.type;
+    if (type === 'checkbox') {
+        return inputElement.checked;
+    }
+    if (type === 'radio') {
+        return inputElement.checked ? inputElement.value : undefined;
+    }
+    if (type === 'number') {
+        return parseFloat(inputElement.value) || 0;
+    }
+    return inputElement.value;
+}
+function setElementValue(element, value) {
+    const tagName = element.tagName.toLowerCase();
+    if (tagName === 'select') {
+        const select = element;
+        if (select.multiple && Array.isArray(value)) {
+            Array.from(select.options).forEach(option => {
+                option.selected = value.includes(option.value);
+            });
+        }
+        else {
+            select.value = value;
+        }
+        return;
+    }
+    const inputElement = element;
+    const type = inputElement.type;
+    if (type === 'checkbox') {
+        inputElement.checked = Boolean(value);
+        return;
+    }
+    if (type === 'radio') {
+        inputElement.checked = inputElement.value === value;
+        return;
+    }
+    inputElement.value = value;
+}
+// v-on directive
+registerDirective('on', {
+    bind(ctx) {
+        const element = ctx.element;
+        const eventType = ctx.modifiers[0] || 'click'; // Default to click
+        const handler = (event) => {
+            // Prevent default if .prevent modifier
+            if (ctx.modifiers.includes('prevent')) {
+                event.preventDefault();
+            }
+            // Stop propagation if .stop modifier
+            if (ctx.modifiers.includes('stop')) {
+                event.stopPropagation();
+            }
+            // Evaluate expression
+            evaluateExpression(ctx.expression, ctx.value);
+        };
+        element.addEventListener(eventType, handler);
+        // Store cleanup
+        element._vonCleanup = { eventType, handler };
+    },
+    unbind(ctx) {
+        const element = ctx.element;
+        const cleanup = element._vonCleanup;
+        if (cleanup) {
+            element.removeEventListener(cleanup.eventType, cleanup.handler);
+        }
+    }
+});
+
 // Component System Module
 const components = {};
 const componentInstances = new Map();
+// Lifecycle hooks registry for composition API style
+const lifecycleHooks = new WeakMap();
+// Current component instance for composition API
+let currentInstance = null;
+// Props validation utilities
+function validatePropType(value, type) {
+    switch (type) {
+        case 'string':
+            return typeof value === 'string';
+        case 'number':
+            return typeof value === 'number' && !isNaN(value);
+        case 'boolean':
+            return typeof value === 'boolean';
+        case 'object':
+            return typeof value === 'object' && value !== null && !Array.isArray(value);
+        case 'array':
+            return Array.isArray(value);
+        case 'function':
+            return typeof value === 'function';
+        case 'symbol':
+            return typeof value === 'symbol';
+        default:
+            return false;
+    }
+}
+function validateProps(props, propDefs, componentName) {
+    const validatedProps = {};
+    const missingRequired = [];
+    const typeErrors = [];
+    // Process each prop definition
+    for (const propName in propDefs) {
+        const def = propDefs[propName];
+        const propDef = typeof def === 'string' ? { type: def } : def;
+        const providedValue = props[propName];
+        // Check if required prop is missing
+        if (propDef.required && (providedValue === undefined || providedValue === null)) {
+            missingRequired.push(propName);
+            continue;
+        }
+        // Use default value if prop is not provided
+        let finalValue = providedValue;
+        if (finalValue === undefined || finalValue === null) {
+            if (propDef.default !== undefined) {
+                finalValue = typeof propDef.default === 'function' ? propDef.default() : propDef.default;
+            }
+        }
+        // Type validation
+        if (finalValue !== undefined && propDef.type) {
+            const types = Array.isArray(propDef.type) ? propDef.type : [propDef.type];
+            const isValidType = types.some(type => validatePropType(finalValue, type));
+            if (!isValidType) {
+                typeErrors.push(`${propName}: expected ${types.join(' or ')}, got ${typeof finalValue}`);
+            }
+        }
+        // Custom validator
+        if (finalValue !== undefined && propDef.validator && !propDef.validator(finalValue)) {
+            typeErrors.push(`${propName}: custom validation failed`);
+        }
+        validatedProps[propName] = finalValue;
+    }
+    // Add any extra props that weren't defined (for flexibility)
+    for (const propName in props) {
+        if (!(propName in propDefs)) {
+            validatedProps[propName] = props[propName];
+        }
+    }
+    // Log validation errors in development
+    if ((typeof process !== 'undefined' && process.env.NODE_ENV === 'development') ||
+        (typeof window !== 'undefined' && window.__ONEKIT_DEV__)) {
+        if (missingRequired.length > 0) {
+            console.warn(`[OneKit] Component "${componentName}": Missing required props: ${missingRequired.join(', ')}`);
+        }
+        if (typeErrors.length > 0) {
+            console.warn(`[OneKit] Component "${componentName}": Prop validation errors:`, typeErrors);
+        }
+    }
+    return validatedProps;
+}
 function register(name, definition) {
     components[name] = definition;
 }
@@ -838,8 +1446,8 @@ function create(name, props = {}, slots = {}) {
         return null;
     }
     const definition = components[name];
-    const defaultProps = definition.props || {};
-    const finalProps = { ...defaultProps, ...props };
+    // Validate and process props
+    definition.props ? validateProps(props, definition.props, name) : props;
     const instance = {
         name,
         props: finalProps,
@@ -917,37 +1525,17 @@ function create(name, props = {}, slots = {}) {
         }
     };
     // Create element
-    let html = '';
     if (definition.template) {
-        html = definition.template.replace(/\{\{([^}]+)\}\}/g, (match, key) => {
-            const keys = key.trim().split('.');
-            let value = instance.state;
-            if (keys[0] in instance.props) {
-                value = instance.props;
-            }
-            for (const k of keys) {
-                value = value && value[k];
-            }
-            return value !== undefined ? value : '';
-        });
-        // Replace slots
-        html = html.replace(/<slot><\/slot>/gi, instance.slots.default || '');
-        html = html.replace(/<slot name="([^"]+)"><\/slot>/gi, (match, slotName) => {
-            return instance.slots[slotName] || '';
-        });
-        // Sanitize HTML before creating element
-        const sanitized = sanitizeHTML(html);
-        instance.element = document.createElement('div');
-        instance.element.innerHTML = sanitized;
-        instance.element = instance.element.firstElementChild;
+        // Use template engine with directives
+        const context = { ...instance.state, ...instance.props, $slots: instance.slots };
+        instance.element = compileTemplate(definition.template, context);
     }
     else if (definition.render) {
-        html = definition.render.call(instance);
-        // Sanitize HTML before creating element
+        const html = definition.render.call(instance);
         const sanitized = sanitizeHTML(html);
-        instance.element = document.createElement('div');
-        instance.element.innerHTML = sanitized;
-        instance.element = instance.element.firstElementChild;
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = sanitized;
+        instance.element = tempDiv.firstElementChild;
     }
     // Add lifecycle hooks
     definition.beforeCreate?.call(instance);
@@ -979,6 +1567,11 @@ function mount(component, target) {
     comp.mounted = true;
     const definition = components[comp.name];
     definition?.mounted?.call(comp);
+    // Call composition API onMounted hooks
+    const hooks = lifecycleHooks.get(comp);
+    if (hooks?.onMounted) {
+        hooks.onMounted.forEach(hook => hook());
+    }
     return comp;
 }
 function getInstance(element) {
@@ -989,6 +1582,11 @@ function destroy(component) {
         return;
     const definition = components[component.name];
     definition?.beforeUnmount?.call(component);
+    // Call composition API onDestroyed hooks
+    const hooks = lifecycleHooks.get(component);
+    if (hooks?.onDestroyed) {
+        hooks.onDestroyed.forEach(hook => hook());
+    }
     if (component.element.parentNode) {
         component.element.parentNode.removeChild(component.element);
     }
@@ -1004,75 +1602,86 @@ function destroy(component) {
         definition.unmounted.call(component);
     }
 }
-
-// Reactive State Management Module
-const watchers = {};
-function reactive(obj) {
-    return new Proxy(obj, {
-        get(target, property) {
-            return target[property];
-        },
-        set(target, property, value) {
-            const prop = property;
-            const oldValue = target[prop];
-            if (oldValue !== value) {
-                target[prop] = value;
-                if (watchers[prop]) {
-                    watchers[prop].forEach(watcher => {
-                        watcher.callback(value, oldValue, watcher.property);
-                    });
-                }
-            }
-            return true;
-        }
-    });
-}
-function watch(key, callback) {
-    const keyStr = key;
-    if (!watchers[keyStr]) {
-        watchers[keyStr] = [];
-    }
-    const watcher = { callback, property: key };
-    watchers[keyStr].push(watcher);
-    return function () {
-        const index = watchers[keyStr].indexOf(watcher);
-        if (index > -1) {
-            watchers[keyStr].splice(index, 1);
-        }
-    };
-}
-function bind(element, reactiveObj, property, attribute = 'value') {
-    const el = typeof element === 'string' ? document.querySelector(element) : element;
-    if (!el)
-        return;
-    // Validate property to prevent prototype pollution
-    if (!validateStorageKey(property)) {
-        console.error('OneKit Security: Invalid property key (prototype pollution attempt blocked)');
+// Composition API lifecycle hooks
+function onMounted(callback) {
+    if (!currentInstance) {
+        console.warn('[OneKit] onMounted() called outside of component setup');
         return;
     }
-    // Set initial value
-    const initialValue = reactiveObj[property];
-    if (initialValue !== undefined) {
-        el[attribute] = initialValue;
+    let hooks = lifecycleHooks.get(currentInstance);
+    if (!hooks) {
+        hooks = {
+            onMounted: [],
+            onUpdated: [],
+            onDestroyed: [],
+            onPropsChanged: []
+        };
+        lifecycleHooks.set(currentInstance, hooks);
     }
-    el.addEventListener('input', function () {
-        // Sanitize input value
-        let value = this[attribute];
-        if (typeof value === 'string') {
-            // For text inputs, sanitize but preserve content
-            value = value.replace(/\0/g, ''); // Remove null bytes
-        }
-        reactiveObj[property] = value;
-    });
-    watch(property, function (newValue) {
-        // Sanitize output value for HTML attributes
-        if (typeof newValue === 'string' && attribute === 'innerHTML') {
-            el[attribute] = newValue; // Note: sanitization should be handled by caller
-        }
-        else {
-            el[attribute] = newValue;
-        }
-    });
+    hooks.onMounted.push(callback);
+}
+function onUpdated(callback) {
+    if (!currentInstance) {
+        console.warn('[OneKit] onUpdated() called outside of component setup');
+        return;
+    }
+    let hooks = lifecycleHooks.get(currentInstance);
+    if (!hooks) {
+        hooks = {
+            onMounted: [],
+            onUpdated: [],
+            onDestroyed: [],
+            onPropsChanged: []
+        };
+        lifecycleHooks.set(currentInstance, hooks);
+    }
+    hooks.onUpdated.push(callback);
+}
+function onDestroyed(callback) {
+    if (!currentInstance) {
+        console.warn('[OneKit] onDestroyed() called outside of component setup');
+        return;
+    }
+    let hooks = lifecycleHooks.get(currentInstance);
+    if (!hooks) {
+        hooks = {
+            onMounted: [],
+            onUpdated: [],
+            onDestroyed: [],
+            onPropsChanged: []
+        };
+        lifecycleHooks.set(currentInstance, hooks);
+    }
+    hooks.onDestroyed.push(callback);
+}
+function onPropsChanged(callback) {
+    if (!currentInstance) {
+        console.warn('[OneKit] onPropsChanged() called outside of component setup');
+        return;
+    }
+    let hooks = lifecycleHooks.get(currentInstance);
+    if (!hooks) {
+        hooks = {
+            onMounted: [],
+            onUpdated: [],
+            onDestroyed: [],
+            onPropsChanged: []
+        };
+        lifecycleHooks.set(currentInstance, hooks);
+    }
+    hooks.onPropsChanged.push(callback);
+}
+// Setup function for composition API
+function setupComponent(instance, setupFn) {
+    const prevInstance = currentInstance;
+    currentInstance = instance;
+    try {
+        const result = setupFn(instance.props);
+        return result;
+    }
+    finally {
+        currentInstance = prevInstance;
+    }
 }
 
 function createElement(tag, props = {}, ...children) {
@@ -2001,8 +2610,11 @@ exports.VERSION = VERSION;
 exports.animations = animations;
 exports.announce = announce;
 exports.apiPatch = patch;
+exports.autorun = autorun;
+exports.batch = batch;
 exports.bind = bind;
 exports.cache = cache;
+exports.computed = computed;
 exports.create = create;
 exports.createElement = createElement;
 exports.createLandmarks = createLandmarks;
@@ -2013,6 +2625,7 @@ exports.deepClone = deepClone;
 exports.del = del;
 exports.destroy = destroy;
 exports.di = di;
+exports.effect = effect;
 exports.generateId = generateId;
 exports.get = get;
 exports.getInstance = getInstance;
@@ -2022,6 +2635,10 @@ exports.makeUnfocusable = makeUnfocusable;
 exports.manageTabOrder = manageTabOrder;
 exports.mount = mount;
 exports.ok = ok;
+exports.onDestroyed = onDestroyed;
+exports.onMounted = onMounted;
+exports.onPropsChanged = onPropsChanged;
+exports.onUpdated = onUpdated;
 exports.pluginManager = pluginManager;
 exports.post = post;
 exports.put = put;
@@ -2032,7 +2649,9 @@ exports.request = request;
 exports.router = router;
 exports.sessionStorage = sessionStorage;
 exports.setAriaAttributes = setAriaAttributes;
+exports.setupComponent = setupComponent;
 exports.skipToContent = skipToContent;
+exports.snapshot = snapshot;
 exports.throttle = throttle;
 exports.trapFocus = trapFocus;
 exports.validateAccessibility = validateAccessibility;

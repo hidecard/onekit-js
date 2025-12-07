@@ -2,6 +2,8 @@
 import { sanitizeHTML } from '../core/security';
 import { deepCloneSafe } from '../core/security';
 import { di } from '../core/di';
+import { compileTemplate } from './template';
+import { reactive, effect } from './reactive';
 
 interface ComponentProps {
   [key: string]: unknown;
@@ -11,9 +13,22 @@ interface ComponentState {
   [key: string]: unknown;
 }
 
+export type PropType = 'string' | 'number' | 'boolean' | 'object' | 'array' | 'function' | 'symbol';
+
+export interface PropDefinition {
+  type?: PropType | PropType[];
+  required?: boolean;
+  default?: unknown | (() => unknown);
+  validator?: (value: unknown) => boolean;
+}
+
+export interface ComponentPropsDefinition {
+  [key: string]: PropDefinition | PropType;
+}
+
 export interface ComponentDefinition {
   name?: string;
-  props?: ComponentProps;
+  props?: ComponentPropsDefinition;
   data?: () => ComponentState;
   template?: string;
   render?: (this: ComponentInstance) => string;
@@ -44,6 +59,105 @@ export interface ComponentInstance {
 const components: { [key: string]: ComponentDefinition } = {};
 const componentInstances = new Map<Element, ComponentInstance>();
 
+// Lifecycle hooks registry for composition API style
+const lifecycleHooks = new WeakMap<ComponentInstance, {
+  onMounted: (() => void)[];
+  onUpdated: (() => void)[];
+  onDestroyed: (() => void)[];
+  onPropsChanged: ((newProps: ComponentProps, oldProps: ComponentProps) => void)[];
+}>();
+
+// Current component instance for composition API
+let currentInstance: ComponentInstance | null = null;
+
+// Props validation utilities
+function validatePropType(value: unknown, type: PropType): boolean {
+  switch (type) {
+    case 'string':
+      return typeof value === 'string';
+    case 'number':
+      return typeof value === 'number' && !isNaN(value);
+    case 'boolean':
+      return typeof value === 'boolean';
+    case 'object':
+      return typeof value === 'object' && value !== null && !Array.isArray(value);
+    case 'array':
+      return Array.isArray(value);
+    case 'function':
+      return typeof value === 'function';
+    case 'symbol':
+      return typeof value === 'symbol';
+    default:
+      return false;
+  }
+}
+
+function validateProps(props: ComponentProps, propDefs: ComponentPropsDefinition, componentName: string): ComponentProps {
+  const validatedProps: ComponentProps = {};
+  const missingRequired: string[] = [];
+  const typeErrors: string[] = [];
+
+  // Process each prop definition
+  for (const propName in propDefs) {
+    const def = propDefs[propName];
+    const propDef: PropDefinition = typeof def === 'string' ? { type: def } : def;
+    const providedValue = props[propName];
+
+    // Check if required prop is missing
+    if (propDef.required && (providedValue === undefined || providedValue === null)) {
+      missingRequired.push(propName);
+      continue;
+    }
+
+    // Use default value if prop is not provided
+    let finalValue = providedValue;
+    if (finalValue === undefined || finalValue === null) {
+      if (propDef.default !== undefined) {
+        finalValue = typeof propDef.default === 'function' ? propDef.default() : propDef.default;
+      }
+    }
+
+    // Type validation
+    if (finalValue !== undefined && propDef.type) {
+      const types = Array.isArray(propDef.type) ? propDef.type : [propDef.type];
+      const isValidType = types.some(type => validatePropType(finalValue, type));
+
+      if (!isValidType) {
+        typeErrors.push(`${propName}: expected ${types.join(' or ')}, got ${typeof finalValue}`);
+      }
+    }
+
+    // Custom validator
+    if (finalValue !== undefined && propDef.validator && !propDef.validator(finalValue)) {
+      typeErrors.push(`${propName}: custom validation failed`);
+    }
+
+    validatedProps[propName] = finalValue;
+  }
+
+  // Add any extra props that weren't defined (for flexibility)
+  for (const propName in props) {
+    if (!(propName in propDefs)) {
+      validatedProps[propName] = props[propName];
+    }
+  }
+
+  // Log validation errors in development
+  if ((typeof process !== 'undefined' && process.env.NODE_ENV === 'development') ||
+      (typeof window !== 'undefined' && (window as any).__ONEKIT_DEV__)) {
+
+    if (missingRequired.length > 0) {
+      console.warn(`[OneKit] Component "${componentName}": Missing required props: ${missingRequired.join(', ')}`);
+    }
+
+    if (typeErrors.length > 0) {
+      console.warn(`[OneKit] Component "${componentName}": Prop validation errors:`, typeErrors);
+    }
+  }
+
+  return validatedProps;
+}
+
 export function register(name: string, definition: ComponentDefinition): void {
   components[name] = definition;
 }
@@ -55,8 +169,9 @@ export function create(name: string, props: ComponentProps = {}, slots: { [key: 
   }
 
   const definition = components[name];
-  const defaultProps = definition.props || {};
-  const finalProps = { ...defaultProps, ...props };
+
+  // Validate and process props
+  const validatedProps = definition.props ? validateProps(props, definition.props, name) : props;
 
   const instance: ComponentInstance = {
     name,
@@ -140,36 +255,16 @@ export function create(name: string, props: ComponentProps = {}, slots: { [key: 
   };
 
   // Create element
-  let html = '';
   if (definition.template) {
-    html = definition.template.replace(/\{\{([^}]+)\}\}/g, (match, key) => {
-      const keys = key.trim().split('.');
-      let value: any = instance.state;
-      if (keys[0] in instance.props) {
-        value = instance.props;
-      }
-      for (const k of keys) {
-        value = value && value[k];
-      }
-      return value !== undefined ? value : '';
-    });
-    // Replace slots
-    html = html.replace(/<slot><\/slot>/gi, instance.slots.default || '');
-    html = html.replace(/<slot name="([^"]+)"><\/slot>/gi, (match, slotName) => {
-      return instance.slots[slotName] || '';
-    });
-    // Sanitize HTML before creating element
-    const sanitized = sanitizeHTML(html);
-    instance.element = document.createElement('div');
-    instance.element.innerHTML = sanitized;
-    instance.element = instance.element.firstElementChild as Element;
+    // Use template engine with directives
+    const context = { ...instance.state, ...instance.props, $slots: instance.slots };
+    instance.element = compileTemplate(definition.template, context);
   } else if (definition.render) {
-    html = definition.render.call(instance);
-    // Sanitize HTML before creating element
+    const html = definition.render.call(instance);
     const sanitized = sanitizeHTML(html);
-    instance.element = document.createElement('div');
-    instance.element.innerHTML = sanitized;
-    instance.element = instance.element.firstElementChild as Element;
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = sanitized;
+    instance.element = tempDiv.firstElementChild as Element;
   }
 
   // Add lifecycle hooks
@@ -209,6 +304,12 @@ export function mount(component: ComponentInstance | string, target: string | El
   const definition = components[comp.name];
   definition?.mounted?.call(comp);
 
+  // Call composition API onMounted hooks
+  const hooks = lifecycleHooks.get(comp);
+  if (hooks?.onMounted) {
+    hooks.onMounted.forEach(hook => hook());
+  }
+
   return comp;
 }
 
@@ -221,6 +322,12 @@ export function destroy(component: ComponentInstance): void {
 
   const definition = components[component.name];
   definition?.beforeUnmount?.call(component);
+
+  // Call composition API onDestroyed hooks
+  const hooks = lifecycleHooks.get(component);
+  if (hooks?.onDestroyed) {
+    hooks.onDestroyed.forEach(hook => hook());
+  }
 
   if (component.element.parentNode) {
     component.element.parentNode.removeChild(component.element);
@@ -238,5 +345,99 @@ export function destroy(component: ComponentInstance): void {
 
   if (definition && definition.unmounted) {
     definition.unmounted.call(component);
+  }
+}
+
+// Composition API lifecycle hooks
+export function onMounted(callback: () => void): void {
+  if (!currentInstance) {
+    console.warn('[OneKit] onMounted() called outside of component setup');
+    return;
+  }
+
+  let hooks = lifecycleHooks.get(currentInstance);
+  if (!hooks) {
+    hooks = {
+      onMounted: [],
+      onUpdated: [],
+      onDestroyed: [],
+      onPropsChanged: []
+    };
+    lifecycleHooks.set(currentInstance, hooks);
+  }
+
+  hooks.onMounted.push(callback);
+}
+
+export function onUpdated(callback: () => void): void {
+  if (!currentInstance) {
+    console.warn('[OneKit] onUpdated() called outside of component setup');
+    return;
+  }
+
+  let hooks = lifecycleHooks.get(currentInstance);
+  if (!hooks) {
+    hooks = {
+      onMounted: [],
+      onUpdated: [],
+      onDestroyed: [],
+      onPropsChanged: []
+    };
+    lifecycleHooks.set(currentInstance, hooks);
+  }
+
+  hooks.onUpdated.push(callback);
+}
+
+export function onDestroyed(callback: () => void): void {
+  if (!currentInstance) {
+    console.warn('[OneKit] onDestroyed() called outside of component setup');
+    return;
+  }
+
+  let hooks = lifecycleHooks.get(currentInstance);
+  if (!hooks) {
+    hooks = {
+      onMounted: [],
+      onUpdated: [],
+      onDestroyed: [],
+      onPropsChanged: []
+    };
+    lifecycleHooks.set(currentInstance, hooks);
+  }
+
+  hooks.onDestroyed.push(callback);
+}
+
+export function onPropsChanged(callback: (newProps: ComponentProps, oldProps: ComponentProps) => void): void {
+  if (!currentInstance) {
+    console.warn('[OneKit] onPropsChanged() called outside of component setup');
+    return;
+  }
+
+  let hooks = lifecycleHooks.get(currentInstance);
+  if (!hooks) {
+    hooks = {
+      onMounted: [],
+      onUpdated: [],
+      onDestroyed: [],
+      onPropsChanged: []
+    };
+    lifecycleHooks.set(currentInstance, hooks);
+  }
+
+  hooks.onPropsChanged.push(callback);
+}
+
+// Setup function for composition API
+export function setupComponent(instance: ComponentInstance, setupFn: (props: ComponentProps) => ComponentState): ComponentState {
+  const prevInstance = currentInstance;
+  currentInstance = instance;
+
+  try {
+    const result = setupFn(instance.props);
+    return result;
+  } finally {
+    currentInstance = prevInstance;
   }
 }

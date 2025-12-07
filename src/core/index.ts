@@ -1,6 +1,11 @@
 // Core OneKit functionality
 import { errorHandler, safeMethod } from './error-handler';
 import { sanitizeHTML, validateSelector, sanitizeURL, deepCloneSafe, validateStorageKey } from './security';
+import { reactive, computed, effect, autorun, watch, batch, snapshot, bind } from '../modules/reactive';
+import { compileTemplate, registerDirective, initTemplateEngine } from '../modules/template';
+import { register as registerComponent, create as createComponent, mount as mountComponent, getInstance as getComponentInstance, destroy as destroyComponent, PropType, PropDefinition, ComponentPropsDefinition } from '../modules/component';
+import { defineStore, useStore, getAllStores, removeStore, addStorePlugin, Store, StoreDefinition, StorePlugin } from '../modules/store';
+import { renderToString, hydrate, StreamingRenderer, createSSRContext, addToHead, addToBody, addStyle, addScript, setMeta, preloadModule, preloadStyle, preloadScript, renderTitle, renderMeta, renderOpenGraph, isServer, isClient, withCache, SSRContext, RenderResult } from '../modules/ssr';
 
 export interface OneKitConfig {
   enableSanitization?: boolean;

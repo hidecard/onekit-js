@@ -4,9 +4,19 @@ interface ComponentProps {
 interface ComponentState {
     [key: string]: unknown;
 }
+export type PropType = 'string' | 'number' | 'boolean' | 'object' | 'array' | 'function' | 'symbol';
+export interface PropDefinition {
+    type?: PropType | PropType[];
+    required?: boolean;
+    default?: unknown | (() => unknown);
+    validator?: (value: unknown) => boolean;
+}
+export interface ComponentPropsDefinition {
+    [key: string]: PropDefinition | PropType;
+}
 export interface ComponentDefinition {
     name?: string;
-    props?: ComponentProps;
+    props?: ComponentPropsDefinition;
     data?: () => ComponentState;
     template?: string;
     render?: (this: ComponentInstance) => string;
@@ -43,4 +53,9 @@ export declare function create(name: string, props?: ComponentProps, slots?: {
 export declare function mount(component: ComponentInstance | string, target: string | Element | ShadowRoot): ComponentInstance | null;
 export declare function getInstance(element: Element): ComponentInstance | undefined;
 export declare function destroy(component: ComponentInstance): void;
+export declare function onMounted(callback: () => void): void;
+export declare function onUpdated(callback: () => void): void;
+export declare function onDestroyed(callback: () => void): void;
+export declare function onPropsChanged(callback: (newProps: ComponentProps, oldProps: ComponentProps) => void): void;
+export declare function setupComponent(instance: ComponentInstance, setupFn: (props: ComponentProps) => ComponentState): ComponentState;
 export {};

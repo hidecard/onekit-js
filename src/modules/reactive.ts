@@ -1,4 +1,4 @@
-// Reactive State Management Module
+// Reactive State Management Module (Vue 3-style)
 import { deepCloneSafe, validateStorageKey } from '../core/security';
 
 interface ReactiveObject {
@@ -10,45 +10,257 @@ interface Watcher {
   property: string | symbol;
 }
 
+interface ComputedRef<T = unknown> {
+  readonly value: T;
+  readonly __isComputed: true;
+}
+
+interface EffectFn {
+  (): void;
+  deps: Set<EffectFn>[];
+  options?: EffectOptions;
+}
+
+interface EffectOptions {
+  lazy?: boolean;
+  scheduler?: (fn: EffectFn) => void;
+}
+
+// Global state
 const state: ReactiveObject = {};
 const watchers: { [key: string]: Watcher[] } = {};
 
-export function reactive(obj: ReactiveObject): ReactiveObject {
-  return new Proxy(obj, {
-    get(target, property) {
-      return target[property as string];
-    },
-    set(target, property, value) {
-      const prop = property as string;
-      const oldValue = target[prop];
-      if (oldValue !== value) {
-        target[prop] = value;
-        if (watchers[prop]) {
-          watchers[prop].forEach(watcher => {
-            watcher.callback(value, oldValue, watcher.property);
-          });
-        }
+// Dependency tracking
+const targetMap = new WeakMap<object, Map<string | symbol, Set<EffectFn>>>();
+let activeEffect: EffectFn | null = null;
+const effectStack: EffectFn[] = [];
+
+// Batch updates
+let isBatching = false;
+const updateQueue = new Set<EffectFn>();
+let isFlushing = false;
+
+function queueJob(job: EffectFn) {
+  if (!updateQueue.has(job)) {
+    updateQueue.add(job);
+    if (!isFlushing) {
+      isFlushing = true;
+      queueMicrotask(flushJobs);
+    }
+  }
+}
+
+function flushJobs() {
+  updateQueue.forEach(job => job());
+  updateQueue.clear();
+  isFlushing = false;
+}
+
+function track(target: object, key: string | symbol) {
+  if (!activeEffect) return;
+
+  let depsMap = targetMap.get(target);
+  if (!depsMap) {
+    depsMap = new Map();
+    targetMap.set(target, depsMap);
+  }
+
+  let dep = depsMap.get(key);
+  if (!dep) {
+    dep = new Set();
+    depsMap.set(key, dep);
+  }
+
+  dep.add(activeEffect);
+  activeEffect.deps.push(dep);
+}
+
+function trigger(target: object, key: string | symbol) {
+  const depsMap = targetMap.get(target);
+  if (!depsMap) return;
+
+  const dep = depsMap.get(key);
+  if (!dep) return;
+
+  const effectsToRun = new Set(dep);
+  effectsToRun.forEach(effect => {
+    if (effect.options?.scheduler) {
+      effect.options.scheduler(effect);
+    } else {
+      if (isBatching) {
+        queueJob(effect);
+      } else {
+        effect();
       }
-      return true;
     }
   });
 }
 
-export function watch(key: string | symbol, callback: (newValue: unknown, oldValue: unknown, property: string | symbol) => void): () => void {
-  const keyStr = key as string;
-  if (!watchers[keyStr]) {
-    watchers[keyStr] = [];
+export function reactive<T extends object>(obj: T): T {
+  return new Proxy(obj, {
+    get(target, key, receiver) {
+      const result = Reflect.get(target, key, receiver);
+      track(target, key);
+      if (typeof result === 'object' && result !== null) {
+        return reactive(result);
+      }
+      return result;
+    },
+    set(target, key, value, receiver) {
+      const oldValue = Reflect.get(target, key, receiver);
+      const result = Reflect.set(target, key, value, receiver);
+      if (oldValue !== value) {
+        trigger(target, key);
+        // Also trigger watchers for backward compatibility
+        if (watchers[key as string]) {
+          watchers[key as string].forEach(watcher => {
+            watcher.callback(value, oldValue, watcher.property);
+          });
+        }
+      }
+      return result;
+    }
+  });
+}
+
+export function computed<T>(getter: () => T): ComputedRef<T> {
+  let value: T;
+  let dirty = true;
+
+  const effectFn = effect(() => {
+    value = getter();
+  }, {
+    lazy: true,
+    scheduler: () => {
+      dirty = true;
+      trigger(computedRef, 'value');
+    }
+  });
+
+  const computedRef = {
+    get value() {
+      if (dirty) {
+        effectFn();
+        dirty = false;
+      }
+      track(computedRef, 'value');
+      return value;
+    },
+    __isComputed: true as const
+  };
+
+  return computedRef;
+}
+
+export function effect(
+  fn: () => void,
+  options: EffectOptions = {}
+): () => void {
+  const effectFn: EffectFn = (() => {
+    if (effectStack.includes(effectFn)) {
+      return; // Prevent infinite recursion
+    }
+
+    try {
+      effectStack.push(effectFn);
+      activeEffect = effectFn;
+      return fn();
+    } finally {
+      effectStack.pop();
+      activeEffect = effectStack[effectStack.length - 1] || null;
+    }
+  }) as EffectFn;
+
+  effectFn.deps = [];
+  effectFn.options = options;
+
+  if (!options.lazy) {
+    effectFn();
   }
 
-  const watcher: Watcher = { callback, property: key };
-  watchers[keyStr].push(watcher);
+  return effectFn;
+}
 
-  return function() {
-    const index = watchers[keyStr].indexOf(watcher);
-    if (index > -1) {
-      watchers[keyStr].splice(index, 1);
+// Alias for effect
+export const autorun = effect;
+
+export function watch(
+  source: string | symbol | object | (() => unknown),
+  callback: (newValue: unknown, oldValue: unknown, property?: string | symbol) => void,
+  options: { deep?: boolean; immediate?: boolean } = {}
+): () => void {
+  let getter: () => unknown;
+  let oldValue: unknown;
+
+  if (typeof source === 'string' || typeof source === 'symbol') {
+    const key = source;
+    getter = () => state[key as string];
+    // Backward compatibility
+    if (!watchers[key as string]) {
+      watchers[key as string] = [];
     }
+    const watcher: Watcher = { callback: callback as any, property: key };
+    watchers[key as string].push(watcher);
+    return () => {
+      const index = watchers[key as string].indexOf(watcher);
+      if (index > -1) {
+        watchers[key as string].splice(index, 1);
+      }
+    };
+  } else if (typeof source === 'function') {
+    getter = source as () => unknown;
+  } else if (typeof source === 'object' && source !== null) {
+    getter = () => traverse(source, options.deep);
+  } else {
+    throw new Error('Invalid watch source');
+  }
+
+  const job = () => {
+    const newValue = getter();
+    callback(newValue, oldValue);
+    oldValue = newValue;
   };
+
+  const runner = effect(getter, {
+    lazy: true,
+    scheduler: job
+  });
+
+  if (options.immediate) {
+    job();
+  } else {
+    oldValue = getter();
+  }
+
+  return () => {
+    // Cleanup effect
+  };
+}
+
+function traverse(value: unknown, deep: boolean = false): unknown {
+  if (!deep || typeof value !== 'object' || value === null) {
+    return value;
+  }
+
+  for (const key in value as object) {
+    traverse((value as any)[key], deep);
+  }
+
+  return value;
+}
+
+export function batch<T>(fn: () => T): T {
+  isBatching = true;
+  try {
+    return fn();
+  } finally {
+    isBatching = false;
+    flushJobs();
+  }
+}
+
+export function snapshot<T extends object>(obj: T): T {
+  return deepCloneSafe(obj) as T;
 }
 
 export function bind(element: string | Element, reactiveObj: ReactiveObject, property: string, attribute: string = 'value'): void {
