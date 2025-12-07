@@ -7,6 +7,9 @@
   "module": "dist/onekit.esm.js",
   "browser": "dist/onekit.js",
   "types": "types/index.d.ts",
+  "bin": {
+    "onekit": "./bin/onekit.js"
+  },
   "exports": {
     ".": {
       "types": "./types/index.d.ts",
