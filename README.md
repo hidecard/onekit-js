@@ -241,18 +241,199 @@ sessionStorage.set('token', 'abc');
 
 # Router
 
+OneKit provides a flexible client-side router for handling navigation and routing in single-page applications.
+
+## Basic Usage
+
 ```js
+import { router } from 'onekit-js';
+
+// Add routes with handlers
 router.addRoute({ path: '/home', handler: showHome });
 router.addRoute({ path: '/about', handler: showAbout });
 
+// Navigate programmatically
 router.navigate('/home');
+
+// Get current path
+const currentPath = router.getCurrentPath();
 ```
 
-Features:
+## Route Definition
 
-* hash mode
-* history mode
-* 404 handler
+```js
+interface Route {
+  path: string;
+  component?: any;  // For component-based routing
+  handler?: () => void;  // For function-based routing
+}
+```
+
+## Advanced Features
+
+### Route Parameters
+
+```js
+// Define route with parameters
+router.addRoute({ path: '/user/:id', handler: showUser });
+
+// Access parameters in handler
+function showUser() {
+  const pathParts = router.getCurrentPath().split('/');
+  const userId = pathParts[pathParts.length - 1];
+  // Load user data for userId
+}
+```
+
+### Route Guards
+
+```js
+// Add route with guard
+router.addRoute({
+  path: '/admin',
+  handler: showAdmin,
+  guard: () => checkAdminAccess()
+});
+
+function checkAdminAccess() {
+  // Return true if user has admin access
+  return user.isAdmin;
+}
+```
+
+### Nested Routes
+
+```js
+// Parent route
+router.addRoute({ path: '/dashboard', handler: showDashboard });
+
+// Child routes
+router.addRoute({ path: '/dashboard/profile', handler: showProfile });
+router.addRoute({ path: '/dashboard/settings', handler: showSettings });
+```
+
+## Navigation Methods
+
+### Programmatic Navigation
+
+```js
+// Navigate to a route
+router.navigate('/home');
+
+// Navigate with query parameters
+router.navigate('/search?q=javascript');
+
+// Navigate with state
+router.navigate('/product/123', { from: 'catalog' });
+```
+
+### Link Handling
+
+```js
+// Handle navigation links
+ok('a[data-route]').on('click', (e) => {
+  e.preventDefault();
+  const path = e.target.getAttribute('data-route');
+  router.navigate(path);
+});
+
+// HTML with data-route attributes
+<nav>
+  <a href="#" data-route="/home">Home</a>
+  <a href="#" data-route="/about">About</a>
+  <a href="#" data-route="/contact">Contact</a>
+</nav>
+```
+
+## Route Matching
+
+### Exact Matching
+
+```js
+router.addRoute({ path: '/home', handler: showHome }); // Exact match
+```
+
+### Wildcard Routes
+
+```js
+// Catch-all route for 404 handling
+router.addRoute({ path: '*', handler: show404 });
+```
+
+## Integration with Components
+
+```js
+// Component-based routing
+router.addRoute({
+  path: '/counter',
+  component: 'counter-component'
+});
+
+// Mount component when route is activated
+function showCounter() {
+  mount(create('counter-component'), '#app');
+}
+```
+
+## Browser History Integration
+
+```js
+// Listen for browser back/forward buttons
+window.addEventListener('popstate', () => {
+  const path = window.location.pathname;
+  router.navigate(path, { replace: true });
+});
+
+// Update browser history
+router.navigate('/new-path', { push: true });
+```
+
+## Example SPA Implementation
+
+```js
+import { router, ok } from 'onekit-js';
+
+// Route handlers
+function showHome() {
+  ok('#app').html(`
+    <h1>Home</h1>
+    <p>Welcome to our SPA!</p>
+    <nav>
+      <a href="#" data-route="/about">About</a>
+      <a href="#" data-route="/contact">Contact</a>
+    </nav>
+  `);
+}
+
+function showAbout() {
+  ok('#app').html(`
+    <h1>About</h1>
+    <p>Learn more about us.</p>
+    <a href="#" data-route="/home">Back to Home</a>
+  `);
+}
+
+function show404() {
+  ok('#app').html(`
+    <h1>404 - Page Not Found</h1>
+    <a href="#" data-route="/home">Go Home</a>
+  `);
+}
+
+// Set up routes
+router.addRoute({ path: '/home', handler: showHome });
+router.addRoute({ path: '/about', handler: showAbout });
+router.addRoute({ path: '*', handler: show404 });
+
+// Handle navigation
+ok('body').on('click', '[data-route]', (e) => {
+  e.preventDefault();
+  router.navigate(e.target.getAttribute('data-route'));
+});
+
+// Initialize app
+router.navigate('/home');
+```
 
 ---
 
@@ -312,6 +493,163 @@ Supports:
 * loops
 * conditions
 * dynamic props
+
+---
+
+# Template Directives
+
+OneKit provides powerful template directives for declarative DOM manipulation and reactive updates.
+
+## ok-if Directive
+
+Conditionally show/hide elements based on reactive state.
+
+```html
+<div ok-if="user.loggedIn">
+  <p>Welcome, {{user.name}}!</p>
+</div>
+```
+
+```js
+const state = reactive({ user: { loggedIn: false, name: 'John' } });
+```
+
+## ok-for Directive
+
+Render lists with automatic DOM updates.
+
+```html
+<ul>
+  <li ok-for="item in items">{{item.name}}</li>
+</ul>
+```
+
+```js
+const state = reactive({
+  items: [
+    { name: 'Item 1' },
+    { name: 'Item 2' }
+  ]
+});
+```
+
+With index:
+
+```html
+<li ok-for="(item, index) in items">{{index + 1}}. {{item.name}}</li>
+```
+
+## ok-bind Directive
+
+Bind reactive data to element attributes.
+
+```html
+<input ok-bind:value="message" />
+<img ok-bind:src="imageUrl" ok-bind:alt="imageAlt" />
+<div ok-bind:class="dynamicClass"></div>
+<div ok-bind:style="dynamicStyle"></div>
+```
+
+```js
+const state = reactive({
+  message: 'Hello',
+  imageUrl: 'image.jpg',
+  imageAlt: 'An image',
+  dynamicClass: 'active',
+  dynamicStyle: { color: 'red' }
+});
+```
+
+## ok-model Directive
+
+Two-way data binding for form inputs.
+
+```html
+<input ok-model="name" type="text" />
+<textarea ok-model="bio"></textarea>
+<select ok-model="country">
+  <option value="us">USA</option>
+  <option value="ca">Canada</option>
+</select>
+<input ok-model="agree" type="checkbox" />
+```
+
+```js
+const form = reactive({
+  name: '',
+  bio: '',
+  country: 'us',
+  agree: false
+});
+```
+
+## ok-on Directive
+
+Attach event listeners with reactive expressions.
+
+```html
+<button ok-on:click="increment()">+</button>
+<button ok-on:click.prevent="submitForm()">Submit</button>
+<input ok-on:input="updateValue($event.target.value)" />
+```
+
+```js
+const state = reactive({ count: 0 });
+
+function increment() {
+  state.count++;
+}
+
+function submitForm() {
+  // Handle form submission
+}
+
+function updateValue(value) {
+  state.inputValue = value;
+}
+```
+
+Event modifiers:
+- `.prevent` - calls `event.preventDefault()`
+- `.stop` - calls `event.stopPropagation()`
+
+## ok-show Directive
+
+Show/hide elements with CSS display (similar to ok-if but uses visibility).
+
+```html
+<div ok-show="isVisible">
+  This content can be shown/hidden
+</div>
+```
+
+```js
+const state = reactive({ isVisible: true });
+```
+
+## Reactive Integration
+
+Directives automatically react to state changes:
+
+```html
+<div ok-if="showDetails" ok-bind:class="theme">
+  <h2 ok-bind="title"></h2>
+  <p ok-for="detail in details">{{detail}}</p>
+</div>
+```
+
+```js
+const app = reactive({
+  showDetails: true,
+  theme: 'dark-theme',
+  title: 'Dynamic Title',
+  details: ['Detail 1', 'Detail 2']
+});
+
+// Changes automatically update the DOM
+app.showDetails = false;
+app.details.push('Detail 3');
+```
 
 ---
 
