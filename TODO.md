@@ -1,5 +1,0 @@
-- [x] Fix syntax error in o-for bind
-- [x] Change "o-if" to "ok-if" in comments
-- [x] Change "o-for" to "ok-for" in comments and error messages
-- [x] Fix evaluateExpression call in o-for bind to use ctx.rootContext
-- [x] Change console.warn to use "ok-" prefix
