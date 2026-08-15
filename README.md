@@ -25,16 +25,17 @@ This README is a practical user guide. It starts with the smallest possible appl
 12. [Error and loading boundaries](#error-and-loading-boundaries)
 13. [HTTP, storage, and accessibility](#http-storage-and-accessibility)
 14. [Security](#security)
-15. [Plugins and dependency injection](#plugins-and-dependency-injection)
-16. [Vite and HMR](#vite-and-hmr)
-17. [`.okjs` Single-File Components](#okjs-single-file-components)
-18. [DevTools](#devtools)
-19. [CLI commands](#cli-commands)
-20. [Testing and production verification](#testing-and-production-verification)
-21. [Performance and benchmarking](#performance-and-benchmarking)
-22. [TypeScript and package imports](#typescript-and-package-imports)
-23. [Troubleshooting](#troubleshooting)
-24. [Documentation and release resources](#documentation-and-release-resources)
+15. [Web Components and animations](#web-components-and-animations)
+16. [Plugins and dependency injection](#plugins-and-dependency-injection)
+17. [Vite and HMR](#vite-and-hmr)
+18. [`.okjs` Single-File Components](#okjs-single-file-components)
+19. [DevTools](#devtools)
+20. [CLI commands](#cli-commands)
+21. [Testing and production verification](#testing-and-production-verification)
+22. [Performance and benchmarking](#performance-and-benchmarking)
+23. [TypeScript and package imports](#typescript-and-package-imports)
+24. [Troubleshooting](#troubleshooting)
+25. [Documentation and release resources](#documentation-and-release-resources)
 
 ## Installation
 
@@ -214,7 +215,7 @@ const Counter = defineComponent({
   template: `
     <section>
       <strong>{{count}}</strong>
-      <button data-on-increment type="button">Increment</button>
+      <button ok-on.click="increment()" type="button">Increment</button>
     </section>
   `,
   methods: {
@@ -444,6 +445,7 @@ import {
   addToHead,
   setMeta,
   renderTitle,
+  hydrate,
   h,
 } from "onekit-js";
 
@@ -554,6 +556,39 @@ const parsed = validateJSON(externalJSON);
 ```
 
 Treat external HTML, URLs, JSON, route parameters, storage values, and API responses as untrusted. Never interpolate secrets into browser bundles. The template evaluator is intentionally restricted, but untrusted template source should still be rejected at the application boundary. Use a Content Security Policy in production and keep dependency audits in CI.
+
+## Web Components and animations
+
+Wrap a OneKit component as a standards-based custom element when it must be consumed by non-OneKit applications. The element uses a Shadow DOM and disposes its component instance when disconnected.
+
+```ts
+import { defineComponent, registerWebComponent } from "onekit-js";
+
+const StatusBadge = defineComponent({
+  name: "StatusBadge",
+  props: { status: { type: "string", default: "ready" } },
+  template: `<span>{{status}}</span>`,
+});
+
+registerWebComponent("ok-status-badge", StatusBadge, {
+  observedAttributes: ["status"],
+});
+```
+
+```html
+<ok-status-badge status="ready"></ok-status-badge>
+```
+
+Animation helpers extend the `OneKit` collection API and return the collection for chaining:
+
+```ts
+import { OneKit } from "onekit-js";
+
+const card = new OneKit("#card");
+card.scaleIn(240).glow(500, "#55d6ff");
+```
+
+Available helpers include `scaleIn`, `scaleOut`, `rotateIn`, `rotateOut`, `bounce`, `shake`, `slideInLeft`, `slideInRight`, `slideInUp`, `slideInDown`, `flip`, `pulse`, and `glow`. Respect `prefers-reduced-motion` in application CSS and avoid animation timers for elements that are about to be destroyed.
 
 ## Plugins and dependency injection
 
