@@ -410,12 +410,12 @@ const DEFAULT_SECURITY_CONFIG = {
         'ul', 'ol', 'li', 'a', 'img', 'br', 'strong', 'em', 'b', 'i',
         'table', 'thead', 'tbody', 'tr', 'th', 'td', 'input', 'button',
         'main', 'section', 'article', 'header', 'footer', 'nav', 'aside',
-        'form', 'label', 'select', 'option', 'textarea'
+        'form', 'label', 'select', 'option', 'textarea', 'output'
     ],
     ALLOWED_ATTRIBUTES: [
         'id', 'class', 'style', 'href', 'src', 'alt', 'title', 'type',
         'name', 'value', 'placeholder', 'disabled', 'checked', 'selected',
-        'width', 'height', 'colspan', 'rowspan', 'data-*'
+        'width', 'height', 'colspan', 'rowspan', 'role', 'tabindex', 'target', 'rel', 'aria-*', 'inputmode', 'data-*'
     ],
     enableSanitization: true,
     enableValidation: true
@@ -2352,12 +2352,14 @@ function create(name, props = {}, slots = {}) {
                         return instance.state[key];
                     if (key in instance.props)
                         return instance.props[key];
+                    if (key in instance && typeof key === 'string')
+                        return instance[key];
                     if (key === '$slots')
                         return instance.slots;
                     return undefined;
                 },
                 has(_target, key) {
-                    return key in instance.state || key in instance.props || key === '$slots';
+                    return key in instance.state || key in instance.props || key in instance || key === '$slots';
                 },
             });
             instance.element = compileTemplate(definition.template, context);
