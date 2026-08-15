@@ -15,6 +15,14 @@ module.exports = {
   ],
   coverageDirectory: 'coverage',
   coverageReporters: ['text', 'lcov', 'html'],
+  coverageThreshold: {
+    global: {
+      statements: 40,
+      branches: 30,
+      functions: 30,
+      lines: 40,
+    },
+  },
   moduleFileExtensions: ['ts', 'js'],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
