@@ -9,7 +9,7 @@ export * from './core/plugin';
 // Feature modules
 export * from './modules/component';
 export * from './modules/reactive';
-export { createElement, render, patch as vdomPatch } from './modules/vdom';
+export { createElement, render, patch, patch as vdomPatch } from './modules/vdom';
 export * from './modules/animation';
 export { request, get, post, put, del, API, patch as apiPatch } from './modules/api';
 export * from './modules/router';

@@ -231,13 +231,13 @@ export function watch(
   } else if (typeof source === 'function') {
     getter = source as () => unknown;
   } else if (typeof source === 'object' && source !== null) {
-    getter = () => traverse(source, options.deep);
+    getter = () => traverse(source, options.deep ?? true);
   } else {
     throw new Error('Invalid watch source');
   }
 
   const job = () => {
-    const newValue = getter();
+    const newValue = runner();
     callback(newValue, oldValue);
     oldValue = newValue;
   };
@@ -250,11 +250,11 @@ export function watch(
   if (options.immediate) {
     job();
   } else {
-    oldValue = getter();
+    oldValue = runner();
   }
 
   return () => {
-    // Cleanup effect
+    stop(runner);
   };
 }
 

@@ -1,0 +1,62 @@
+import { createElement, patch, render } from '../src/index';
+
+describe('M3 renderer production contract', () => {
+  it('creates and updates DOM props and text', () => {
+    const root = document.createElement('div');
+    const first = createElement('button', { className: 'first', disabled: true }, 'Save');
+    const next = createElement('button', { className: 'next', disabled: false }, 'Updated');
+
+    patch(root, first);
+    patch(root, next, first);
+
+    expect(root.innerHTML).toBe('<button class="next">Updated</button>');
+  });
+
+  it('reconciles keyed children without recreating retained nodes', () => {
+    const root = document.createElement('div');
+    const first = createElement('ul', {},
+      createElement('li', { key: 'a' }, 'A'),
+      createElement('li', { key: 'b' }, 'B')
+    );
+    const firstElement = render(first) as Element;
+    root.appendChild(firstElement);
+    const retained = firstElement.children[1];
+    const next = createElement('ul', {},
+      createElement('li', { key: 'b' }, 'B updated'),
+      createElement('li', { key: 'a' }, 'A')
+    );
+
+    patch(root, next, first);
+
+    expect(root.firstElementChild?.textContent).toBe('B updatedA');
+    expect(root.firstElementChild?.children[0]).toBe(retained);
+  });
+
+  it('replaces event handlers and removes stale props', () => {
+    const root = document.createElement('div');
+    const firstCalls: string[] = [];
+    const secondCalls: string[] = [];
+    const firstHandler = () => firstCalls.push('first');
+    const secondHandler = () => secondCalls.push('second');
+    const first = createElement('button', { onClick: firstHandler, title: 'old' }, 'Click');
+    const next = createElement('button', { onClick: secondHandler }, 'Click');
+
+    patch(root, first);
+    patch(root, next, first);
+    (root.firstElementChild as HTMLButtonElement).click();
+
+    expect(firstCalls).toEqual([]);
+    expect(secondCalls).toEqual(['second']);
+    expect(root.firstElementChild?.hasAttribute('title')).toBe(false);
+  });
+
+  it('assigns refs to rendered elements', () => {
+    const root = document.createElement('div');
+    const ref: { current?: Element } = {};
+    const vnode = createElement('input', { ref });
+
+    patch(root, vnode);
+
+    expect(ref.current).toBe(root.firstElementChild);
+  });
+});

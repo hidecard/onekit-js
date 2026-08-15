@@ -47,7 +47,7 @@ The build command detects a TypeScript or JavaScript application entrypoint and 
 
 ### `reactive`
 
-`reactive` wraps an object in a Proxy and tracks reads made by effects. Nested objects are wrapped when accessed.
+`reactive` wraps an object in a Proxy and tracks reads made by effects. Nested objects are wrapped when accessed, and repeated access to the same nested object preserves proxy identity. Effects clean up stale conditional dependencies before each rerun.
 
 ```ts
 import { reactive, effect } from "onekit-js";
@@ -82,7 +82,7 @@ cart.quantity = 3;
 
 ### `watch`
 
-`watch` observes a property name, a getter, or an object. The callback receives the new and previous values. Use `immediate` for an initial callback and `deep` when traversing nested objects.
+`watch` observes a property name, a getter, or an object. The callback receives the new and previous values. Object sources are deeply traversed by default; use `deep: false` for shallow behavior. The returned disposer stops dependency tracking. `stop(runner)` explicitly stops an effect.
 
 ```ts
 const stop = watch(
@@ -214,7 +214,7 @@ Keep untrusted HTML out of templates. OneKit sanitizes component HTML, but appli
 
 ## 6. JSX, VDOM, and render helpers
 
-The JSX-compatible helpers are `h`, `jsx`, `jsxDEV`, `okjs`, `component`, and `Fragment`. The VDOM helpers are `createElement`, `render`, and `vdomPatch`.
+The JSX-compatible helpers are `h`, `jsx`, `jsxDEV`, `okjs`, `component`, and `Fragment`. The VDOM helpers are `createElement`, `render`, `patch`, and the compatibility alias `vdomPatch`. Renderer updates support keyed children, prop removal, event-handler replacement, style diffing, and refs.
 
 ```ts
 import { h, render, Fragment } from "onekit-js";
@@ -232,23 +232,31 @@ For TypeScript JSX projects, configure the JSX factory according to the project 
 
 ## 7. Router
 
-The router is intentionally small. Add route records with a `path` and optional `component` or `handler`, navigate by path, and read the current browser pathname.
+The V3 router provides a factory-based application router. It supports static and dynamic paths, params, query parsing, history/hash/memory modes, guards, async loaders, redirects, 404 routes, browser back/forward, and subscriptions.
 
 ```ts
-import { router } from "onekit-js";
+import { createRouter } from "onekit-js";
 
-router.addRoute({
-  path: "/about",
-  handler: () => {
-    document.title = "About";
+const appRouter = createRouter([
+  { path: "/", handler: () => { document.title = "Home"; } },
+  {
+    path: "/users/:id",
+    loader: ({ to }) => fetch(`/api/users/${to.params.id}`).then(response => response.json()),
   },
-});
+  { path: "/login", beforeEnter: () => "/" },
+], { mode: "history" });
 
-router.navigate("/about");
-console.log(router.getCurrentPath());
+await appRouter.start();
+const match = await appRouter.navigate("/users/42?tab=posts");
+console.log(match?.location.params.id, appRouter.getCurrentPath());
+
+const unsubscribe = appRouter.subscribe((to, from) => {
+  console.log("navigated", from?.fullPath, to.fullPath);
+});
+unsubscribe();
 ```
 
-The V3 router does not provide nested route matching, loaders, guards, or history-based rendering. Applications that need those concerns should compose them around the exported router or use a dedicated router package.
+The router resolves navigation and data but does not automatically render route components. Applications should subscribe to matches and connect them to their renderer or component layer. Stop a router with `router.stop()` when its application scope is destroyed.
 
 ## 8. Stores and plugins
 

@@ -25,6 +25,16 @@
 - [ ] Synchronize production guidance and limitations across README, V3 usage docs, and the permanent website.
 - [ ] Document remaining roadmap items that cannot be safely completed without architectural scope or user decisions.
 
+## M1-M3 implementation
+
+- [ ] Define M1 reactive contract: effect cleanup, stoppable watchers, cleanup callbacks, deep watch, arrays, computed chains, batching, and scheduler semantics.
+- [ ] Add M1 regression tests for conditional dependencies, nested proxy identity, arrays, computed values, batch flushing, and stop behavior.
+- [ ] Implement M2 Router 1.0 factory API with dynamic params, query parsing, history/hash navigation, guards, async loaders, 404 handling, and unsubscribe lifecycle.
+- [ ] Add M2 router tests for matching, params, navigation, guards, loaders, redirects, and browser history behavior.
+- [ ] Implement M3 renderer improvements for keyed reconciliation, fragments, props/events, refs, component lifecycle, and event cleanup.
+- [ ] Add M3 renderer tests for create/update/remove, keyed lists, fragments, event replacement, and unmount cleanup.
+- [ ] Synchronize M1-M3 API documentation, examples, changelog, and release notes.
+
 ## Decisions
 
 - Documentation language: English for the public developer docs.

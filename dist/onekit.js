@@ -1011,17 +1011,17 @@
             getter = source;
         }
         else if (typeof source === 'object' && source !== null) {
-            getter = () => traverse(source, options.deep);
+            getter = () => traverse(source, options.deep ?? true);
         }
         else {
             throw new Error('Invalid watch source');
         }
         const job = () => {
-            const newValue = getter();
+            const newValue = runner();
             callback(newValue, oldValue);
             oldValue = newValue;
         };
-        effect(getter, {
+        const runner = effect(getter, {
             lazy: true,
             scheduler: job
         });
@@ -1029,10 +1029,10 @@
             job();
         }
         else {
-            oldValue = getter();
+            oldValue = runner();
         }
         return () => {
-            // Cleanup effect
+            stop(runner);
         };
     }
     function traverse(value, deep = false) {
@@ -1746,138 +1746,155 @@
         }
     }
 
+    /* OneKit style: predictable DOM ownership, keyed updates, explicit prop diffing, and small renderer primitives. */
     function createElement(tag, props = {}, ...children) {
+        const normalized = children.flat(Infinity).filter(child => child !== null && child !== undefined && child !== false).map(child => typeof child === 'object' ? child : String(child));
         return {
             tag,
             props: props || {},
-            children: children.flat(),
-            key: typeof props.key === 'string' ? props.key : undefined
+            children: normalized,
+            key: props?.key
         };
     }
+    function isFragment(vnode) { return vnode.tag === 'fragment'; }
+    function setProp(element, prop, value, oldValue) {
+        if (prop === 'key' || prop === 'children')
+            return;
+        if (prop === 'ref') {
+            if (typeof value === 'function')
+                value(element);
+            else if (value && typeof value === 'object')
+                value.current = element;
+            return;
+        }
+        if (prop.startsWith('on')) {
+            const event = prop.slice(2).toLowerCase();
+            if (oldValue && oldValue !== value)
+                element.removeEventListener(event, oldValue);
+            if (typeof value === 'function' && value !== oldValue)
+                element.addEventListener(event, value);
+            return;
+        }
+        if (prop === 'className') {
+            if (value == null || value === false)
+                element.removeAttribute('class');
+            else
+                element.setAttribute('class', String(value));
+            return;
+        }
+        if (prop === 'style' && value && typeof value === 'object') {
+            const style = element.style;
+            const previous = (oldValue && typeof oldValue === 'object') ? oldValue : {};
+            Object.keys(previous).forEach(key => { if (!(key in value))
+                style.removeProperty(key); });
+            Object.entries(value).forEach(([key, item]) => style.setProperty(key, String(item)));
+            return;
+        }
+        if (value == null || value === false) {
+            element.removeAttribute(prop);
+            const booleanProps = new Set(['checked', 'disabled', 'hidden', 'multiple', 'muted', 'required', 'readOnly', 'selected']);
+            if (booleanProps.has(prop) && prop in element) {
+                try {
+                    element[prop] = false;
+                }
+                catch { /* read-only DOM property */ }
+            }
+            return;
+        }
+        if (value === true) {
+            element.setAttribute(prop, '');
+            return;
+        }
+        if (prop in element && typeof value !== 'string') {
+            try {
+                element[prop] = value;
+                return;
+            }
+            catch { /* fall through to attribute */ }
+        }
+        element.setAttribute(prop, String(value));
+    }
+    function updateProps(element, next, previous) {
+        const keys = new Set([...Object.keys(previous), ...Object.keys(next)]);
+        keys.forEach(prop => setProp(element, prop, next[prop], previous[prop]));
+    }
     function render(vnode) {
-        if (typeof vnode === 'string') {
+        if (typeof vnode === 'string')
             return document.createTextNode(vnode);
+        if (isFragment(vnode)) {
+            const fragment = document.createDocumentFragment();
+            vnode.children.forEach(child => fragment.appendChild(render(child)));
+            return fragment;
         }
+        if (typeof vnode.tag === 'function')
+            return render(vnode.tag(vnode.props));
         const element = document.createElement(vnode.tag);
-        // Set properties
-        for (const prop in vnode.props) {
-            if (prop === 'key')
-                continue;
-            const propValue = vnode.props[prop];
-            if (prop.startsWith('on') && typeof propValue === 'function') {
-                element.addEventListener(prop.slice(2).toLowerCase(), propValue);
-            }
-            else if (prop === 'className' && typeof propValue === 'string') {
-                element.setAttribute('class', propValue);
-            }
-            else if (prop === 'style' && typeof propValue === 'object' && propValue !== null) {
-                Object.assign(element.style, propValue);
-            }
-            else if (typeof propValue === 'string') {
-                element.setAttribute(prop, propValue);
-            }
-        }
-        // Render children
-        vnode.children.forEach(child => {
-            element.appendChild(render(child));
-        });
-        // Store vnode reference
+        updateProps(element, vnode.props, {});
+        vnode.children.forEach(child => element.appendChild(render(child)));
         element._vnode = vnode;
         return element;
     }
+    function patchNode(parent, domNode, next, previous) {
+        if (previous === undefined || domNode === null) {
+            const created = render(next);
+            parent.appendChild(created);
+            return created.nodeType === Node.DOCUMENT_FRAGMENT_NODE ? parent.lastChild : created;
+        }
+        if (typeof next === 'string' && typeof previous === 'string') {
+            if (next !== previous && domNode.nodeValue !== next)
+                domNode.nodeValue = next;
+            return domNode;
+        }
+        if (typeof next === 'string' || typeof previous === 'string' || typeof next.tag === 'function' || typeof previous.tag === 'function') {
+            const created = render(next);
+            parent.replaceChild(created, domNode);
+            return created;
+        }
+        if (next.tag !== previous.tag || next.key !== previous.key || isFragment(next) || isFragment(previous)) {
+            const created = render(next);
+            parent.replaceChild(created, domNode);
+            return created;
+        }
+        const element = domNode;
+        updateProps(element, next.props, previous.props);
+        patchChildren(element, next.children, previous.children);
+        element._vnode = next;
+        return element;
+    }
+    function patchChildren(parent, nextChildren, previousChildren) {
+        const keyed = new Map();
+        Array.from(parent.childNodes).forEach((node, index) => {
+            const old = previousChildren[index];
+            if (typeof old !== 'string' && old?.key !== undefined)
+                keyed.set(old.key, { vnode: old, node });
+        });
+        const used = new Set();
+        nextChildren.forEach((nextChild, index) => {
+            const nextKey = typeof nextChild === 'string' ? undefined : nextChild.key;
+            const keyedMatch = nextKey !== undefined ? keyed.get(nextKey) : undefined;
+            const currentNode = keyedMatch?.node ?? parent.childNodes[index] ?? null;
+            const previousChild = keyedMatch?.vnode ?? previousChildren[index];
+            if (currentNode && previousChild !== undefined) {
+                const updated = patchNode(parent, currentNode, nextChild, previousChild);
+                if (updated) {
+                    used.add(updated);
+                    const anchor = parent.childNodes[index];
+                    if (anchor !== updated)
+                        parent.insertBefore(updated, anchor || null);
+                }
+            }
+            else {
+                const created = render(nextChild);
+                parent.insertBefore(created, parent.childNodes[index] || null);
+                if (created.nodeType !== Node.DOCUMENT_FRAGMENT_NODE)
+                    used.add(created);
+            }
+        });
+        Array.from(parent.childNodes).forEach(node => { if (!used.has(node))
+            parent.removeChild(node); });
+    }
     function patch$1(parent, newVNode, oldVNode) {
-        const oldElement = parent.firstChild;
-        if (!oldElement) {
-            // No existing element, just render and append
-            parent.appendChild(render(newVNode));
-            return;
-        }
-        if (!oldVNode) {
-            // No old vnode, replace entire content
-            parent.innerHTML = '';
-            parent.appendChild(render(newVNode));
-            return;
-        }
-        if (typeof newVNode === 'string' && typeof oldVNode === 'string') {
-            // Both are strings, just update text
-            if (newVNode !== oldVNode) {
-                oldElement.textContent = newVNode;
-            }
-            return;
-        }
-        if (typeof newVNode === 'string' || typeof oldVNode === 'string') {
-            // One is string, one is vnode, replace
-            parent.replaceChild(render(newVNode), oldElement);
-            return;
-        }
-        // Both are vnodes
-        if (newVNode.tag !== oldVNode.tag) {
-            // Different tags, replace
-            parent.replaceChild(render(newVNode), oldElement);
-            return;
-        }
-        // Same tag, update props and children
-        updateProps(oldElement, newVNode.props, oldVNode.props);
-        updateChildren(oldElement, newVNode.children, oldVNode.children);
-    }
-    function updateProps(element, newProps, oldProps) {
-        // Remove old props
-        for (const prop in oldProps) {
-            if (prop === 'key')
-                continue;
-            if (!(prop in newProps)) {
-                if (prop.startsWith('on')) {
-                    // Remove event listener (simplified - in real implementation, store handlers)
-                    const oldValue = oldProps[prop];
-                    if (typeof oldValue === 'function') {
-                        element.removeEventListener(prop.slice(2).toLowerCase(), oldValue);
-                    }
-                }
-                else {
-                    element.removeAttribute(prop);
-                }
-            }
-        }
-        // Add/update new props
-        for (const prop in newProps) {
-            if (prop === 'key')
-                continue;
-            const newValue = newProps[prop];
-            const oldValue = oldProps[prop];
-            if (newValue !== oldValue) {
-                if (prop.startsWith('on') && typeof newValue === 'function') {
-                    element.addEventListener(prop.slice(2).toLowerCase(), newValue);
-                }
-                else if (prop === 'className' && typeof newValue === 'string') {
-                    element.setAttribute('class', newValue);
-                }
-                else if (prop === 'style' && typeof newValue === 'object' && newValue !== null) {
-                    Object.assign(element.style, newValue);
-                }
-                else if (typeof newValue === 'string') {
-                    element.setAttribute(prop, newValue);
-                }
-            }
-        }
-    }
-    function updateChildren(parent, newChildren, oldChildren) {
-        const maxLength = Math.max(newChildren.length, oldChildren.length);
-        for (let i = 0; i < maxLength; i++) {
-            const newChild = newChildren[i];
-            const oldChild = oldChildren[i];
-            if (!newChild && oldChild) {
-                // Remove extra old child
-                parent.removeChild(parent.childNodes[i]);
-            }
-            else if (newChild && !oldChild) {
-                // Add new child
-                parent.appendChild(render(newChild));
-            }
-            else if (newChild && oldChild) {
-                // Update existing child
-                patch$1(parent.childNodes[i], newChild, oldChild);
-            }
-        }
+        patchNode(parent, parent.firstChild, newVNode, oldVNode);
     }
 
     // Animation methods
@@ -2213,25 +2230,188 @@
         }
     }
 
-    /**
-     * Router module for OneKit
-     * Handles client-side routing functionality
-     */
+    /* OneKit style: explicit, browser-first navigation with small composable contracts and no hidden global state in application routers. */
+    function normalizePath(path) {
+        const withoutHash = path.split('#')[0];
+        const withoutQuery = withoutHash.split('?')[0] || '/';
+        const normalized = withoutQuery.replace(/\\+/g, '/').replace(/\/+/g, '/');
+        if (normalized.length > 1 && normalized.endsWith('/'))
+            return normalized.slice(0, -1);
+        return normalized.startsWith('/') ? normalized : `/${normalized}`;
+    }
+    function parseLocation(input) {
+        const raw = input || '/';
+        const hashIndex = raw.indexOf('#');
+        const beforeHash = hashIndex >= 0 ? raw.slice(0, hashIndex) : raw;
+        const hash = hashIndex >= 0 ? raw.slice(hashIndex) : '';
+        const queryIndex = beforeHash.indexOf('?');
+        const path = normalizePath(queryIndex >= 0 ? beforeHash.slice(0, queryIndex) : beforeHash);
+        const query = {};
+        if (queryIndex >= 0) {
+            const params = new URLSearchParams(beforeHash.slice(queryIndex + 1));
+            params.forEach((value, key) => {
+                const previous = query[key];
+                query[key] = previous === undefined ? value : Array.isArray(previous) ? [...previous, value] : [previous, value];
+            });
+        }
+        const queryString = new URLSearchParams();
+        Object.entries(query).forEach(([key, value]) => Array.isArray(value) ? value.forEach(item => queryString.append(key, item)) : queryString.set(key, value));
+        const fullPath = `${path}${queryString.toString() ? `?${queryString}` : ''}${hash}`;
+        return { path, fullPath, params: {}, query, hash };
+    }
+    function compilePath(pattern) {
+        const keys = [];
+        const path = normalizePath(pattern);
+        const source = path.split('/').map(segment => {
+            if (segment.startsWith(':')) {
+                keys.push(segment.slice(1).replace(/\\?$/, ''));
+                return segment.endsWith('?') ? '([^/]*)?' : '([^/]+)';
+            }
+            if (segment === '*') {
+                keys.push('wildcard');
+                return '(.*)';
+            }
+            return segment.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        }).join('/');
+        return { regex: new RegExp(`^${source || '/'}/?$`), keys };
+    }
+    function matchRoute(route, location) {
+        const { regex, keys } = compilePath(route.path);
+        const match = location.path.match(regex);
+        if (!match)
+            return null;
+        return keys.reduce((params, key, index) => {
+            params[key] = decodeURIComponent(match[index + 1] || '');
+            return params;
+        }, {});
+    }
     class Router {
         routes = [];
+        listeners = new Set();
+        current = null;
+        started = false;
+        options;
+        popstateHandler = () => { void this.resolve(this.readBrowserPath(), false); };
+        constructor(routes = [], options = {}) {
+            this.routes = [...routes];
+            this.options = options;
+        }
         addRoute(route) {
             this.routes.push(route);
+            return this;
+        }
+        removeRoute(path) {
+            const index = this.routes.findIndex(route => route.path === path);
+            if (index < 0)
+                return false;
+            this.routes.splice(index, 1);
+            return true;
+        }
+        get routesList() { return this.routes; }
+        getCurrentPath() {
+            return this.current?.path ?? (this.readBrowserPath().split(/[?#]/)[0] || '/');
+        }
+        getCurrentLocation() { return this.current; }
+        subscribe(listener) {
+            this.listeners.add(listener);
+            return () => this.listeners.delete(listener);
+        }
+        start() {
+            if (this.started)
+                return Promise.resolve(this.current ? this.match(this.current) : null);
+            this.started = true;
+            if (typeof window !== 'undefined' && this.options.mode !== 'memory')
+                window.addEventListener('popstate', this.popstateHandler);
+            return this.resolve(this.options.initialPath ?? this.readBrowserPath(), false);
+        }
+        stop() {
+            if (typeof window !== 'undefined')
+                window.removeEventListener('popstate', this.popstateHandler);
+            this.started = false;
         }
         navigate(path) {
-            // Basic navigation logic
-            const route = this.routes.find(r => r.path === path);
-            if (route?.handler) {
-                route.handler();
+            return this.resolve(path, true);
+        }
+        back() { if (typeof window !== 'undefined' && this.options.mode !== 'memory')
+            window.history.back(); }
+        forward() { if (typeof window !== 'undefined' && this.options.mode !== 'memory')
+            window.history.forward(); }
+        async resolve(input, push = false) {
+            const to = parseLocation(this.applyBase(input));
+            const matched = this.match(to);
+            const from = this.current;
+            const context = { to, from };
+            const guardResult = await this.runGuard(this.options.beforeEach, context);
+            if (guardResult === false)
+                return null;
+            if (typeof guardResult === 'string' && guardResult !== to.fullPath)
+                return this.resolve(guardResult, true);
+            const route = matched?.route ?? this.options.notFound;
+            if (!route) {
+                this.current = to;
+                this.notify(to, from);
+                return null;
             }
+            const routeGuard = await this.runGuard(route.beforeEnter, context);
+            if (routeGuard === false)
+                return null;
+            if (typeof routeGuard === 'string' && routeGuard !== to.fullPath)
+                return this.resolve(routeGuard, true);
+            const result = matched ?? { route, location: to };
+            if (route.loader)
+                result.data = await route.loader(context);
+            if (push)
+                this.commit(to);
+            this.current = to;
+            if (route.handler)
+                await route.handler({ ...context, to });
+            this.notify(to, from);
+            this.options.afterEach?.({ ...context, matched: result });
+            return result;
         }
-        getCurrentPath() {
-            return window.location.pathname;
+        match(location) {
+            const search = (routes) => {
+                for (const route of routes) {
+                    const params = matchRoute(route, location);
+                    if (!params)
+                        continue;
+                    const childMatch = route.children ? search(route.children) : null;
+                    return childMatch ?? { route, location: { ...location, params } };
+                }
+                return null;
+            };
+            return search(this.routes);
         }
+        async runGuard(guard, context) {
+            return guard ? guard(context) : undefined;
+        }
+        notify(to, from) {
+            this.listeners.forEach(listener => listener(to, from));
+        }
+        applyBase(path) {
+            const base = this.options.base ?? '';
+            if (!base || path.startsWith(base))
+                return path;
+            return `${base.replace(/\/$/, '')}/${path.replace(/^\//, '')}`;
+        }
+        readBrowserPath() {
+            if (typeof window === 'undefined')
+                return this.options.initialPath ?? '/';
+            if (this.options.mode === 'hash')
+                return window.location.hash.slice(1) || '/';
+            return `${window.location.pathname}${window.location.search}${window.location.hash}`;
+        }
+        commit(location) {
+            if (typeof window === 'undefined' || this.options.mode === 'memory')
+                return;
+            if (this.options.mode === 'hash')
+                window.history.pushState({}, '', `#${location.fullPath}`);
+            else
+                window.history.pushState({}, '', location.fullPath);
+        }
+    }
+    function createRouter(routes = [], options = {}) {
+        return new Router(routes, options);
     }
     const router = new Router();
 
@@ -3334,6 +3514,7 @@ ${bodyContent}
     exports.create = create;
     exports.createElement = createElement;
     exports.createLandmarks = createLandmarks;
+    exports.createRouter = createRouter;
     exports.createSSRContext = createSSRContext;
     exports.createSkipLink = createSkipLink;
     exports.createStorage = createStorage;
@@ -3369,6 +3550,7 @@ ${bodyContent}
     exports.onMounted = onMounted;
     exports.onPropsChanged = onPropsChanged;
     exports.onUpdated = onUpdated;
+    exports.patch = patch$1;
     exports.pluginManager = pluginManager;
     exports.post = post;
     exports.preloadModule = preloadModule;

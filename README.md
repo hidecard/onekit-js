@@ -64,8 +64,8 @@ document.querySelector("#increment")?.addEventListener("click", () => {
 | Reactive state | `reactive`, `effect`, `computed`, `watch`, `batch`, `nextTick`, `snapshot`, `bind` | Track state and update DOM/application effects. |
 | Components | `defineComponent`, `register`, `create`, `mount`, `unmount`, `destroy`, lifecycle hooks | Define, mount, update, and destroy components. |
 | Templates | `compileTemplate`, `registerDirective` | Compile interpolation and directive-based HTML. |
-| JSX and VDOM | `h`, `jsx`, `jsxDEV`, `okjs`, `Fragment`, `createElement`, `render`, `vdomPatch` | Create and render virtual nodes and JSX-compatible views. |
-| Router | `router`, `Router` | Register simple routes and navigate by path. |
+| JSX and VDOM | `h`, `jsx`, `jsxDEV`, `okjs`, `Fragment`, `createElement`, `render`, `patch`, `vdomPatch` | Create, render, and reconcile virtual nodes with keyed children, refs, props, and events. |
+| Router | `createRouter`, `Router`, `router` | Match static/dynamic routes, parse params/query, run guards/loaders, navigate, and subscribe. |
 | Stores | `defineStore`, `createStore`, `useStore`, `getAllStores`, `removeStore`, `addStorePlugin` | Share application state and store plugins. |
 | SSR | `renderToString`, `hydrate`, `createSSRContext`, head/body helpers | Render HTML on the server and hydrate on the client. |
 | HTTP | `request`, `get`, `post`, `put`, `del`, `patch`, `API` | Use fetch-based HTTP helpers. |
@@ -168,7 +168,7 @@ Never commit or share npm access tokens.
 
 V3 applications should import public APIs from `onekit-js` rather than reaching into private source files. Use `defineComponent` for readable component definitions, `unmount` for teardown, and `nextTick` when work must run after the reactive microtask. Keep the package version, `VERSION` constant, README, changelog, examples, and website release banner synchronized.
 
-The V3 implementation intentionally keeps the router small: it supports registered path/handler records and direct navigation, but it does not promise nested route matching, route guards, loaders, or history-state arguments. Compose those features at the application layer when needed.
+The V3 router resolves application navigation and data but does not automatically render route components. Connect matched routes to the renderer or component layer, and call `router.stop()` when the router scope is destroyed.
 
 ## License
 
