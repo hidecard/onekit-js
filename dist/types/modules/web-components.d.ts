@@ -3,7 +3,8 @@ interface WebComponentOptions {
     extends?: string;
     observedAttributes?: string[];
 }
-export declare class OneKitWebComponent extends HTMLElement {
+declare const HTMLElementBase: any;
+export declare class OneKitWebComponent extends HTMLElementBase {
     private componentInstance;
     private componentDef;
     constructor(componentDef: ComponentDefinition, options?: WebComponentOptions);

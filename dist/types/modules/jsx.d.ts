@@ -8,4 +8,6 @@ export interface OKJSElement {
 export declare function okjs(template: TemplateStringsArray, ...values: unknown[]): OKJSElement | VNode;
 export declare const Fragment = "fragment";
 export declare function component(definition: ComponentDefinition): Function;
-export { okjs as jsx, okjs as jsxDEV, okjs as h };
+export declare function h(tagOrTemplate: string | TemplateStringsArray | Function, propsOrValue?: Record<string, unknown> | unknown, ...children: unknown[]): VNode | OKJSElement;
+export declare const jsx: typeof h;
+export declare const jsxDEV: typeof h;

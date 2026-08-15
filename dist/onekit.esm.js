@@ -1,13 +1,15 @@
 // Error handling system
 function errorHandler(error, context = 'Unknown') {
     console.error(`OneKit Error [${context}]:`, error);
-    // Dispatch a custom error event
-    const event = new CustomEvent('onekit-error', {
-        detail: { error, context },
-        bubbles: true,
-        cancelable: true
-    });
-    document.dispatchEvent(event);
+    // Dispatch a custom error event only when a DOM is available.
+    if (typeof document !== 'undefined' && typeof CustomEvent !== 'undefined') {
+        const event = new CustomEvent('onekit-error', {
+            detail: { error, context },
+            bubbles: true,
+            cancelable: true
+        });
+        document.dispatchEvent(event);
+    }
     return null;
 }
 // Safe method wrapper
@@ -724,14 +726,16 @@ moduleNames.forEach(name => {
         modules[name]();
     }
 });
-// Global error handlers
-window.addEventListener('unhandledrejection', function (event) {
-    errorHandler(event.reason, 'Unhandled Promise Rejection');
-    event.preventDefault();
-});
-window.addEventListener('error', function (event) {
-    errorHandler(event.error, 'JavaScript Error');
-});
+// Global error handlers are installed only in browser environments.
+if (typeof window !== 'undefined') {
+    window.addEventListener('unhandledrejection', function (event) {
+        errorHandler(event.reason, 'Unhandled Promise Rejection');
+        event.preventDefault();
+    });
+    window.addEventListener('error', function (event) {
+        errorHandler(event.error, 'JavaScript Error');
+    });
+}
 // Expose to global
 if (typeof window !== 'undefined') {
     window.ok = ok;
@@ -2062,14 +2066,16 @@ const animations = {
         });
     }
 };
-// Add CSS animations
-const style = document.createElement('style');
-style.textContent = `
-  @keyframes bounce { 0%, 20%, 53%, 80%, 100% { transform: translate3d(0, 0, 0); } 40%, 43% { transform: translate3d(0, -30px, 0); } 70% { transform: translate3d(0, -15px, 0); } 90% { transform: translate3d(0, -4px, 0); } }
-  @keyframes shake { 0%, 100% { transform: translate3d(0, 0, 0); } 10%, 30%, 50%, 70%, 90% { transform: translate3d(-10px, 0, 0); } 20%, 40%, 60%, 80% { transform: translate3d(10px, 0, 0); } }
-  @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
-`;
-document.head.appendChild(style);
+// Add CSS animations only when a document is available.
+if (typeof document !== 'undefined') {
+    const style = document.createElement('style');
+    style.textContent = `
+    @keyframes bounce { 0%, 20%, 53%, 80%, 100% { transform: translate3d(0, 0, 0); } 40%, 43% { transform: translate3d(0, -30px, 0); } 70% { transform: translate3d(0, -15px, 0); } 90% { transform: translate3d(0, -4px, 0); } }
+    @keyframes shake { 0%, 100% { transform: translate3d(0, 0, 0); } 10%, 30%, 50%, 70%, 90% { transform: translate3d(-10px, 0, 0); } 20%, 40%, 60%, 80% { transform: translate3d(10px, 0, 0); } }
+    @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+  `;
+    document.head.appendChild(style);
+}
 // Add animations to OneKit prototype
 Object.keys(animations).forEach(name => {
     OneKit.prototype[name] = animations[name];
@@ -2549,15 +2555,28 @@ class Storage {
         return this.keys().length;
     }
 }
-// Pre-configured storage instances
-const localStorage = new Storage(window.localStorage, { prefix: 'onekit_' });
-const sessionStorage = new Storage(window.sessionStorage, { prefix: 'onekit_' });
+// Pre-configured storage instances. Node/SSR imports use an isolated in-memory fallback.
+function createMemoryStorage() {
+    const values = new Map();
+    return {
+        get length() { return values.size; },
+        clear: () => values.clear(),
+        getItem: key => values.get(key) ?? null,
+        key: index => Array.from(values.keys())[index] ?? null,
+        removeItem: key => { values.delete(key); },
+        setItem: (key, value) => { values.set(key, String(value)); }
+    };
+}
+const browserLocal = typeof window !== 'undefined' ? window.localStorage : createMemoryStorage();
+const browserSession = typeof window !== 'undefined' ? window.sessionStorage : createMemoryStorage();
+const localStorage = new Storage(browserLocal, { prefix: 'onekit_' });
+const sessionStorage = new Storage(browserSession, { prefix: 'onekit_' });
 // Utility functions
 function createStorage(storage, options) {
     return new Storage(storage, options);
 }
 // Cache with TTL
-const cache = new Storage(window.sessionStorage, {
+const cache = new Storage(browserSession, {
     prefix: 'onekit_cache_',
     ttl: 5 * 60 * 1000 // 5 minutes
 });
@@ -3324,7 +3343,9 @@ function withCache(key, renderFn, ttl = 300000 // 5 minutes
 }
 
 // Web Components Integration Module
-class OneKitWebComponent extends HTMLElement {
+const HTMLElementBase = typeof HTMLElement !== 'undefined' ? HTMLElement : class {
+};
+class OneKitWebComponent extends HTMLElementBase {
     componentInstance = null;
     componentDef;
     constructor(componentDef, options = {}) {
@@ -3381,7 +3402,7 @@ function registerWebComponent(name, componentDef, options = {}) {
         }
     }
     // Register custom element
-    if (!customElements.get(name)) {
+    if (typeof customElements !== 'undefined' && !customElements.get(name)) {
         customElements.define(name, CustomWebComponent, {
             extends: options.extends
         });
@@ -3475,6 +3496,15 @@ function component(definition) {
         return create(definition.name || 'anonymous', props);
     };
 }
+// JSX/hyperscript helper: support both tagged OKJS templates and h(tag, props, children).
+function h(tagOrTemplate, propsOrValue, ...children) {
+    if (Array.isArray(tagOrTemplate) && 'raw' in tagOrTemplate) {
+        return okjs(tagOrTemplate, propsOrValue, ...children);
+    }
+    return createElement(tagOrTemplate, (propsOrValue && typeof propsOrValue === 'object' && !Array.isArray(propsOrValue) ? propsOrValue : {}), ...(propsOrValue && typeof propsOrValue !== 'object' ? [propsOrValue] : []), ...children);
+}
+const jsx = h;
+const jsxDEV = h;
 
 // OneKit - Modern JavaScript Framework
 // Main entry point with tree-shaking friendly exports
@@ -3482,5 +3512,5 @@ function component(definition) {
 // Version info
 const VERSION = '3.1.9';
 
-export { API, DependencyInjector, Fragment, OneKit, OneKitWebComponent, Router, StreamingRenderer, VERSION, addScript, addStorePlugin, addStyle, addToBody, addToHead, animations, announce, patch as apiPatch, autorun, batch, bind, cache, compileTemplate, component, computed, create, createElement, createLandmarks, createRouter, createSSRContext, createSkipLink, createStorage, createStore, debounce, deepClone, defineComponent, defineStore, del, destroy, di, effect, generateId, get, getAllStores, getInstance, okjs as h, hydrate, initTemplateEngine, isClient, isServer, okjs as jsx, okjs as jsxDEV, localStorage, makeFocusable, makeUnfocusable, manageTabOrder, mount, nextTick, ok, okjs, onDestroyed, onMounted, onPropsChanged, onUpdated, patch$1 as patch, pluginManager, post, preloadModule, preloadScript, preloadStyle, put, reactive, register, registerDirective, registerWebComponent, removeStore, render, renderMeta, renderOpenGraph, renderTitle, renderToString, request, router, sessionStorage, setAriaAttributes, setMeta, setupComponent, skipToContent, snapshot, stop, throttle, trapFocus, unmount, useStore, validateAccessibility, patch$1 as vdomPatch, watch, withCache };
+export { API, DependencyInjector, Fragment, OneKit, OneKitWebComponent, Router, StreamingRenderer, VERSION, addScript, addStorePlugin, addStyle, addToBody, addToHead, animations, announce, patch as apiPatch, autorun, batch, bind, cache, compileTemplate, component, computed, create, createElement, createLandmarks, createRouter, createSSRContext, createSkipLink, createStorage, createStore, debounce, deepClone, defineComponent, defineStore, del, destroy, di, effect, generateId, get, getAllStores, getInstance, h, hydrate, initTemplateEngine, isClient, isServer, jsx, jsxDEV, localStorage, makeFocusable, makeUnfocusable, manageTabOrder, mount, nextTick, ok, okjs, onDestroyed, onMounted, onPropsChanged, onUpdated, patch$1 as patch, pluginManager, post, preloadModule, preloadScript, preloadStyle, put, reactive, register, registerDirective, registerWebComponent, removeStore, render, renderMeta, renderOpenGraph, renderTitle, renderToString, request, router, sessionStorage, setAriaAttributes, setMeta, setupComponent, skipToContent, snapshot, stop, throttle, trapFocus, unmount, useStore, validateAccessibility, patch$1 as vdomPatch, watch, withCache };
 //# sourceMappingURL=onekit.esm.js.map

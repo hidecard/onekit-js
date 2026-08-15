@@ -3,7 +3,7 @@
   "version": "3.1.9",
   "description": "A compact reactive JavaScript framework with components, stores, SSR, JSX, templates, and a practical CLI.",
   "type": "module",
-  "main": "dist/onekit.cjs.js",
+  "main": "dist/onekit.cjs",
   "module": "dist/onekit.esm.js",
   "browser": "dist/onekit.js",
   "types": "./dist/types/index.d.ts",
@@ -14,48 +14,48 @@
     ".": {
       "types": "./dist/types/index.d.ts",
       "import": "./dist/onekit.esm.js",
-      "require": "./dist/onekit.cjs.js",
+      "require": "./dist/onekit.cjs",
       "browser": "./dist/onekit.js"
     },
     "./core": {
       "types": "./dist/types/core/index.d.ts",
       "import": "./dist/onekit.esm.js",
-      "require": "./dist/onekit.cjs.js"
+      "require": "./dist/onekit.cjs"
     },
     "./components": {
       "types": "./dist/types/modules/component.d.ts",
       "import": "./dist/onekit.esm.js",
-      "require": "./dist/onekit.cjs.js"
+      "require": "./dist/onekit.cjs"
     },
     "./reactive": {
       "types": "./dist/types/modules/reactive.d.ts",
       "import": "./dist/onekit.esm.js",
-      "require": "./dist/onekit.cjs.js"
+      "require": "./dist/onekit.cjs"
     },
     "./store": {
       "types": "./dist/types/modules/store.d.ts",
       "import": "./dist/onekit.esm.js",
-      "require": "./dist/onekit.cjs.js"
+      "require": "./dist/onekit.cjs"
     },
     "./ssr": {
       "types": "./dist/types/modules/ssr.d.ts",
       "import": "./dist/onekit.esm.js",
-      "require": "./dist/onekit.cjs.js"
+      "require": "./dist/onekit.cjs"
     },
     "./template": {
       "types": "./dist/types/modules/template.d.ts",
       "import": "./dist/onekit.esm.js",
-      "require": "./dist/onekit.cjs.js"
+      "require": "./dist/onekit.cjs"
     },
     "./jsx": {
       "types": "./dist/types/modules/jsx.d.ts",
       "import": "./dist/onekit.esm.js",
-      "require": "./dist/onekit.cjs.js"
+      "require": "./dist/onekit.cjs"
     },
     "./router": {
       "types": "./dist/types/modules/router.d.ts",
       "import": "./dist/onekit.esm.js",
-      "require": "./dist/onekit.cjs.js"
+      "require": "./dist/onekit.cjs"
     },
     "./package.json": "./package.json"
   },

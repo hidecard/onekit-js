@@ -31,7 +31,7 @@ export default {
       plugins: [terser()]
     },
     {
-      file: 'dist/onekit.cjs.js',
+      file: 'dist/onekit.cjs',
       format: 'cjs',
       sourcemap: true
     }

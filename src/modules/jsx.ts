@@ -120,5 +120,13 @@ export function component(definition: ComponentDefinition): Function {
   };
 }
 
-// Export OKJS as default template function
-export { okjs as jsx, okjs as jsxDEV, okjs as h };
+// JSX/hyperscript helper: support both tagged OKJS templates and h(tag, props, children).
+export function h(tagOrTemplate: string | TemplateStringsArray | Function, propsOrValue?: Record<string, unknown> | unknown, ...children: unknown[]): VNode | OKJSElement {
+  if (Array.isArray(tagOrTemplate) && 'raw' in tagOrTemplate) {
+    return okjs(tagOrTemplate as TemplateStringsArray, propsOrValue, ...children);
+  }
+  return createElement(tagOrTemplate as string | Function, (propsOrValue && typeof propsOrValue === 'object' && !Array.isArray(propsOrValue) ? propsOrValue : {}) as Record<string, unknown>, ...(propsOrValue && typeof propsOrValue !== 'object' ? [propsOrValue] : []), ...children);
+}
+
+export const jsx = h;
+export const jsxDEV = h;

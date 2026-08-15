@@ -163,9 +163,24 @@ class Storage {
   }
 }
 
-// Pre-configured storage instances
-export const localStorage = new Storage(window.localStorage, { prefix: 'onekit_' });
-export const sessionStorage = new Storage(window.sessionStorage, { prefix: 'onekit_' });
+// Pre-configured storage instances. Node/SSR imports use an isolated in-memory fallback.
+function createMemoryStorage(): globalThis.Storage {
+  const values = new Map<string, string>();
+  return {
+    get length() { return values.size; },
+    clear: () => values.clear(),
+    getItem: key => values.get(key) ?? null,
+    key: index => Array.from(values.keys())[index] ?? null,
+    removeItem: key => { values.delete(key); },
+    setItem: (key, value) => { values.set(key, String(value)); }
+  };
+}
+
+const browserLocal = typeof window !== 'undefined' ? window.localStorage : createMemoryStorage();
+const browserSession = typeof window !== 'undefined' ? window.sessionStorage : createMemoryStorage();
+
+export const localStorage = new Storage(browserLocal, { prefix: 'onekit_' });
+export const sessionStorage = new Storage(browserSession, { prefix: 'onekit_' });
 
 // Utility functions
 export function createStorage(storage: globalThis.Storage, options?: StorageOptions): Storage {
@@ -173,7 +188,7 @@ export function createStorage(storage: globalThis.Storage, options?: StorageOpti
 }
 
 // Cache with TTL
-export const cache = new Storage(window.sessionStorage, {
+export const cache = new Storage(browserSession, {
   prefix: 'onekit_cache_',
   ttl: 5 * 60 * 1000 // 5 minutes
 });

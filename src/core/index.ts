@@ -634,15 +634,17 @@ moduleNames.forEach(name => {
   }
 });
 
-// Global error handlers
-window.addEventListener('unhandledrejection', function(event) {
-  errorHandler(event.reason, 'Unhandled Promise Rejection');
-  event.preventDefault();
-});
+// Global error handlers are installed only in browser environments.
+if (typeof window !== 'undefined') {
+  window.addEventListener('unhandledrejection', function(event) {
+    errorHandler(event.reason, 'Unhandled Promise Rejection');
+    event.preventDefault();
+  });
 
-window.addEventListener('error', function(event) {
-  errorHandler(event.error, 'JavaScript Error');
-});
+  window.addEventListener('error', function(event) {
+    errorHandler(event.error, 'JavaScript Error');
+  });
+}
 
 // Expose to global
 if (typeof window !== 'undefined') {

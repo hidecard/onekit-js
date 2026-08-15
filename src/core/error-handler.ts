@@ -2,13 +2,15 @@
 export function errorHandler(error: Error | string | unknown, context: string = 'Unknown'): null {
   console.error(`OneKit Error [${context}]:`, error);
 
-  // Dispatch a custom error event
-  const event = new CustomEvent('onekit-error', {
-    detail: { error, context },
-    bubbles: true,
-    cancelable: true
-  });
-  document.dispatchEvent(event);
+  // Dispatch a custom error event only when a DOM is available.
+  if (typeof document !== 'undefined' && typeof CustomEvent !== 'undefined') {
+    const event = new CustomEvent('onekit-error', {
+      detail: { error, context },
+      bubbles: true,
+      cancelable: true
+    });
+    document.dispatchEvent(event);
+  }
 
   return null;
 }

@@ -6,7 +6,9 @@ interface WebComponentOptions {
   observedAttributes?: string[];
 }
 
-export class OneKitWebComponent extends HTMLElement {
+const HTMLElementBase: any = typeof HTMLElement !== 'undefined' ? HTMLElement : class {};
+
+export class OneKitWebComponent extends HTMLElementBase {
   private componentInstance: ComponentInstance | null = null;
   private componentDef: ComponentDefinition;
 
@@ -75,8 +77,8 @@ export function registerWebComponent(name: string, componentDef: ComponentDefini
   }
 
   // Register custom element
-  if (!customElements.get(name)) {
-    customElements.define(name, CustomWebComponent, {
+  if (typeof customElements !== 'undefined' && !customElements.get(name)) {
+    customElements.define(name, CustomWebComponent as unknown as CustomElementConstructor, {
       extends: options.extends
     });
   }

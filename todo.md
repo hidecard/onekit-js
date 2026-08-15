@@ -35,6 +35,16 @@
 - [ ] Add M3 renderer tests for create/update/remove, keyed lists, fragments, event replacement, and unmount cleanup.
 - [ ] Synchronize M1-M3 API documentation, examples, changelog, and release notes.
 
+## Current-state error audit
+
+- [ ] Run type-check, all Jest suites, production build, npm pack dry-run, and clean git status checks.
+- [ ] Exercise reactive edge cases including arrays, computed invalidation, conditional dependencies, watch disposal, and batching.
+- [ ] Exercise router edge cases including query/hash parsing, dynamic params, redirects, guards, loaders, memory mode, and browser-safe SSR behavior.
+- [ ] Exercise renderer edge cases including keyed reordering, fragments, event replacement, props removal, refs, and empty children.
+- [ ] Exercise SSR, CLI, and representative examples for runtime or packaging failures.
+- [ ] Fix confirmed defects and add regression coverage.
+- [ ] Re-run all validation and record remaining non-blocking risks.
+
 ## Decisions
 
 - Documentation language: English for the public developer docs.
