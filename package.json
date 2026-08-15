@@ -13,9 +13,9 @@
   "exports": {
     ".": {
       "types": "./dist/types/index.d.ts",
+      "browser": "./dist/onekit.js",
       "import": "./dist/onekit.esm.js",
-      "require": "./dist/onekit.cjs",
-      "browser": "./dist/onekit.js"
+      "require": "./dist/onekit.cjs"
     },
     "./core": {
       "types": "./dist/types/core/index.d.ts",
