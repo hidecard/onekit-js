@@ -3282,7 +3282,7 @@ function component(definition) {
 // Main entry point with tree-shaking friendly exports
 // Core systems
 // Version info
-const VERSION = '3.1.8';
+const VERSION = '3.1.9';
 
 export { API, DependencyInjector, Fragment, OneKit, OneKitWebComponent, Router, StreamingRenderer, VERSION, addScript, addStorePlugin, addStyle, addToBody, addToHead, animations, announce, patch as apiPatch, autorun, batch, bind, cache, compileTemplate, component, computed, create, createElement, createLandmarks, createSSRContext, createSkipLink, createStorage, createStore, debounce, deepClone, defineComponent, defineStore, del, destroy, di, effect, generateId, get, getAllStores, getInstance, okjs as h, hydrate, initTemplateEngine, isClient, isServer, okjs as jsx, okjs as jsxDEV, localStorage, makeFocusable, makeUnfocusable, manageTabOrder, mount, nextTick, ok, okjs, onDestroyed, onMounted, onPropsChanged, onUpdated, pluginManager, post, preloadModule, preloadScript, preloadStyle, put, reactive, register, registerDirective, registerWebComponent, removeStore, render, renderMeta, renderOpenGraph, renderTitle, renderToString, request, router, sessionStorage, setAriaAttributes, setMeta, setupComponent, skipToContent, snapshot, throttle, trapFocus, unmount, useStore, validateAccessibility, patch$1 as vdomPatch, watch, withCache };
 //# sourceMappingURL=onekit.esm.js.map

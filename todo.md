@@ -9,6 +9,12 @@
 - [ ] Run type-check, tests, build, and package dry-run.
 - [ ] Commit documentation changes and prepare GitHub/website checkpoint delivery.
 
+## OneKit-only documentation web page
+
+- [ ] Define the OneKit-only page entrypoint, API sections, and browser runtime loading contract.
+- [ ] Build sidebar navigation, search, install snippets, API cards, and a live reactive example with OneKit APIs only.
+- [ ] Add responsive styling and verify browser interaction, production build, and GitHub V3 delivery.
+
 ## Decisions
 
 - Documentation language: English for the public developer docs.
