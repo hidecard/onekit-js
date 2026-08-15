@@ -279,7 +279,7 @@ export class StreamingRenderer {
   async renderToStream(vnode: VNode | string): Promise<ReadableStream<string>> {
     const { readable, writable } = new TransformStream<string, string>();
 
-    this.renderAsync(vnode, writable).catch(error => {
+    this.renderAsync(vnode, writable.getWriter()).catch(error => {
       console.error('SSR streaming error:', error);
       writable.abort(error);
     });

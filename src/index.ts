@@ -16,6 +16,8 @@ export * from './modules/router';
 export * from './modules/storage';
 export * from './modules/utils';
 export * from './modules/a11y';
+export * from './modules/store';
+export * from './modules/ssr';
 
 // Version info
-export const VERSION = '3.0.0-alpha';
+export const VERSION = '3.1.8';

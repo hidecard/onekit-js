@@ -6,40 +6,56 @@
   "main": "dist/onekit.cjs.js",
   "module": "dist/onekit.esm.js",
   "browser": "dist/onekit.js",
-  "types": "types/index.d.ts",
+  "types": "./dist/types/index.d.ts",
   "bin": {
     "onekit": "./bin/onekit.js"
   },
   "exports": {
     ".": {
-      "types": "./types/index.d.ts",
+      "types": "./dist/types/index.d.ts",
       "import": "./dist/onekit.esm.js",
       "require": "./dist/onekit.cjs.js",
       "browser": "./dist/onekit.js"
     },
     "./core": {
-      "types": "./types/core/index.d.ts",
-      "import": "./dist/onekit-core.esm.js"
+      "types": "./dist/types/core/index.d.ts",
+      "import": "./dist/onekit.esm.js",
+      "require": "./dist/onekit.cjs.js"
     },
     "./components": {
-      "types": "./types/modules/component.d.ts",
-      "import": "./dist/onekit-components.esm.js"
+      "types": "./dist/types/modules/component.d.ts",
+      "import": "./dist/onekit.esm.js",
+      "require": "./dist/onekit.cjs.js"
     },
     "./reactive": {
-      "types": "./types/modules/reactive.d.ts",
-      "import": "./dist/onekit-reactive.esm.js"
-    }
+      "types": "./dist/types/modules/reactive.d.ts",
+      "import": "./dist/onekit.esm.js",
+      "require": "./dist/onekit.cjs.js"
+    },
+    "./store": {
+      "types": "./dist/types/modules/store.d.ts",
+      "import": "./dist/onekit.esm.js",
+      "require": "./dist/onekit.cjs.js"
+    },
+    "./ssr": {
+      "types": "./dist/types/modules/ssr.d.ts",
+      "import": "./dist/onekit.esm.js",
+      "require": "./dist/onekit.cjs.js"
+    },
+    "./package.json": "./package.json"
   },
   "files": [
     "dist",
-    "types",
-    "src"
+    "src",
+    "README.md",
+    "CHANGELOG.md",
+    "MIGRATION_GUIDE.md"
   ],
   "scripts": {
     "build": "rollup -c",
     "dev": "rollup -c -w",
     "dev:vite": "vite",
-    "test": "jest",
+    "test": "jest --config jest.config.cjs",
     "type-check": "tsc --noEmit"
   },
   "repository": {

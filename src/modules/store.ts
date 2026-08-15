@@ -27,7 +27,7 @@ export function defineStore(id: string | StoreDefinition, setup?: () => StoreDef
     if (!setup) {
       throw new Error('[OneKit Store] defineStore requires setup function when id is a string');
     }
-    definition = { id, ...setup() };
+    definition = { ...setup(), id };
   } else {
     definition = id;
   }
@@ -118,6 +118,7 @@ export function defineStore(id: string | StoreDefinition, setup?: () => StoreDef
 
   // Store the instance
   stores.set(definition.id, store);
+  applyPlugins(store);
 
   return store;
 }
@@ -164,13 +165,7 @@ function applyPlugins(store: Store): void {
   plugins.forEach(plugin => plugin(store));
 }
 
-// Override defineStore to apply plugins
-const originalDefineStore = defineStore;
-export { originalDefineStore as defineStore };
-
-// Re-export with plugin application
+// Explicit alias for applications that prefer a create-style API.
 export function createStore(id: string | StoreDefinition, setup?: () => StoreDefinition): Store {
-  const store = originalDefineStore(id, setup);
-  applyPlugins(store);
-  return store;
+  return defineStore(id, setup);
 }

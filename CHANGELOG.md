@@ -96,6 +96,19 @@ This is a major version update with breaking changes. See [MIGRATION_GUIDE.md](M
 
 ---
 
+## V3 Maintenance Pass — 2026-08-15
+
+### Fixed
+- Fixed the undefined `finalProps` reference in component creation.
+- Corrected SSR streaming to pass a `WritableStreamDefaultWriter`.
+- Removed the duplicate `defineStore` export and applied store plugins consistently.
+- Converted the Jest configuration to `jest.config.cjs` for the ESM package.
+- Exported store and SSR APIs from the package entrypoint.
+- Corrected package declaration and subpath export targets to generated `dist/types` files.
+
+### Added
+- Added `docs/GETTING_STARTED.md`, a reactive counter example, and a store-backed todo example.
+
 ## Contributing
 
 When contributing to OneKit, please:

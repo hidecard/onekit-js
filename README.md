@@ -783,3 +783,17 @@ Supports:
 # License
 
 ISC License
+
+
+---
+
+# V3 Maintenance Notes
+
+V3 branch ၏ လက်ရှိ tested quick start နှင့် framework-oriented documentation ကို [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md) တွင် ဖတ်ရှုနိုင်သည်။ `examples/counter` သည် `reactive()` နှင့် `effect()` ကို အသုံးပြုသော mini project ဖြစ်ပြီး `examples/todo` သည် store/actions/reactive rendering ကို ပြသသော mini project ဖြစ်သည်။
+
+```bash
+npx vite --root examples/counter
+npx vite --root examples/todo
+```
+
+ဤ V3 maintenance pass တွင် component creation ၏ `finalProps` reference, SSR stream writer typing, store duplicate export, ESM package အောက်က Jest config နှင့် package declaration/export paths များကို ပြင်ဆင်ထားသည်။ Public entrypoint တွင် store နှင့် SSR API များကိုလည်း ထည့်သွင်းထားသည်။

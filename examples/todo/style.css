@@ -1,0 +1,22 @@
+:root {
+  font-family: Inter, system-ui, sans-serif;
+  color: #172033;
+  background: #f6f8fb;
+}
+
+body { display: grid; min-height: 100vh; margin: 0; place-items: center; }
+.app-shell { width: min(92vw, 620px); padding: 2.5rem; background: white; border: 1px solid #e4e7ec; border-radius: 24px; box-shadow: 0 18px 50px rgb(16 24 40 / 10%); }
+.eyebrow { margin: 0; color: #13795b; font-size: .78rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+h1 { margin: .35rem 0 .25rem; font-size: 2.4rem; }
+.summary { margin-top: 0; color: #667085; }
+.composer { display: flex; gap: .65rem; margin: 1.5rem 0; }
+input:not([type="checkbox"]) { flex: 1; min-width: 0; padding: .85rem 1rem; border: 1px solid #d0d5dd; border-radius: 10px; font: inherit; }
+button { padding: .8rem 1.1rem; color: white; background: #13795b; border: 0; border-radius: 10px; font: inherit; font-weight: 700; cursor: pointer; }
+button:hover { background: #0d5c45; }
+ul { display: grid; gap: .65rem; padding: 0; list-style: none; }
+.todo { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .9rem 1rem; background: #f8fafc; border: 1px solid #eaecf0; border-radius: 12px; }
+.todo label { display: flex; align-items: center; gap: .7rem; overflow-wrap: anywhere; }
+.todo.done span { color: #98a2b3; text-decoration: line-through; }
+.todo .remove { padding: .25rem .55rem; background: transparent; color: #98a2b3; font-size: 1.3rem; }
+.todo .remove:hover { color: #b42318; background: #fef3f2; }
+.empty { padding: 2rem; color: #98a2b3; text-align: center; border: 1px dashed #d0d5dd; border-radius: 12px; }

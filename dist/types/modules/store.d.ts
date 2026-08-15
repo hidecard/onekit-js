@@ -24,6 +24,4 @@ export interface StorePlugin {
     (store: Store): void;
 }
 export declare function addStorePlugin(plugin: StorePlugin): void;
-declare const originalDefineStore: typeof defineStore;
-export { originalDefineStore as defineStore };
 export declare function createStore(id: string | StoreDefinition, setup?: () => StoreDefinition): Store;

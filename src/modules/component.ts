@@ -175,7 +175,7 @@ export function create(name: string, props: ComponentProps = {}, slots: { [key: 
 
   const instance: ComponentInstance = {
     name,
-    props: finalProps,
+    props: validatedProps,
     slots,
     state: definition.data ? deepCloneSafe(definition.data()) : {},
     element: null,

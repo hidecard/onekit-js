@@ -4,6 +4,7 @@ export interface DirectiveContext {
     modifiers: string[];
     value?: any;
     oldValue?: any;
+    rootContext?: any;
 }
 export interface DirectiveHandler {
     bind?: (ctx: DirectiveContext) => void;

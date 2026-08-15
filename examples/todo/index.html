@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OneKit V3 Todo</title>
+  </head>
+  <body>
+    <main class="app-shell">
+      <p class="eyebrow">OneKit JS V3</p>
+      <h1>Focus List</h1>
+      <p id="summary" class="summary"></p>
+      <form id="todo-form" class="composer">
+        <input id="todo-input" aria-label="New task" placeholder="Add a task…" autocomplete="off" />
+        <button>Add</button>
+      </form>
+      <ul id="todo-list"></ul>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

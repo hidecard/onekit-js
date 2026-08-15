@@ -1076,7 +1076,7 @@ function registerDirective(name, handler) {
 }
 // Parse directive from attribute name
 function parseDirective(attrName) {
-    const directiveRegex = /^o-([a-zA-Z_][a-zA-Z0-9_]*)(?:\.(.*))?$/;
+    const directiveRegex = /^ok-([a-zA-Z_][a-zA-Z0-9_]*)(?:\.(.*))?$/;
     const match = attrName.match(directiveRegex);
     if (!match)
         return null;
@@ -1133,7 +1133,8 @@ function compileTemplate(template, context) {
         const directiveCtx = {
             element: binding.element,
             expression: binding.expression,
-            modifiers: binding.modifiers
+            modifiers: binding.modifiers,
+            rootContext: context
         };
         // Create reactive binding
         const getter = () => evaluateExpression(binding.expression, context);
@@ -1158,7 +1159,7 @@ function compileTemplate(template, context) {
     return container.firstElementChild || container;
 }
 // Built-in directives
-// o-if directive
+// ok-if directive
 registerDirective('if', {
     bind(ctx) {
         ctx.element.style.display = ctx.value ? '' : 'none';
@@ -1176,19 +1177,19 @@ registerDirective('show', {
         ctx.element.style.display = ctx.value ? '' : 'none';
     }
 });
-// o-for directive
+// ok-for directive
 registerDirective('for', {
     bind(ctx) {
-        // o-for="item in items" or o-for="(item, index) in items"
+        // ok-for="item in items" or ok-for="(item, index) in items"
         const forMatch = ctx.expression.match(/^\s*\(?(\w+)(?:\s*,\s*(\w+))?\)?\s+in\s+(.+)$/);
         if (!forMatch) {
-            console.error('Invalid o-for expression:', ctx.expression);
+            console.error('Invalid ok-for expression:', ctx.expression);
             return;
         }
         const [, itemName, indexName, collectionExpr] = forMatch;
-        const collection = evaluateExpression(collectionExpr, ctx.value);
+        const collection = evaluateExpression(collectionExpr, ctx.rootContext);
         if (!Array.isArray(collection)) {
-            console.error('o-for collection must be an array:', collectionExpr);
+            console.error('ok-for collection must be an array:', collectionExpr);
             return;
         }
         // Store original element
@@ -1198,7 +1199,10 @@ registerDirective('for', {
             return;
         // Remove original element
         parent.removeChild(originalElement);
-        // Create elements for each item
+        // Determine insertion behavior from modifiers: numeric index, 'start' or 'prepend'
+        const insertModifier = (ctx.modifiers || []).find((m) => /^\d+$/.test(m) || m === 'start' || m === 'prepend');
+        // Build clones first so we can insert them in a fragment to preserve order
+        const clones = [];
         collection.forEach((item, index) => {
             const clone = originalElement.cloneNode(true);
             // Create item context
@@ -1206,10 +1210,34 @@ registerDirective('for', {
             if (indexName) {
                 itemContext[indexName] = index;
             }
-            // Compile clone with item context
-            const compiledClone = compileTemplate(clone.outerHTML, { ...ctx.value, ...itemContext });
-            parent.appendChild(compiledClone);
+            // Compile clone with merged root context and item context
+            const compiledClone = compileTemplate(clone.outerHTML, { ...ctx.rootContext, ...itemContext });
+            clones.push(compiledClone);
         });
+        if (insertModifier) {
+            // Numeric index
+            let insertIndex;
+            if (/^\d+$/.test(insertModifier)) {
+                insertIndex = parseInt(insertModifier, 10);
+            }
+            else if (insertModifier === 'start' || insertModifier === 'prepend') {
+                insertIndex = 0;
+            }
+            const fragment = document.createDocumentFragment();
+            clones.forEach(c => fragment.appendChild(c));
+            if (typeof insertIndex === 'number') {
+                const refChild = parent.children[insertIndex] || null;
+                parent.insertBefore(fragment, refChild);
+            }
+            else {
+                // Fallback to append
+                parent.appendChild(fragment);
+            }
+        }
+        else {
+            // Default: append in order
+            clones.forEach(c => parent.appendChild(c));
+        }
     }
 });
 // v-bind directive
@@ -1447,10 +1475,10 @@ function create(name, props = {}, slots = {}) {
     }
     const definition = components[name];
     // Validate and process props
-    definition.props ? validateProps(props, definition.props, name) : props;
+    const validatedProps = definition.props ? validateProps(props, definition.props, name) : props;
     const instance = {
         name,
-        props: finalProps,
+        props: validatedProps,
         slots,
         state: definition.data ? deepCloneSafe(definition.data()) : {},
         element: null,
@@ -2596,17 +2624,514 @@ function validateAccessibility(element) {
     return { errors, warnings };
 }
 
+// Integrated State Manager (Pinia-like)
+const stores = new Map();
+const storeSubscriptions = new WeakMap();
+function defineStore(id, setup) {
+    let definition;
+    if (typeof id === 'string') {
+        if (!setup) {
+            throw new Error('[OneKit Store] defineStore requires setup function when id is a string');
+        }
+        definition = { ...setup(), id };
+    }
+    else {
+        definition = id;
+    }
+    // Check if store already exists
+    if (stores.has(definition.id)) {
+        console.warn(`[OneKit Store] Store "${definition.id}" already exists. Returning existing store.`);
+        return stores.get(definition.id);
+    }
+    // Create reactive state
+    const state = reactive(definition.state());
+    // Create store instance
+    const store = {
+        $id: definition.id,
+        $state: state,
+        $patch: (partialState) => {
+            if (typeof partialState === 'function') {
+                partialState(state);
+            }
+            else {
+                Object.assign(state, partialState);
+            }
+            // Notify subscribers
+            const subscribers = storeSubscriptions.get(store);
+            if (subscribers) {
+                subscribers.forEach(callback => {
+                    callback({ storeId: definition.id, type: 'patch', payload: partialState }, { ...state });
+                });
+            }
+        },
+        $reset: () => {
+            const newState = definition.state();
+            Object.assign(state, newState);
+            // Notify subscribers
+            const subscribers = storeSubscriptions.get(store);
+            if (subscribers) {
+                subscribers.forEach(callback => {
+                    callback({ storeId: definition.id, type: 'reset' }, { ...state });
+                });
+            }
+        },
+        $subscribe: (callback) => {
+            let subscribers = storeSubscriptions.get(store);
+            if (!subscribers) {
+                subscribers = new Set();
+                storeSubscriptions.set(store, subscribers);
+            }
+            subscribers.add(callback);
+            // Return unsubscribe function
+            return () => {
+                subscribers.delete(callback);
+            };
+        }
+    };
+    // Add getters
+    if (definition.getters) {
+        Object.keys(definition.getters).forEach(getterName => {
+            const getterFn = definition.getters[getterName];
+            store[getterName] = computed(() => getterFn(state));
+        });
+    }
+    // Add actions
+    if (definition.actions) {
+        Object.keys(definition.actions).forEach(actionName => {
+            const actionFn = definition.actions[actionName];
+            store[actionName] = function (...args) {
+                const result = actionFn.apply(store, args);
+                // Notify subscribers
+                const subscribers = storeSubscriptions.get(store);
+                if (subscribers) {
+                    subscribers.forEach(callback => {
+                        callback({ storeId: definition.id, type: 'action', payload: { action: actionName, args, result } }, { ...state });
+                    });
+                }
+                return result;
+            };
+        });
+    }
+    // Store the instance
+    stores.set(definition.id, store);
+    applyPlugins(store);
+    return store;
+}
+function useStore(id) {
+    const store = stores.get(id);
+    if (!store) {
+        throw new Error(`[OneKit Store] Store "${id}" not found. Make sure to define it first.`);
+    }
+    return store;
+}
+function getAllStores() {
+    return Array.from(stores.values());
+}
+function removeStore(id) {
+    const store = stores.get(id);
+    if (store) {
+        storeSubscriptions.delete(store);
+        return stores.delete(id);
+    }
+    return false;
+}
+const plugins = [];
+function addStorePlugin(plugin) {
+    plugins.push(plugin);
+    // Apply plugin to existing stores
+    stores.forEach(store => {
+        plugin(store);
+    });
+}
+// Apply plugins to newly created stores
+function applyPlugins(store) {
+    plugins.forEach(plugin => plugin(store));
+}
+// Explicit alias for applications that prefer a create-style API.
+function createStore(id, setup) {
+    return defineStore(id, setup);
+}
+
+// Server-side rendering function
+function renderToString(vnode, context = {}) {
+    const ctx = { ...context };
+    function renderVNode(node) {
+        if (typeof node === 'string') {
+            return escapeHtml(node);
+        }
+        const { tag, props, children } = node;
+        // Handle special tags
+        if (tag === 'html') {
+            return renderHtmlTag(node, ctx);
+        }
+        if (tag === 'head') {
+            return renderHeadTag(node, ctx);
+        }
+        if (tag === 'body') {
+            return renderBodyTag(node, ctx);
+        }
+        // Handle component rendering (simplified for SSR)
+        if (typeof tag === 'function') {
+            // For functional components, call them to get vnode
+            const componentResult = tag(props);
+            return renderVNode(componentResult);
+        }
+        // Regular HTML element
+        const attrs = renderAttributes(props);
+        const childrenHtml = children.map(renderVNode).join('');
+        if (isSelfClosingTag(tag)) {
+            return `<${tag}${attrs}>`;
+        }
+        return `<${tag}${attrs}>${childrenHtml}</${tag}>`;
+    }
+    const html = renderVNode(vnode);
+    return {
+        html,
+        context: ctx
+    };
+}
+// Render HTML document structure
+function renderHtmlTag(node, context) {
+    const { children } = node;
+    const attrs = renderAttributes(node.props);
+    let headContent = '';
+    let bodyContent = '';
+    children.forEach(child => {
+        if (typeof child === 'string') {
+            bodyContent += escapeHtml(child);
+        }
+        else if (child.tag === 'head') {
+            headContent = renderHeadTag(child, context);
+        }
+        else if (child.tag === 'body') {
+            bodyContent = renderBodyTag(child, context);
+        }
+        else {
+            bodyContent += renderVNode(child);
+        }
+    });
+    return `<!DOCTYPE html>
+<html${attrs}>
+${headContent}
+${bodyContent}
+</html>`;
+}
+function renderVNode(node) {
+    if (typeof node === 'string') {
+        return escapeHtml(node);
+    }
+    const { tag, props, children } = node;
+    // Handle special tags
+    if (tag === 'html') {
+        return renderHtmlTag(node, { head: [], body: [], meta: {} });
+    }
+    if (tag === 'head') {
+        return renderHeadTag(node, { head: [], meta: {} });
+    }
+    if (tag === 'body') {
+        return renderBodyTag(node, { body: []});
+    }
+    // Handle component rendering (simplified for SSR)
+    if (typeof tag === 'function') {
+        // For functional components, call them to get vnode
+        const componentResult = tag(props);
+        return renderVNode(componentResult);
+    }
+    // Regular HTML element
+    const attrs = renderAttributes(props);
+    const childrenHtml = children.map(renderVNode).join('');
+    if (isSelfClosingTag(tag)) {
+        return `<${tag}${attrs}>`;
+    }
+    return `<${tag}${attrs}>${childrenHtml}</${tag}>`;
+}
+function renderHeadTag(node, context) {
+    const { children } = node;
+    const attrs = renderAttributes(node.props);
+    let content = '';
+    children.forEach(child => {
+        if (typeof child === 'string') {
+            content += escapeHtml(child);
+        }
+        else {
+            content += renderVNode(child);
+        }
+    });
+    // Add context head content
+    if (context.head) {
+        content += context.head.join('\n');
+    }
+    // Add meta tags from context
+    if (context.meta) {
+        Object.entries(context.meta).forEach(([name, content]) => {
+            content += `<meta name="${name}" content="${escapeHtml(content)}">\n`;
+        });
+    }
+    return `<head${attrs}>${content}</head>`;
+}
+function renderBodyTag(node, context) {
+    const { children } = node;
+    const attrs = renderAttributes(node.props);
+    let content = '';
+    children.forEach(child => {
+        if (typeof child === 'string') {
+            content += escapeHtml(child);
+        }
+        else {
+            content += renderVNode(child);
+        }
+    });
+    // Add context body content
+    if (context.body) {
+        content += context.body.join('\n');
+    }
+    return `<body${attrs}>${content}</body>`;
+}
+function renderAttributes(props) {
+    const attrs = [];
+    for (const [key, value] of Object.entries(props)) {
+        if (key === 'key' || key === 'children')
+            continue;
+        if (key === 'className') {
+            attrs.push(`class="${escapeHtml(String(value))}"`);
+        }
+        else if (key === 'style' && typeof value === 'object') {
+            const styleStr = Object.entries(value)
+                .map(([k, v]) => `${k}:${v}`)
+                .join(';');
+            attrs.push(`style="${escapeHtml(styleStr)}"`);
+        }
+        else if (key.startsWith('on') && typeof value === 'function') {
+            // Skip event handlers for SSR
+            continue;
+        }
+        else if (typeof value === 'boolean') {
+            if (value)
+                attrs.push(key);
+        }
+        else if (value !== null && value !== undefined) {
+            attrs.push(`${key}="${escapeHtml(String(value))}"`);
+        }
+    }
+    return attrs.length > 0 ? ' ' + attrs.join(' ') : '';
+}
+function isSelfClosingTag(tag) {
+    const selfClosingTags = new Set([
+        'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input',
+        'link', 'meta', 'param', 'source', 'track', 'wbr'
+    ]);
+    return selfClosingTags.has(tag);
+}
+function escapeHtml(text) {
+    const htmlEscapes = {
+        '&': '&amp;',
+        '<': '<',
+        '>': '>',
+        '"': '"',
+        "'": '&#39;'
+    };
+    return text.replace(/[&<>"']/g, char => htmlEscapes[char]);
+}
+// Hydration for client-side activation
+function hydrate(rootElement, vnode) {
+    // Walk the DOM and attach event listeners
+    walkAndHydrate(rootElement, vnode);
+}
+function walkAndHydrate(element, vnode) {
+    // Attach event listeners from vnode props
+    for (const [key, value] of Object.entries(vnode.props)) {
+        if (key.startsWith('on') && typeof value === 'function') {
+            const eventName = key.slice(2).toLowerCase();
+            element.addEventListener(eventName, value);
+        }
+    }
+    // Store vnode reference for future patches
+    element._vnode = vnode;
+    // Walk children
+    const childNodes = Array.from(element.childNodes);
+    let childIndex = 0;
+    vnode.children.forEach(child => {
+        if (typeof child === 'string') {
+            // Skip text nodes for hydration
+            while (childIndex < childNodes.length && childNodes[childIndex].nodeType !== Node.TEXT_NODE) {
+                childIndex++;
+            }
+            if (childIndex < childNodes.length) {
+                childIndex++;
+            }
+        }
+        else {
+            // Find corresponding element node
+            while (childIndex < childNodes.length && childNodes[childIndex].nodeType !== Node.ELEMENT_NODE) {
+                childIndex++;
+            }
+            if (childIndex < childNodes.length) {
+                walkAndHydrate(childNodes[childIndex], child);
+                childIndex++;
+            }
+        }
+    });
+}
+// Streaming SSR utilities
+class StreamingRenderer {
+    context;
+    chunks = [];
+    isComplete = false;
+    constructor(context = {}) {
+        this.context = context;
+    }
+    async renderToStream(vnode) {
+        const { readable, writable } = new TransformStream();
+        this.renderAsync(vnode, writable.getWriter()).catch(error => {
+            console.error('SSR streaming error:', error);
+            writable.abort(error);
+        });
+        return readable;
+    }
+    async renderAsync(vnode, writer) {
+        try {
+            // Start HTML document
+            await writer.write('<!DOCTYPE html>\n');
+            if (typeof vnode === 'string') {
+                await writer.write(escapeHtml(vnode));
+            }
+            else {
+                await this.renderVNodeAsync(vnode, writer);
+            }
+            await writer.close();
+            this.isComplete = true;
+        }
+        catch (error) {
+            await writer.abort(error);
+            throw error;
+        }
+    }
+    async renderVNodeAsync(vnode, writer) {
+        const { tag, props, children } = vnode;
+        // Handle async components
+        if (typeof tag === 'function') {
+            const componentResult = await tag(props);
+            return this.renderVNodeAsync(componentResult, writer);
+        }
+        const attrs = renderAttributes(props);
+        const tagHtml = `<${tag}${attrs}>`;
+        await writer.write(tagHtml);
+        // Render children
+        for (const child of children) {
+            if (typeof child === 'string') {
+                await writer.write(escapeHtml(child));
+            }
+            else {
+                await this.renderVNodeAsync(child, writer);
+            }
+        }
+        if (!isSelfClosingTag(tag)) {
+            await writer.write(`</${tag}>`);
+        }
+    }
+    getContext() {
+        return { ...this.context };
+    }
+}
+// SSR utilities and helpers
+function createSSRContext() {
+    return {
+        head: [],
+        body: [],
+        styles: [],
+        scripts: [],
+        meta: {}
+    };
+}
+function addToHead(context, content) {
+    if (!context.head)
+        context.head = [];
+    context.head.push(content);
+}
+function addToBody(context, content) {
+    if (!context.body)
+        context.body = [];
+    context.body.push(content);
+}
+function addStyle(context, css) {
+    if (!context.styles)
+        context.styles = [];
+    context.styles.push(css);
+}
+function addScript(context, src, content) {
+    if (!context.scripts)
+        context.scripts = [];
+    if (src) {
+        context.scripts.push(`<script src="${escapeHtml(src)}"></script>`);
+    }
+    else if (content) {
+        context.scripts.push(`<script>${content}</script>`);
+    }
+}
+function setMeta(context, name, content) {
+    if (!context.meta)
+        context.meta = {};
+    context.meta[name] = content;
+}
+// Preload utilities for performance
+function preloadModule(href) {
+    return `<link rel="modulepreload" href="${escapeHtml(href)}">`;
+}
+function preloadStyle(href) {
+    return `<link rel="preload" href="${escapeHtml(href)}" as="style">`;
+}
+function preloadScript(href) {
+    return `<link rel="preload" href="${escapeHtml(href)}" as="script">`;
+}
+// SEO utilities
+function renderTitle(title) {
+    return `<title>${escapeHtml(title)}</title>`;
+}
+function renderMeta(name, content) {
+    return `<meta name="${escapeHtml(name)}" content="${escapeHtml(content)}">`;
+}
+function renderOpenGraph(property, content) {
+    return `<meta property="og:${escapeHtml(property)}" content="${escapeHtml(content)}">`;
+}
+// Development helpers
+function isServer() {
+    return typeof window === 'undefined';
+}
+function isClient() {
+    return typeof window !== 'undefined';
+}
+// Cache for rendered components
+const ssrCache = new Map();
+function withCache(key, renderFn, ttl = 300000 // 5 minutes
+) {
+    const cached = ssrCache.get(key);
+    if (cached && Date.now() - cached._timestamp < ttl) {
+        return cached.html;
+    }
+    const result = renderFn();
+    const renderResult = renderToString(result);
+    renderResult._timestamp = Date.now();
+    ssrCache.set(key, renderResult);
+    return result;
+}
+
 // OneKit - Modern JavaScript Framework
 // Main entry point with tree-shaking friendly exports
 // Core systems
 // Version info
-const VERSION = '3.0.0-alpha';
+const VERSION = '3.1.8';
 
 exports.API = API;
 exports.DependencyInjector = DependencyInjector;
 exports.OneKit = OneKit;
 exports.Router = Router;
+exports.StreamingRenderer = StreamingRenderer;
 exports.VERSION = VERSION;
+exports.addScript = addScript;
+exports.addStorePlugin = addStorePlugin;
+exports.addStyle = addStyle;
+exports.addToBody = addToBody;
+exports.addToHead = addToHead;
 exports.animations = animations;
 exports.announce = announce;
 exports.apiPatch = patch;
@@ -2618,17 +3143,24 @@ exports.computed = computed;
 exports.create = create;
 exports.createElement = createElement;
 exports.createLandmarks = createLandmarks;
+exports.createSSRContext = createSSRContext;
 exports.createSkipLink = createSkipLink;
 exports.createStorage = createStorage;
+exports.createStore = createStore;
 exports.debounce = debounce;
 exports.deepClone = deepClone;
+exports.defineStore = defineStore;
 exports.del = del;
 exports.destroy = destroy;
 exports.di = di;
 exports.effect = effect;
 exports.generateId = generateId;
 exports.get = get;
+exports.getAllStores = getAllStores;
 exports.getInstance = getInstance;
+exports.hydrate = hydrate;
+exports.isClient = isClient;
+exports.isServer = isServer;
 exports.localStorage = localStorage;
 exports.makeFocusable = makeFocusable;
 exports.makeUnfocusable = makeUnfocusable;
@@ -2641,20 +3173,31 @@ exports.onPropsChanged = onPropsChanged;
 exports.onUpdated = onUpdated;
 exports.pluginManager = pluginManager;
 exports.post = post;
+exports.preloadModule = preloadModule;
+exports.preloadScript = preloadScript;
+exports.preloadStyle = preloadStyle;
 exports.put = put;
 exports.reactive = reactive;
 exports.register = register;
+exports.removeStore = removeStore;
 exports.render = render;
+exports.renderMeta = renderMeta;
+exports.renderOpenGraph = renderOpenGraph;
+exports.renderTitle = renderTitle;
+exports.renderToString = renderToString;
 exports.request = request;
 exports.router = router;
 exports.sessionStorage = sessionStorage;
 exports.setAriaAttributes = setAriaAttributes;
+exports.setMeta = setMeta;
 exports.setupComponent = setupComponent;
 exports.skipToContent = skipToContent;
 exports.snapshot = snapshot;
 exports.throttle = throttle;
 exports.trapFocus = trapFocus;
+exports.useStore = useStore;
 exports.validateAccessibility = validateAccessibility;
 exports.vdomPatch = patch$1;
 exports.watch = watch;
+exports.withCache = withCache;
 //# sourceMappingURL=onekit.cjs.js.map
