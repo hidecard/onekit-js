@@ -1,0 +1,62 @@
+{
+  "name": "onekit-okjs",
+  "displayName": "OneKit OKJS",
+  "description": "Syntax highlighting, language configuration, and snippets for OneKit .okjs single-file components.",
+  "version": "0.1.0",
+  "publisher": "hidecard",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hidecard/onekit-js.git",
+    "directory": "extensions/vscode-okjs"
+  },
+  "engines": {
+    "vscode": ">=1.85.0"
+  },
+  "categories": ["Programming Languages", "Snippets"],
+  "keywords": ["onekit", "okjs", "reactive", "component", "vite"],
+  "contributes": {
+    "languages": [
+      {
+        "id": "okjs",
+        "aliases": ["OneKit OKJS", "okjs"],
+        "extensions": [".okjs"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "okjs",
+        "scopeName": "source.okjs",
+        "path": "./syntaxes/okjs.tmLanguage.json",
+        "embeddedLanguages": {
+          "meta.embedded.block.typescript": "typescript",
+          "meta.embedded.block.javascript": "javascript",
+          "meta.embedded.block.css": "css",
+          "meta.embedded.block.html": "html"
+        }
+      }
+    ],
+    "snippets": [
+      {
+        "language": "okjs",
+        "path": "./snippets/okjs.json"
+      }
+    ]
+  },
+  "scripts": {
+    "package": "vsce package --no-dependencies"
+  },
+  "files": [
+    "package.json",
+    "README.md",
+    "LICENSE",
+    "language-configuration.json",
+    "syntaxes/okjs.tmLanguage.json",
+    "snippets/okjs.json",
+    "examples/*.okjs"
+  ],
+  "devDependencies": {
+    "@vscode/vsce": "^3.6.0"
+  }
+}

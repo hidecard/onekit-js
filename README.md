@@ -631,6 +631,19 @@ if (instance) mount(instance, "#app");
 
 The full syntax and security notes are in [`docs/OKJS_GUIDE.md`](docs/OKJS_GUIDE.md). The CLI starter now generates `src/App.okjs` automatically.
 
+### VS Code syntax highlighting
+
+The repository includes a declarative VS Code extension under [`extensions/vscode-okjs`](extensions/vscode-okjs). It associates `.okjs` files with the OneKit OKJS language, embeds TypeScript/JavaScript/CSS/HTML grammars, highlights OneKit directives, and provides `ok-component`, `ok-template`, `ok-interpolation`, and `ok-for` snippets. To create a local VSIX:
+
+```bash
+cd extensions/vscode-okjs
+npm install
+npm run package
+code --install-extension onekit-okjs-0.1.0.vsix
+```
+
+The runtime compiler and HMR behavior still come from `oneKitVitePlugin()`; the VS Code extension supplies editor language support only.
+
 ## DevTools
 
 DevTools are opt-in and safe for SSR when not installed as a browser global:

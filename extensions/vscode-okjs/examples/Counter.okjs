@@ -1,0 +1,5 @@
+<script lang="ts">
+export default { name: "Counter", data: () => ({ count: 0 }) };
+</script>
+<template><button ok-on.click="increment()">{{count}}</button></template>
+<style scoped>.counter { color: red; }</style>

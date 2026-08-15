@@ -1,0 +1,57 @@
+{
+  "OneKit component": {
+    "prefix": "ok-component",
+    "description": "Create a OneKit .okjs single-file component",
+    "body": [
+      "<script lang=\"ts\">",
+      "export default {",
+      "  name: '${1:ComponentName}',",
+      "  data: () => ({ ${2:message}: ${3:'Hello OneKit'} }),",
+      "  methods: {",
+      "    ${4:handleClick}(this: any) {",
+      "      ${5:// update state here}",
+      "      this.update();",
+      "    },",
+      "  },",
+      "};",
+      "</script>",
+      "",
+      "<template>",
+      "  <section class=\"${6:component}\">",
+      "    <h1>{{${2:message}}}</h1>",
+      "    <button ok-on.click=\"${4:handleClick}()\" type=\"button\">${7:Action}</button>",
+      "  </section>",
+      "</template>",
+      "",
+      "<style scoped>",
+      ".${6:component} { ${8:padding: 1rem;} }",
+      "</style>",
+      "$0"
+    ]
+  },
+  "Template block": {
+    "prefix": "ok-template",
+    "description": "Insert an OKJS template block",
+    "body": [
+      "<template>",
+      "  ${1:<div>{{message}}</div>}",
+      "</template>",
+      "$0"
+    ]
+  },
+  "Reactive interpolation": {
+    "prefix": "ok-interpolation",
+    "description": "Insert a OneKit template interpolation",
+    "body": ["{{${1:expression}}}$0"]
+  },
+  "Keyed list": {
+    "prefix": "ok-for",
+    "description": "Insert a keyed OneKit ok-for list",
+    "body": [
+      "<ul>",
+      "  <li ok-for=\"${1:item} in ${2:items}\" ok-bind.key=\"${1:item}.id\">{{${1:item}.label}}</li>",
+      "</ul>",
+      "$0"
+    ]
+  }
+}
