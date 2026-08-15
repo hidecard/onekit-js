@@ -3,7 +3,7 @@
   "displayName": "OneKit OKJS",
   "description": "Syntax highlighting, language configuration, and snippets for OneKit .okjs single-file components.",
   "version": "0.1.0",
-  "publisher": "hidecard",
+  "publisher": "ArkarYan",
   "license": "MIT",
   "icon": "icon.png",
   "repository": {

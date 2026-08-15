@@ -58,4 +58,15 @@ export default defineConfig({
 
 ## Publishing
 
-The package is ready for a private/local VSIX workflow. For Visual Studio Marketplace publication, update the publisher identity, version, icon, changelog, and Marketplace metadata, then authenticate `vsce` with a publisher token before running `npm run package` or `vsce publish`.
+The package is ready for a private/local VSIX workflow. For Visual Studio Marketplace publication, the manifest publisher must exactly match the Marketplace publisher ID. This extension is configured for `ArkarYan`. Authenticate the CLI with that publisher before publishing:
+
+```bash
+cd extensions/vscode-okjs
+npm install
+npx vsce login ArkarYan
+npm version patch --no-git-tag-version
+npm run package
+npx vsce publish
+```
+
+The `vsce login` prompt expects the Personal Access Token created for the `ArkarYan` publisher. Do not use a token belonging to another publisher account, and do not commit the token to the repository.
