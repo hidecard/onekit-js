@@ -9,6 +9,7 @@ interface EffectFn {
     (): void;
     deps: Set<EffectFn>[];
     options?: EffectOptions;
+    stopped?: boolean;
 }
 interface EffectOptions {
     lazy?: boolean;
@@ -17,6 +18,7 @@ interface EffectOptions {
 export declare function reactive<T extends object>(obj: T): T;
 export declare function computed<T>(getter: () => T): ComputedRef<T>;
 export declare function effect(fn: () => void, options?: EffectOptions): () => void;
+export declare function stop(runner: () => void): void;
 export declare const autorun: typeof effect;
 export declare function watch(source: string | symbol | object | (() => unknown), callback: (newValue: unknown, oldValue: unknown, property?: string | symbol) => void, options?: {
     deep?: boolean;

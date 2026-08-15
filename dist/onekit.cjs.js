@@ -833,6 +833,7 @@ const state = {};
 const watchers = {};
 // Dependency tracking
 const targetMap = new WeakMap();
+const proxyCache = new WeakMap();
 let activeEffect = null;
 const effectStack = [];
 // Batch updates
@@ -853,8 +854,12 @@ function flushJobs() {
     updateQueue.clear();
     isFlushing = false;
 }
+function cleanup(effectFn) {
+    effectFn.deps.forEach(dep => dep.delete(effectFn));
+    effectFn.deps.length = 0;
+}
 function track(target, key) {
-    if (!activeEffect)
+    if (!activeEffect || activeEffect.stopped)
         return;
     let depsMap = targetMap.get(target);
     if (!depsMap) {
@@ -866,8 +871,10 @@ function track(target, key) {
         dep = new Set();
         depsMap.set(key, dep);
     }
-    dep.add(activeEffect);
-    activeEffect.deps.push(dep);
+    if (!dep.has(activeEffect)) {
+        dep.add(activeEffect);
+        activeEffect.deps.push(dep);
+    }
 }
 function trigger(target, key) {
     const depsMap = targetMap.get(target);
@@ -892,7 +899,10 @@ function trigger(target, key) {
     });
 }
 function reactive(obj) {
-    return new Proxy(obj, {
+    const cached = proxyCache.get(obj);
+    if (cached)
+        return cached;
+    const proxy = new Proxy(obj, {
         get(target, key, receiver) {
             const result = Reflect.get(target, key, receiver);
             track(target, key);
@@ -916,6 +926,8 @@ function reactive(obj) {
             return result;
         }
     });
+    proxyCache.set(obj, proxy);
+    return proxy;
 }
 function computed(getter) {
     let value;
@@ -944,9 +956,10 @@ function computed(getter) {
 }
 function effect(fn, options = {}) {
     const effectFn = (() => {
-        if (effectStack.includes(effectFn)) {
+        if (effectFn.stopped || effectStack.includes(effectFn)) {
             return; // Prevent infinite recursion
         }
+        cleanup(effectFn);
         try {
             effectStack.push(effectFn);
             activeEffect = effectFn;
@@ -963,6 +976,11 @@ function effect(fn, options = {}) {
         effectFn();
     }
     return effectFn;
+}
+function stop(runner) {
+    const effectFn = runner;
+    effectFn.stopped = true;
+    cleanup(effectFn);
 }
 // Alias for effect
 const autorun = effect;
@@ -3371,6 +3389,7 @@ exports.setMeta = setMeta;
 exports.setupComponent = setupComponent;
 exports.skipToContent = skipToContent;
 exports.snapshot = snapshot;
+exports.stop = stop;
 exports.throttle = throttle;
 exports.trapFocus = trapFocus;
 exports.unmount = unmount;

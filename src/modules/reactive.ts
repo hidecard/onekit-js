@@ -19,6 +19,7 @@ interface EffectFn {
   (): void;
   deps: Set<EffectFn>[];
   options?: EffectOptions;
+  stopped?: boolean;
 }
 
 interface EffectOptions {
@@ -32,6 +33,7 @@ const watchers: { [key: string]: Watcher[] } = {};
 
 // Dependency tracking
 const targetMap = new WeakMap<object, Map<string | symbol, Set<EffectFn>>>();
+const proxyCache = new WeakMap<object, object>();
 let activeEffect: EffectFn | null = null;
 const effectStack: EffectFn[] = [];
 
@@ -56,8 +58,13 @@ function flushJobs() {
   isFlushing = false;
 }
 
+function cleanup(effectFn: EffectFn) {
+  effectFn.deps.forEach(dep => dep.delete(effectFn));
+  effectFn.deps.length = 0;
+}
+
 function track(target: object, key: string | symbol) {
-  if (!activeEffect) return;
+  if (!activeEffect || activeEffect.stopped) return;
 
   let depsMap = targetMap.get(target);
   if (!depsMap) {
@@ -71,8 +78,10 @@ function track(target: object, key: string | symbol) {
     depsMap.set(key, dep);
   }
 
-  dep.add(activeEffect);
-  activeEffect.deps.push(dep);
+  if (!dep.has(activeEffect)) {
+    dep.add(activeEffect);
+    activeEffect.deps.push(dep);
+  }
 }
 
 function trigger(target: object, key: string | symbol) {
@@ -97,7 +106,10 @@ function trigger(target: object, key: string | symbol) {
 }
 
 export function reactive<T extends object>(obj: T): T {
-  return new Proxy(obj, {
+  const cached = proxyCache.get(obj);
+  if (cached) return cached as T;
+
+  const proxy = new Proxy(obj, {
     get(target, key, receiver) {
       const result = Reflect.get(target, key, receiver);
       track(target, key);
@@ -121,6 +133,8 @@ export function reactive<T extends object>(obj: T): T {
       return result;
     }
   });
+  proxyCache.set(obj, proxy);
+  return proxy;
 }
 
 export function computed<T>(getter: () => T): ComputedRef<T> {
@@ -157,10 +171,11 @@ export function effect(
   options: EffectOptions = {}
 ): () => void {
   const effectFn: EffectFn = (() => {
-    if (effectStack.includes(effectFn)) {
+    if (effectFn.stopped || effectStack.includes(effectFn)) {
       return; // Prevent infinite recursion
     }
 
+    cleanup(effectFn);
     try {
       effectStack.push(effectFn);
       activeEffect = effectFn;
@@ -179,6 +194,12 @@ export function effect(
   }
 
   return effectFn;
+}
+
+export function stop(runner: () => void): void {
+  const effectFn = runner as EffectFn;
+  effectFn.stopped = true;
+  cleanup(effectFn);
 }
 
 // Alias for effect

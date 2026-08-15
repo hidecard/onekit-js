@@ -831,6 +831,7 @@ const state = {};
 const watchers = {};
 // Dependency tracking
 const targetMap = new WeakMap();
+const proxyCache = new WeakMap();
 let activeEffect = null;
 const effectStack = [];
 // Batch updates
@@ -851,8 +852,12 @@ function flushJobs() {
     updateQueue.clear();
     isFlushing = false;
 }
+function cleanup(effectFn) {
+    effectFn.deps.forEach(dep => dep.delete(effectFn));
+    effectFn.deps.length = 0;
+}
 function track(target, key) {
-    if (!activeEffect)
+    if (!activeEffect || activeEffect.stopped)
         return;
     let depsMap = targetMap.get(target);
     if (!depsMap) {
@@ -864,8 +869,10 @@ function track(target, key) {
         dep = new Set();
         depsMap.set(key, dep);
     }
-    dep.add(activeEffect);
-    activeEffect.deps.push(dep);
+    if (!dep.has(activeEffect)) {
+        dep.add(activeEffect);
+        activeEffect.deps.push(dep);
+    }
 }
 function trigger(target, key) {
     const depsMap = targetMap.get(target);
@@ -890,7 +897,10 @@ function trigger(target, key) {
     });
 }
 function reactive(obj) {
-    return new Proxy(obj, {
+    const cached = proxyCache.get(obj);
+    if (cached)
+        return cached;
+    const proxy = new Proxy(obj, {
         get(target, key, receiver) {
             const result = Reflect.get(target, key, receiver);
             track(target, key);
@@ -914,6 +924,8 @@ function reactive(obj) {
             return result;
         }
     });
+    proxyCache.set(obj, proxy);
+    return proxy;
 }
 function computed(getter) {
     let value;
@@ -942,9 +954,10 @@ function computed(getter) {
 }
 function effect(fn, options = {}) {
     const effectFn = (() => {
-        if (effectStack.includes(effectFn)) {
+        if (effectFn.stopped || effectStack.includes(effectFn)) {
             return; // Prevent infinite recursion
         }
+        cleanup(effectFn);
         try {
             effectStack.push(effectFn);
             activeEffect = effectFn;
@@ -961,6 +974,11 @@ function effect(fn, options = {}) {
         effectFn();
     }
     return effectFn;
+}
+function stop(runner) {
+    const effectFn = runner;
+    effectFn.stopped = true;
+    cleanup(effectFn);
 }
 // Alias for effect
 const autorun = effect;
@@ -3284,5 +3302,5 @@ function component(definition) {
 // Version info
 const VERSION = '3.1.9';
 
-export { API, DependencyInjector, Fragment, OneKit, OneKitWebComponent, Router, StreamingRenderer, VERSION, addScript, addStorePlugin, addStyle, addToBody, addToHead, animations, announce, patch as apiPatch, autorun, batch, bind, cache, compileTemplate, component, computed, create, createElement, createLandmarks, createSSRContext, createSkipLink, createStorage, createStore, debounce, deepClone, defineComponent, defineStore, del, destroy, di, effect, generateId, get, getAllStores, getInstance, okjs as h, hydrate, initTemplateEngine, isClient, isServer, okjs as jsx, okjs as jsxDEV, localStorage, makeFocusable, makeUnfocusable, manageTabOrder, mount, nextTick, ok, okjs, onDestroyed, onMounted, onPropsChanged, onUpdated, pluginManager, post, preloadModule, preloadScript, preloadStyle, put, reactive, register, registerDirective, registerWebComponent, removeStore, render, renderMeta, renderOpenGraph, renderTitle, renderToString, request, router, sessionStorage, setAriaAttributes, setMeta, setupComponent, skipToContent, snapshot, throttle, trapFocus, unmount, useStore, validateAccessibility, patch$1 as vdomPatch, watch, withCache };
+export { API, DependencyInjector, Fragment, OneKit, OneKitWebComponent, Router, StreamingRenderer, VERSION, addScript, addStorePlugin, addStyle, addToBody, addToHead, animations, announce, patch as apiPatch, autorun, batch, bind, cache, compileTemplate, component, computed, create, createElement, createLandmarks, createSSRContext, createSkipLink, createStorage, createStore, debounce, deepClone, defineComponent, defineStore, del, destroy, di, effect, generateId, get, getAllStores, getInstance, okjs as h, hydrate, initTemplateEngine, isClient, isServer, okjs as jsx, okjs as jsxDEV, localStorage, makeFocusable, makeUnfocusable, manageTabOrder, mount, nextTick, ok, okjs, onDestroyed, onMounted, onPropsChanged, onUpdated, pluginManager, post, preloadModule, preloadScript, preloadStyle, put, reactive, register, registerDirective, registerWebComponent, removeStore, render, renderMeta, renderOpenGraph, renderTitle, renderToString, request, router, sessionStorage, setAriaAttributes, setMeta, setupComponent, skipToContent, snapshot, stop, throttle, trapFocus, unmount, useStore, validateAccessibility, patch$1 as vdomPatch, watch, withCache };
 //# sourceMappingURL=onekit.esm.js.map

@@ -15,6 +15,16 @@
 - [ ] Build sidebar navigation, search, install snippets, API cards, and a live reactive example with OneKit APIs only.
 - [ ] Add responsive styling and verify browser interaction, production build, and GitHub V3 delivery.
 
+## Production-readiness audit
+
+- [ ] Audit public exports, API contracts, and compatibility guarantees against React/Next-like expectations.
+- [ ] Audit component lifecycle, event handling, reactivity scheduling, hydration, and SSR edge cases.
+- [ ] Audit router, data-loading, error/loading boundaries, and application composition primitives.
+- [ ] Audit CLI starter/build/dev/test workflows, TypeScript ergonomics, source maps, and package exports.
+- [ ] Add production-focused tests, benchmarks, and release checks for identified critical gaps.
+- [ ] Synchronize production guidance and limitations across README, V3 usage docs, and the permanent website.
+- [ ] Document remaining roadmap items that cannot be safely completed without architectural scope or user decisions.
+
 ## Decisions
 
 - Documentation language: English for the public developer docs.
