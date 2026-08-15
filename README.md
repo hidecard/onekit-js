@@ -27,13 +27,14 @@ This README is a practical user guide. It starts with the smallest possible appl
 14. [Security](#security)
 15. [Plugins and dependency injection](#plugins-and-dependency-injection)
 16. [Vite and HMR](#vite-and-hmr)
-17. [DevTools](#devtools)
-18. [CLI commands](#cli-commands)
-19. [Testing and production verification](#testing-and-production-verification)
-20. [Performance and benchmarking](#performance-and-benchmarking)
-21. [TypeScript and package imports](#typescript-and-package-imports)
-22. [Troubleshooting](#troubleshooting)
-23. [Documentation and release resources](#documentation-and-release-resources)
+17. [`.okjs` Single-File Components](#okjs-single-file-components)
+18. [DevTools](#devtools)
+19. [CLI commands](#cli-commands)
+20. [Testing and production verification](#testing-and-production-verification)
+21. [Performance and benchmarking](#performance-and-benchmarking)
+22. [TypeScript and package imports](#typescript-and-package-imports)
+23. [Troubleshooting](#troubleshooting)
+24. [Documentation and release resources](#documentation-and-release-resources)
 
 ## Installation
 
@@ -603,6 +604,32 @@ void scope;
 ```
 
 HMR is a development feature. Always verify a clean production build and a fresh browser load; do not depend on HMR state preservation for application correctness.
+
+## `.okjs` Single-File Components
+
+OneKit V3 supports Vue-like `.okjs` Single-File Components with `<script>`, `<template>`, and `<style>` blocks. Add `oneKitVitePlugin()` to Vite and import the component normally:
+
+```okjs
+<script lang="ts">
+export default {
+  name: 'Greeting',
+  data: () => ({ message: 'Hello OneKit' }),
+};
+</script>
+<template><h1>{{message}}</h1></template>
+<style scoped>h1 { color: #5757d5; }</style>
+```
+
+```ts
+import { create, mount, register } from "onekit-js";
+import Greeting from "./Greeting.okjs";
+
+register("Greeting", Greeting);
+const instance = create("Greeting");
+if (instance) mount(instance, "#app");
+```
+
+The full syntax and security notes are in [`docs/OKJS_GUIDE.md`](docs/OKJS_GUIDE.md). The CLI starter now generates `src/App.okjs` automatically.
 
 ## DevTools
 

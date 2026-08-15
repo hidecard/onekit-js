@@ -4182,6 +4182,68 @@ function withCache(key, renderFn, ttl = 300000 // 5 minutes
     return result;
 }
 
+function readBlock(source, tag) {
+    const match = source.match(new RegExp(`<${tag}([^>]*)>([\\s\\S]*?)<\\/${tag}>`, 'i'));
+    return match ? { attrs: match[1] ?? '', content: match[2] ?? '' } : null;
+}
+function assertNoUnsupportedBlocks(source) {
+    const topLevel = source.replace(/<(script|template|style)(?:\s[^>]*)?>[\s\S]*?<\/\1>/gi, '');
+    const unsupported = topLevel.match(/<([a-z][\w-]*)(?:\s[^>]*)?>/gi)?.filter(tag => {
+        const name = tag.match(/^<([a-z][\w-]*)/i)?.[1]?.toLowerCase();
+        return name && !['script', 'template', 'style'].includes(name);
+    });
+    if (unsupported?.length)
+        throw new Error(`[OneKit] Unsupported .okjs top-level block: ${unsupported[0]}`);
+}
+function parseOkjs(source, id = 'component.okjs') {
+    assertNoUnsupportedBlocks(source);
+    const script = readBlock(source, 'script');
+    const template = readBlock(source, 'template');
+    const style = readBlock(source, 'style');
+    if (!template?.content.trim())
+        throw new Error(`[OneKit] .okjs component ${id} must contain a <template> block.`);
+    const lang = script?.attrs.match(/\blang\s*=\s*["'](ts|js)["']/i)?.[1]?.toLowerCase();
+    return {
+        script: script?.content.trim() ?? '',
+        scriptLang: lang ?? 'ts',
+        template: template.content.trim(),
+        style: style?.content.trim() ?? '',
+        styleScoped: Boolean(style?.attrs.match(/\bscoped(?:\s|=|$)/i)),
+    };
+}
+function scopeTemplate(template, scopeId) {
+    return template.replace(/^(\s*<([a-z][\w-]*))([^>]*>)/i, `$1 data-okjs-scope="${scopeId}"$3`);
+}
+function scopeCss(css, scopeId) {
+    return css.replace(/([^{}]+)\{([^{}]*)\}/g, (_match, selector, body) => {
+        const trimmed = selector.trim();
+        if (!trimmed || trimmed.startsWith('@'))
+            return `${selector}{${body}}`;
+        const scoped = trimmed.split(',').map(item => `[data-okjs-scope="${scopeId}"] ${item.trim()}`).join(', ');
+        return `${scoped}{${body}}`;
+    });
+}
+function styleCode(style, id, scoped) {
+    if (!style)
+        return '';
+    const styleId = `onekit-okjs-${id.replace(/[^a-z0-9_-]/gi, '-')}`;
+    const css = scoped ? scopeCss(style, styleId) : style;
+    return `\nconst __okjsStyleId = ${JSON.stringify(styleId)};\nconst __okjsStyleText = ${JSON.stringify(css)};\nif (typeof document !== 'undefined' && !document.querySelector('[data-okjs-style="' + __okjsStyleId + '"]')) {\n  const __okjsStyle = document.createElement('style');\n  __okjsStyle.setAttribute('data-okjs-style', __okjsStyleId);\n  __okjsStyle.textContent = __okjsStyleText;\n  document.head.appendChild(__okjsStyle);\n}\n`;
+}
+function compileOkjs(source, id = 'component.okjs') {
+    const block = parseOkjs(source, id);
+    const styleId = `onekit-okjs-${id.replace(/[^a-z0-9_-]/gi, '-')}`;
+    const template = block.styleScoped ? scopeTemplate(block.template, styleId) : block.template;
+    const script = block.script
+        ? block.script.replace(/export\s+default\s+/, 'const __okjsUserExport = ')
+        : 'const __okjsUserExport = {};';
+    const options = `const __okjsOptions = typeof __okjsUserExport === 'object' && __okjsUserExport !== null ? __okjsUserExport : {};`;
+    const style = styleCode(block.style, id, block.styleScoped);
+    const sourceComment = `\n//# sourceURL=${id}\n`;
+    const code = `import { defineComponent as __okjsDefineComponent } from 'onekit-js';\n${script}\n${options}\nconst __okjsTemplate = ${JSON.stringify(template)};${style}\nconst __okjsComponent = __okjsDefineComponent({ ...__okjsOptions, template: __okjsTemplate });\nexport default __okjsComponent;\nif (import.meta.hot) {\n  import.meta.hot.accept();\n  import.meta.hot.dispose(() => {\n    if (typeof document !== 'undefined') document.querySelector('[data-okjs-style="' + __okjsStyleId + '"]')?.remove();\n  });\n}\n${sourceComment}`;
+    return { code, map: null };
+}
+
 // Web Components Integration Module
 const HTMLElementBase = typeof HTMLElement !== 'undefined' ? HTMLElement : class {
 };
@@ -4373,6 +4435,7 @@ exports.batch = batch;
 exports.bind = bind;
 exports.cache = cache;
 exports.clearDevToolsDependencies = clearDevToolsDependencies;
+exports.compileOkjs = compileOkjs;
 exports.compileTemplate = compileTemplate;
 exports.component = component;
 exports.computed = computed;
@@ -4435,6 +4498,7 @@ exports.onMounted = onMounted;
 exports.onPropsChanged = onPropsChanged;
 exports.onScopeDispose = onScopeDispose;
 exports.onUpdated = onUpdated;
+exports.parseOkjs = parseOkjs;
 exports.patch = patch$1;
 exports.pluginManager = pluginManager;
 exports.post = post;

@@ -21,7 +21,9 @@ describe('OneKit CLI', () => {
       expect(packageJson.scripts.dev).toBe('vite');
       expect(packageJson.scripts.preview).toBe('vite preview');
       expect(packageJson.scripts.test).toBe('node --test');
-      expect(await readFile(path.join(appPath, 'src', 'main.ts'), 'utf8')).toContain('reactive');
+      expect(await readFile(path.join(appPath, 'src', 'main.ts'), 'utf8')).toContain("./App.okjs");
+      expect(await readFile(path.join(appPath, 'src', 'App.okjs'), 'utf8')).toContain('<template>');
+      expect(await readFile(path.join(appPath, 'vite.config.ts'), 'utf8')).toContain('oneKitVitePlugin');
     } finally {
       await rm(root, { recursive: true, force: true });
     }
@@ -34,7 +36,8 @@ describe('OneKit CLI', () => {
       await run(process.execPath, [path.resolve('bin/onekit.js'), 'create', appPath, '--javascript'], { cwd: process.cwd() });
       const packageJson = JSON.parse(await readFile(path.join(appPath, 'package.json'), 'utf8'));
       expect(packageJson.scripts['type-check']).toBeUndefined();
-      expect(await readFile(path.join(appPath, 'src', 'main.js'), 'utf8')).toContain('reactive');
+      expect(await readFile(path.join(appPath, 'src', 'main.js'), 'utf8')).toContain("./App.okjs");
+      expect(await readFile(path.join(appPath, 'src', 'App.okjs'), 'utf8')).toContain('lang="js"');
     } finally {
       await rm(root, { recursive: true, force: true });
     }

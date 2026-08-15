@@ -18,8 +18,11 @@ export interface OneKitVitePluginOptions {
 export interface OneKitVitePlugin {
   name: string;
   apply?: 'serve';
+  transform?: (code: string, id: string) => { code: string; map: null } | undefined;
   handleHotUpdate?: (context: { file: string; modules: unknown[]; server: { ws: { send: (message: unknown) => void } } }) => unknown[];
 }
+
+import { compileOkjs } from './okjs';
 
 export interface OneKitHMRDisposable {
   dispose?: () => void;
@@ -32,11 +35,15 @@ export interface OneKitHMRDisposable {
  * keeps Vite's normal module graph/HMR behavior intact.
  */
 export function oneKitVitePlugin(options: OneKitVitePluginOptions = {}): OneKitVitePlugin {
-  const include = options.include ?? /\.(ts|tsx|js|jsx|vue|html)$/;
+  const include = options.include ?? /\.(ts|tsx|js|jsx|vue|okjs|html)$/;
   const exclude = options.exclude ?? /node_modules/;
   return {
     name: 'onekit-v3-hmr',
     apply: 'serve',
+    transform(code, id) {
+      if (!id.endsWith('.okjs') || exclude.test(id)) return undefined;
+      return compileOkjs(code, id);
+    },
     handleHotUpdate({ file, modules, server }) {
       if (!include.test(file) || exclude.test(file)) return modules;
       options.onUpdate?.(file);

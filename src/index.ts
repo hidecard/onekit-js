@@ -19,6 +19,7 @@ export * from './modules/a11y';
 export * from './modules/store';
 export * from './modules/ssr';
 export * from './modules/template';
+export * from './okjs';
 export { OneKitWebComponent, registerWebComponent } from './modules/web-components';
 export { okjs, component, h, jsx, jsxDEV, Fragment } from './modules/jsx';
 

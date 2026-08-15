@@ -47,6 +47,11 @@
       "import": "./dist/onekit.esm.js",
       "require": "./dist/onekit.cjs"
     },
+    "./okjs": {
+      "types": "./dist/types/okjs.d.ts",
+      "import": "./dist/onekit.esm.js",
+      "require": "./dist/onekit.cjs"
+    },
     "./jsx": {
       "types": "./dist/types/modules/jsx.d.ts",
       "import": "./dist/onekit.esm.js",
