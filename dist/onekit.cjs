@@ -3512,7 +3512,7 @@ const jsxDEV = h;
 // Main entry point with tree-shaking friendly exports
 // Core systems
 // Version info
-const VERSION = '3.1.9';
+const VERSION = '3.1.10';
 
 exports.API = API;
 exports.DependencyInjector = DependencyInjector;

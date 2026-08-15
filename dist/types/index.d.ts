@@ -15,4 +15,4 @@ export * from './modules/ssr';
 export * from './modules/template';
 export { OneKitWebComponent, registerWebComponent } from './modules/web-components';
 export { okjs, component, h, jsx, jsxDEV, Fragment } from './modules/jsx';
-export declare const VERSION = "3.1.9";
+export declare const VERSION = "3.1.10";
