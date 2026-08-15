@@ -21,6 +21,34 @@ describe('DevTools foundation', () => {
     expect(before.filter(type => type === 'reactive:trigger').length).toBe(1);
   });
 
+  it('bounds history and returns detached inspection snapshots', () => {
+    const bridge = enableDevTools({ historySize: 2 });
+    const state = reactive({ count: 0 });
+    state.count = 1;
+    state.count = 2;
+    state.count = 3;
+    const history = bridge.getHistory();
+    expect(history).toHaveLength(2);
+    expect(history.every(event => event.type === 'reactive:trigger')).toBe(true);
+    expect(bridge.getMetadata()).toMatchObject({ enabled: true, historySize: 2, eventCount: 2 });
+    bridge.clearHistory();
+    expect(bridge.getHistory()).toEqual([]);
+    bridge.dispose();
+  });
+
+  it('installs globals only in browser environments and cleans them up', () => {
+    const bridge = enableDevTools({ installGlobal: true, globalName: '__ONEKIT_TEST_DEVTOOLS__' });
+    if (typeof window !== 'undefined') {
+      expect((window as unknown as Record<string, unknown>).__ONEKIT_TEST_DEVTOOLS__).toBe(bridge);
+    } else {
+      expect((globalThis as Record<string, unknown>).__ONEKIT_TEST_DEVTOOLS__).toBeUndefined();
+    }
+    bridge.dispose();
+    if (typeof window !== 'undefined') {
+      expect((window as unknown as Record<string, unknown>).__ONEKIT_TEST_DEVTOOLS__).toBeUndefined();
+    }
+  });
+
   it('reports router navigation lifecycle and can be disposed', async () => {
     const events: string[] = [];
     const bridge = enableDevTools();

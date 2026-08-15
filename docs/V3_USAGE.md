@@ -1,6 +1,6 @@
 # OneKit JS V3 Usage Guide
 
-**Target release:** OneKit JS V3 / 3.1.11  
+**Target release:** OneKit JS V3 / 3.1.12  
 **License:** MIT  
 **Runtime:** Browser-first JavaScript and TypeScript
 
@@ -474,7 +474,10 @@ OneKit includes an **opt-in DevTools bridge** for framework inspection. It is di
 ```ts
 import { enableDevTools, onDevToolsEvent } from 'onekit-js';
 
-const bridge = enableDevTools();
+const bridge = enableDevTools({
+  historySize: 100,
+  installGlobal: false
+});
 const unsubscribe = onDevToolsEvent(event => {
   if (event.type === 'reactive:trigger') {
     console.debug('state changed', event.key, event.oldValue, event.newValue);
@@ -491,7 +494,17 @@ bridge.dispose();
 
 The current experimental events are `reactive:trigger`, `reactive:effect`, and `router:navigation`. Reactive events expose stable numeric target/effect identifiers rather than private proxy objects. Router events report `start`, `success`, `cancel`, or `error` phases with destination, origin, route, and loader error metadata where available. Event listeners are isolated: an exception inside a DevTools listener is ignored and cannot break the application.
 
-This API is **experimental**. Event names and payload fields may change before a stable DevTools release. Do not use it as an application data bus, and do not enable it in production unless the diagnostic overhead and information exposure have been reviewed.
+The bridge stores a bounded, detached event history for diagnostics. Use `getHistory()` to inspect recent events, `getMetadata()` to inspect the active history size and listener count, and `clearHistory()` to reset the buffer:
+
+```ts
+const recent = bridge.getHistory();
+const metadata = bridge.getMetadata();
+bridge.clearHistory();
+```
+
+For browser-only tooling, pass `installGlobal: true` and an optional `globalName`. OneKit installs the bridge on `window` only when a browser `window` exists; it does not create or mutate browser globals during SSR. The default history capacity is 100 events and can be lowered to limit diagnostic memory use.
+
+This API is **experimental**. Event names and payload fields may change before a stable DevTools release. Do not use it as an application data bus, and do not enable it in production unless the diagnostic overhead and information exposure have been reviewed. Event payloads can include changed values and loader errors, so avoid enabling it where those values would violate privacy or security requirements.
 
 ## 17. Versioning and migration
 

@@ -100,28 +100,61 @@
     }
 
     // OneKit DevTools foundation: opt-in, browser/SSR-safe event inspection.
+    const DEFAULT_HISTORY_SIZE = 100;
+    const DEFAULT_GLOBAL_NAME = '__ONEKIT_DEVTOOLS__';
     let enabled = false;
+    let historySize = DEFAULT_HISTORY_SIZE;
     let nextTargetId = 1;
     let nextEffectId = 1;
+    let installedGlobalName = null;
     const targetIds = new WeakMap();
     const effectIds = new WeakMap();
     const listeners = new Set();
+    const history = [];
     function isDevToolsEnabled() {
         return enabled;
     }
-    function enableDevTools() {
+    function enableDevTools(options = {}) {
         enabled = true;
-        return {
+        historySize = Math.max(1, Math.floor(options.historySize ?? DEFAULT_HISTORY_SIZE));
+        while (history.length > historySize)
+            history.shift();
+        const bridge = {
             get enabled() { return enabled; },
             subscribe(listener) {
                 listeners.add(listener);
                 return () => listeners.delete(listener);
             },
+            getHistory() {
+                return history.map(event => devToolsSnapshot(event));
+            },
+            clearHistory() {
+                history.length = 0;
+            },
+            getMetadata() {
+                return {
+                    enabled,
+                    historySize,
+                    eventCount: history.length,
+                    listenerCount: listeners.size
+                };
+            },
             dispose() {
                 enabled = false;
                 listeners.clear();
+                history.length = 0;
+                if (installedGlobalName && typeof window !== 'undefined') {
+                    delete window[installedGlobalName];
+                }
+                installedGlobalName = null;
             }
         };
+        if (options.installGlobal && typeof window !== 'undefined') {
+            const globalName = options.globalName ?? DEFAULT_GLOBAL_NAME;
+            window[globalName] = bridge;
+            installedGlobalName = globalName;
+        }
+        return bridge;
     }
     function onDevToolsEvent(listener) {
         listeners.add(listener);
@@ -143,20 +176,31 @@
         effectIds.set(effect, id);
         return id;
     }
-    function devToolsSnapshot(value) {
+    function devToolsSnapshot(value, seen = new WeakMap()) {
         if (value === null || typeof value !== 'object')
             return value;
-        if (Array.isArray(value))
-            return value.map(item => devToolsSnapshot(item));
+        const existing = seen.get(value);
+        if (existing)
+            return existing;
+        if (Array.isArray(value)) {
+            const result = [];
+            seen.set(value, result);
+            value.forEach(item => result.push(devToolsSnapshot(item, seen)));
+            return result;
+        }
         const result = {};
+        seen.set(value, result);
         Object.keys(value).forEach(key => {
-            result[key] = devToolsSnapshot(value[key]);
+            result[key] = devToolsSnapshot(value[key], seen);
         });
         return result;
     }
     function emitDevToolsEvent(event) {
         if (!enabled)
             return;
+        history.push(devToolsSnapshot(event));
+        while (history.length > historySize)
+            history.shift();
         listeners.forEach(listener => {
             try {
                 listener(event);
@@ -3721,7 +3765,7 @@ ${bodyContent}
     // Main entry point with tree-shaking friendly exports
     // Core systems
     // Version info
-    const VERSION = '3.1.11';
+    const VERSION = '3.1.12';
 
     exports.API = API;
     exports.DependencyInjector = DependencyInjector;

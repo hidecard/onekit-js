@@ -5,6 +5,13 @@ All notable changes to OneKit will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.12] - 2026-08-15
+
+### Added
+- Add bounded DevTools event history with detached snapshots, metadata inspection, clear, and dispose controls.
+- Add optional browser-global installation for development inspectors without mutating SSR globals.
+- Add regression coverage for history overflow, browser/SSR lifecycle behavior, and inspector cleanup.
+
 ## [3.1.11] - 2026-08-15
 
 ### Added

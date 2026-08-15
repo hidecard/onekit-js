@@ -107,15 +107,23 @@
 - [x] Add tests for disabled-by-default behavior, event ordering, and listener disposal.
 - [x] Document the experimental DevTools API and stability limitations.
 
+## M7.1 DevTools diagnostics inspector
+
+- [x] Add bounded event history with configurable capacity and deterministic clear/dispose behavior.
+- [x] Add read-only inspection APIs for recent events, active state, and bridge metadata.
+- [x] Add optional browser global installation without touching `window` during SSR.
+- [x] Add tests for history overflow, multiple listeners, isolation, and browser/SSR safety.
+- [x] Document the inspector workflow and security/privacy considerations.
+
 ## Decisions
 
 - Documentation language: English for the public developer docs.
-- Target release: OneKit JS V3 / 3.1.11.
+- Target release: OneKit JS V3 / 3.1.12.
 - Do not claim npm publication until registry authentication and publish verification succeed.
 
 ## Status
 
-- Current phase: M6 clean-install verification and M7 DevTools foundation.
-- Last completed: M5 CLI workflow, website checkpoint bdff1775, and GitHub commit ee42d01.
+- Current phase: M7.1 DevTools diagnostics inspector completed; ready for the 3.1.12 release cycle.
+- Last completed: M6 tarball verification, M7 DevTools bridge, M7.1 bounded inspector, website checkpoint bdff1775, and GitHub commit 6f94ee2.
 - Blocker: npm authentication is still required for actual publish.
 

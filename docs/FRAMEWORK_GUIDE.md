@@ -1,6 +1,6 @@
 # OneKit JS Framework Guide
 
-OneKit JS V3.1.11 is a small, browser-first JavaScript and TypeScript framework with reactive state, component lifecycle hooks, a store, routing, server-side rendering, JSX helpers, web components, and a zero-configuration CLI. The API is intentionally modular: applications may start with a single `reactive` object and grow into component- and route-based projects without adopting a large runtime. For copy-ready signatures and runnable usage for every public area, continue with [V3_USAGE.md](V3_USAGE.md).
+OneKit JS V3.1.12 is a small, browser-first JavaScript and TypeScript framework with reactive state, component lifecycle hooks, a store, routing, server-side rendering, JSX helpers, web components, and a zero-configuration CLI. The API is intentionally modular: applications may start with a single `reactive` object and grow into component- and route-based projects without adopting a large runtime. For copy-ready signatures and runnable usage for every public area, continue with [V3_USAGE.md](V3_USAGE.md).
 
 ## Recommended application shape
 
