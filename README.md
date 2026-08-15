@@ -646,6 +646,8 @@ The runtime compiler and HMR behavior still come from `oneKitVitePlugin()`; the 
 
 For a complete Vite compilation, template/script HMR, and Signal-style reactivity walkthrough, see [`docs/OKJS_VITE_HMR_GUIDE.md`](docs/OKJS_VITE_HMR_GUIDE.md). A runnable example is available in [`examples/okjs-counter`](examples/okjs-counter).
 
+For PAT-free Visual Studio Marketplace publishing with Microsoft Entra workload identity federation, see [`docs/ENTRA_MARKETPLACE_PUBLISHING.md`](docs/ENTRA_MARKETPLACE_PUBLISHING.md) and the [`azure-pipelines/okjs-marketplace.yml`](azure-pipelines/okjs-marketplace.yml) template.
+
 ## DevTools
 
 DevTools are opt-in and safe for SSR when not installed as a browser global:

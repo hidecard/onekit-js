@@ -1,0 +1,58 @@
+# PAT-free OneKit OKJS Marketplace publishing.
+# Configure the Azure DevOps service connection before enabling tag releases.
+trigger:
+  tags:
+    include:
+      - okjs-v*
+pr: none
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  extensionDirectory: extensions/vscode-okjs
+  azureDevOpsServiceConnection: REPLACE_WITH_SERVICE_CONNECTION_NAME
+
+stages:
+  - stage: ValidateAndPublish
+    displayName: Validate and publish OneKit OKJS
+    jobs:
+      - job: Publish
+        displayName: Publish to Visual Studio Marketplace
+        steps:
+          - checkout: self
+            clean: true
+
+          - task: NodeTool@0
+            displayName: Use Node.js 22
+            inputs:
+              versionSpec: 22.x
+
+          - script: npm ci
+            displayName: Install extension dependencies
+            workingDirectory: $(extensionDirectory)
+
+          - script: |
+              set -euo pipefail
+              test "$(Build.SourceBranch)" = "refs/tags/$(Build.SourceBranchName)"
+              node -e "const p=require('./package.json'); if (p.publisher !== 'ArkarYan') { throw new Error('publisher must be ArkarYan'); }"
+              node -e "const p=require('./package.json'); const tag=process.env.BUILD_SOURCEBRANCHNAME.replace(/^okjs-v/, ''); if (tag !== p.version) { throw new Error('tag version ' + tag + ' does not match package version ' + p.version); }"
+              npm run package
+              unzip -t onekit-okjs-$(node -p "require('./package.json').version").vsix >/dev/null
+            displayName: Validate manifest and package
+            workingDirectory: $(extensionDirectory)
+            env:
+              BUILD_SOURCEBRANCHNAME: $(Build.SourceBranchName)
+
+          - task: AzureCLI@3
+            displayName: Publish with Microsoft Entra credential
+            inputs:
+              connectionType: azureDevOps
+              azureDevOpsServiceConnection: $(azureDevOpsServiceConnection)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                set -euo pipefail
+                cd "$(Build.SourcesDirectory)/$(extensionDirectory)"
+                az account show >/dev/null
+                npx vsce publish --azure-credential
