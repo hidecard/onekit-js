@@ -430,8 +430,17 @@ registerDirective('on', {
         event.stopPropagation();
       }
 
-      // Evaluate against the root context and expose the DOM event explicitly.
-      evaluateExpression(ctx.expression, { ...ctx.rootContext, $event: event });
+      // Preserve the reactive root Proxy so methods and state remain available.
+      const eventContext = new Proxy({ $event: event }, {
+        get(target, key: string | symbol) {
+          if (key === '$event') return target.$event;
+          return ctx.rootContext?.[key as string];
+        },
+        has(_target, key: string | symbol) {
+          return key === '$event' || key in (ctx.rootContext ?? {});
+        },
+      });
+      evaluateExpression(ctx.expression, eventContext);
     };
 
     element.addEventListener(eventType, handler);

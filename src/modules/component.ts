@@ -326,6 +326,18 @@ export function create(name: string, props: ComponentProps = {}, slots: { [key: 
         has(_target, key: string | symbol) {
           return key in instance.state || key in instance.props || key in instance || key === '$slots';
         },
+        set(_target, key: string | symbol, value: unknown) {
+          if (typeof key !== 'string') return false;
+          if (key in instance.state) {
+            instance.state[key] = value;
+            return true;
+          }
+          if (key in instance.props) {
+            instance.props[key] = value;
+            return true;
+          }
+          return false;
+        },
       });
       instance.element = compileTemplate(definition.template, context);
     } else if (definition.render) {
