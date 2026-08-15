@@ -1,0 +1,146 @@
+<script lang="ts">
+export default {
+  name: 'Counter',
+
+  // OneKit wraps component data in a fine-grained reactive scope.
+  data: () => ({
+    count: 0,
+    step: 1,
+    history: [{ id: 0, value: 0 }],
+  }),
+
+  methods: {
+    increment(this: any) {
+      this.state.count += this.state.step;
+      this.recordHistory();
+    },
+
+    decrement(this: any) {
+      this.state.count -= this.state.step;
+      this.recordHistory();
+    },
+
+    reset(this: any) {
+      this.state.count = 0;
+      this.recordHistory();
+    },
+
+    recordHistory(this: any) {
+      const nextId = this.state.history.length;
+      this.state.history = [
+        ...this.state.history,
+        { id: nextId, value: this.state.count },
+      ].slice(-6);
+      this.update();
+    },
+  },
+};
+</script>
+
+<template>
+  <main class="counter-card">
+    <p class="eyebrow">OneKit JS V3</p>
+    <h1>Signal-style Counter</h1>
+
+    <output class="count" aria-live="polite">{{count}}</output>
+
+    <label class="step-control">
+      Step
+      <input ok-bind.value="step" type="number" min="1" max="10">
+    </label>
+
+    <div class="actions">
+      <button ok-on.click="decrement()" type="button">−</button>
+      <button ok-on.click="reset()" type="button">Reset</button>
+      <button ok-on.click="increment()" type="button">+</button>
+    </div>
+
+    <h2>Recent values</h2>
+    <ol class="history">
+      <li ok-for="entry in history" ok-bind.key="entry.id">
+        {{entry.value}}
+      </li>
+    </ol>
+  </main>
+</template>
+
+<style scoped>
+.counter-card {
+  width: min(92vw, 34rem);
+  padding: 2.5rem;
+  color: #172033;
+  text-align: center;
+  background: #ffffff;
+  border: 1px solid #dbe2ff;
+  border-radius: 1.5rem;
+  box-shadow: 0 1.5rem 4rem rgb(37 52 120 / 14%);
+}
+
+.eyebrow {
+  margin: 0;
+  color: #5757d5;
+  font-size: .78rem;
+  font-weight: 800;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+
+.count {
+  display: block;
+  margin: 1.5rem 0;
+  font-size: 4rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+}
+
+.step-control {
+  display: inline-flex;
+  gap: .5rem;
+  align-items: center;
+  color: #5b6478;
+}
+
+.step-control input {
+  width: 4rem;
+  padding: .45rem;
+  border: 1px solid #c7d0ef;
+  border-radius: .5rem;
+}
+
+.actions {
+  display: flex;
+  gap: .65rem;
+  justify-content: center;
+  margin: 1.5rem 0 2rem;
+}
+
+button {
+  min-width: 3rem;
+  padding: .7rem 1rem;
+  color: white;
+  font: inherit;
+  font-weight: 700;
+  background: #5757d5;
+  border: 0;
+  border-radius: .6rem;
+  cursor: pointer;
+}
+
+button:hover { background: #4141b5; }
+
+.history {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: .4rem;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.history li {
+  padding: .45rem .25rem;
+  color: #4d5780;
+  background: #eef2ff;
+  border-radius: .4rem;
+}
+</style>

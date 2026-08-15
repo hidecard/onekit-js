@@ -644,6 +644,8 @@ code --install-extension onekit-okjs-0.1.0.vsix
 
 The runtime compiler and HMR behavior still come from `oneKitVitePlugin()`; the VS Code extension supplies editor language support only.
 
+For a complete Vite compilation, template/script HMR, and Signal-style reactivity walkthrough, see [`docs/OKJS_VITE_HMR_GUIDE.md`](docs/OKJS_VITE_HMR_GUIDE.md). A runnable example is available in [`examples/okjs-counter`](examples/okjs-counter).
+
 ## DevTools
 
 DevTools are opt-in and safe for SSR when not installed as a browser global:
