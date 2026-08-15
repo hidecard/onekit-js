@@ -2102,8 +2102,18 @@ registerDirective('on', {
             if (ctx.modifiers.includes('stop')) {
                 event.stopPropagation();
             }
-            // Evaluate against the root context and expose the DOM event explicitly.
-            evaluateExpression(ctx.expression, { ...ctx.rootContext, $event: event });
+            // Preserve the reactive root Proxy so methods and state remain available.
+            const eventContext = new Proxy({ $event: event }, {
+                get(target, key) {
+                    if (key === '$event')
+                        return target.$event;
+                    return ctx.rootContext?.[key];
+                },
+                has(_target, key) {
+                    return key === '$event' || key in (ctx.rootContext ?? {});
+                },
+            });
+            evaluateExpression(ctx.expression, eventContext);
         };
         element.addEventListener(eventType, handler);
         // Store cleanup
@@ -2358,6 +2368,19 @@ function create(name, props = {}, slots = {}) {
                 },
                 has(_target, key) {
                     return key in instance.state || key in instance.props || key in instance || key === '$slots';
+                },
+                set(_target, key, value) {
+                    if (typeof key !== 'string')
+                        return false;
+                    if (key in instance.state) {
+                        instance.state[key] = value;
+                        return true;
+                    }
+                    if (key in instance.props) {
+                        instance.props[key] = value;
+                        return true;
+                    }
+                    return false;
                 },
             });
             instance.element = compileTemplate(definition.template, context);
@@ -4441,7 +4464,7 @@ const jsxDEV = h;
 // Main entry point with tree-shaking friendly exports
 // Core systems
 // Version info
-const VERSION = '3.1.13';
+const VERSION = '3.1.16';
 
 export { API, DependencyInjector, Fragment, OneKit, OneKitWebComponent, Router, StreamingRenderer, VERSION, addScript, addStorePlugin, addStyle, addToBody, addToHead, animations, announce, patch as apiPatch, autorun, batch, bind, cache, clearDevToolsDependencies, compileOkjs, compileTemplate, component, computed, create, createElement, createErrorBoundary, createLandmarks, createLoadingBoundary, createRouter, createSSRContext, createSkipLink, createStorage, createStore, debounce, deepClone, defineComponent, defineStore, del, destroy, devToolsSnapshot, di, disableScopeLeakWarnings, disposeDevToolsResource, effect, effectScope, emitDevToolsEvent, enableDevTools, enableScopeLeakWarnings, errorHandler, generateId, get, getActiveScopeDiagnostics, getAllStores, getCurrentScope, getDependencyGraph, getDevToolsEffectId, getDevToolsScopeId, getDevToolsTargetId, getInstance, getResourceGraph, h, hotUpdateComponent, hydrate, initTemplateEngine, isClient, isDevToolsEnabled, isServer, jsx, jsxDEV, localStorage, makeFocusable, makeUnfocusable, manageTabOrder, mount, nextTick, ok, okjs, onDestroyed, onDevToolsEvent, onMounted, onPropsChanged, onScopeDispose, onUpdated, parseOkjs, patch$1 as patch, pluginManager, post, preloadModule, preloadScript, preloadStyle, put, reactive, recordDevToolsDependency, register, registerDevToolsInspector, registerDevToolsResource, registerDirective, registerDisposable, registerWebComponent, removeStore, render, renderMeta, renderOpenGraph, renderTitle, renderToString, request, router, safeMethod, sessionStorage, setAriaAttributes, setMeta, setupComponent, skipToContent, snapshot, stop, throttle, trapFocus, unmount, useStore, validateAccessibility, patch$1 as vdomPatch, watch, withCache, withScope };
 //# sourceMappingURL=onekit.esm.js.map

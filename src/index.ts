@@ -24,4 +24,4 @@ export { OneKitWebComponent, registerWebComponent } from './modules/web-componen
 export { okjs, component, h, jsx, jsxDEV, Fragment } from './modules/jsx';
 
 // Version info
-export const VERSION = '3.1.13';
+export const VERSION = '3.1.16';
