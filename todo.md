@@ -45,6 +45,13 @@
 - [ ] Fix confirmed defects and add regression coverage.
 - [ ] Re-run all validation and record remaining non-blocking risks.
 
+## Published package verification and next milestone
+
+- [ ] Verify npm registry version, tarball metadata, CLI binary, CJS import, ESM import, and clean temporary-project installation.
+- [ ] Identify the next highest-priority production gap after M1-M3.
+- [ ] Implement the selected production improvement with regression tests.
+- [ ] Synchronize release documentation and validate the new package workflow.
+
 ## Decisions
 
 - Documentation language: English for the public developer docs.

@@ -5,6 +5,15 @@ All notable changes to OneKit will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.10] - 2026-08-15
+
+### Fixed
+- Preserve the `onekit` CLI binary in published npm packages.
+- Load the Rollup build implementation lazily so `onekit --help` works after a clean install.
+- Move CLI build dependencies into runtime dependencies.
+- Emit CLI CommonJS bundles with a `.cjs` extension for projects using `type: module`.
+- Normalize npm package metadata and preserve the repository issue URL.
+
 ## [3.0.0] - 2024-12-XX
 
 ### Added

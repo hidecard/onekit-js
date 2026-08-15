@@ -1,7 +1,5 @@
 #!/usr/bin/env node
 import { createApp } from '../lib/cli/create.js';
-import { build } from '../lib/cli/build.js';
-
 const [command = 'help', ...args] = process.argv.slice(2);
 
 function printHelp() {
@@ -14,6 +12,7 @@ try {
     await createApp(args[0]);
     console.log(`Created OneKit app: ${args[0]}`);
   } else if (command === 'build') {
+    const { build } = await import('../lib/cli/build.js');
     const outIndex = args.indexOf('--out-dir');
     const output = outIndex >= 0 ? args[outIndex + 1] : 'dist';
     await build({ output, minify: !args.includes('--no-minify') });
