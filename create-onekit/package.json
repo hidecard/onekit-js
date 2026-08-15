@@ -1,13 +1,20 @@
 {
   "name": "create-onekit",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Create a OneKit JS application with the official OneKit CLI.",
   "type": "module",
   "bin": {
     "create-onekit": "bin/create-onekit.js"
   },
+  "files": [
+    "bin",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "dependencies": {
-    "onekit-js": "^3.1.10"
+    "onekit-js": "^3.1.13"
   },
   "engines": {
     "node": ">=18"

@@ -1,0 +1,71 @@
+name: Publish create-onekit
+
+on:
+  push:
+    tags:
+      - 'create-onekit-v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: publish-create-onekit-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Validate and publish create-onekit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 22.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          registry-url: https://registry.npmjs.org
+          cache: npm
+          cache-dependency-path: create-onekit/package-lock.json
+
+      - name: Install creator dependencies
+        working-directory: create-onekit
+        run: npm ci
+
+      - name: Validate package metadata
+        working-directory: create-onekit
+        shell: bash
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+
+          if [[ "$TAG_NAME" == create-onekit-v* ]]; then
+            TAG_VERSION="${TAG_NAME#create-onekit-v}"
+            if [[ "$PACKAGE_VERSION" != "$TAG_VERSION" ]]; then
+              echo "Package version $PACKAGE_VERSION does not match tag $TAG_NAME" >&2
+              exit 1
+            fi
+          fi
+
+          node -e "const p=require('./package.json'); if (p.name !== 'create-onekit') process.exit(1); if (p.publishConfig?.access !== 'public') process.exit(1)"
+          node bin/create-onekit.js --help
+
+      - name: Inspect package contents
+        working-directory: create-onekit
+        run: npm pack --dry-run
+
+      - name: Publish to npm with provenance
+        if: startsWith(github.ref, 'refs/tags/create-onekit-v')
+        working-directory: create-onekit
+        run: npm publish --access public --provenance
+
+      - name: Explain manual dispatch
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          echo 'Manual dispatch validates the package only.'
+          echo 'Create and push a create-onekit-v<version> tag to publish.'
