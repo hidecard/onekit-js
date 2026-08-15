@@ -7,6 +7,12 @@ import { webcrypto } from 'node:crypto';
 // Node 18 does not expose Web Crypto as a global in every CI image.
 if (!globalThis.crypto) globalThis.crypto = webcrypto;
 
+// serialize-javascript used by terser requires a global Web Crypto API on
+// Node 18. Keep CI portable by skipping only minification on Node 18; release
+// builds on Node 20+ still emit the optimized artifacts.
+const canMinify = Number(process.versions.node.split('.')[0]) >= 20;
+const minify = canMinify ? [terser()] : [];
+
 export default {
   input: 'src/index.ts',
   output: [
@@ -21,7 +27,7 @@ export default {
       format: 'umd',
       name: 'OneKit',
       sourcemap: true,
-      plugins: [terser()]
+      plugins: minify
     },
     {
       file: 'dist/onekit.esm.js',
@@ -32,7 +38,7 @@ export default {
       file: 'dist/onekit.esm.min.js',
       format: 'es',
       sourcemap: true,
-      plugins: [terser()]
+      plugins: minify
     },
     {
       file: 'dist/onekit.cjs',
