@@ -71,6 +71,9 @@ jobs:
       - name: Verify clean package installation
         run: npm run verify:package
 
+      - name: Verify Vite HMR lifecycle
+        run: npm run verify:hmr
+
       - name: Inspect package contents
         run: npm pack --dry-run
 

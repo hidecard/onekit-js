@@ -287,7 +287,7 @@ Common V3 directive patterns are:
 </section>
 ```
 
-The template expression engine intentionally supports a restricted expression grammar. It does not execute arbitrary JavaScript statements or dynamic code. Interpolated text is connected to individual reactive text nodes, so changing one value does not require replacing the component root. Keep untrusted HTML and untrusted expression strings out of application templates, and validate external data before placing it in a UI model.
+The template expression engine intentionally supports a restricted expression grammar. It does not execute arbitrary JavaScript statements or dynamic code. Interpolated text is connected to individual reactive text nodes, so changing one value does not require replacing the component root. Keyed `ok-for` lists use an item `id` or `key` when available; duplicate keys produce a development warning and receive a positional fallback so one DOM node is never reused twice. Keep untrusted HTML and untrusted expression strings out of application templates, and validate external data before placing it in a UI model.
 
 ## JSX and VDOM
 
@@ -671,7 +671,7 @@ The package verification command creates a temporary project, packs the current 
 npm pack --dry-run
 ```
 
-The GitHub Actions workflow validates Node 18, 20, and 22, runs coverage thresholds, builds documentation, audits production dependencies, verifies the packed package, runs the repeatable benchmark, uploads its JSON report, and creates a release artifact for version tags.
+The GitHub Actions workflow validates Node 18, 20, and 22, runs coverage thresholds, builds documentation, audits production dependencies, verifies the packed package, verifies the Vite HMR lifecycle, runs the repeatable benchmark, uploads its JSON report, and creates a release artifact for version tags. Run the local HMR smoke check with `npm run verify:hmr`.
 
 Never commit `node_modules`, benchmark reports, access tokens, or generated temporary directories. Actual npm publication requires an authenticated npm session:
 

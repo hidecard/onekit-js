@@ -92,6 +92,18 @@ describe('V3 regression coverage', () => {
     expect(nodes[0].textContent).toBe('B2');
   });
 
+  it('warns on duplicate keyed list items without reusing one DOM node twice', () => {
+    const warning = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const state = reactive({ items: [{ id: 'same', label: 'A' }, { id: 'same', label: 'B' }] });
+    const element = compileTemplate('<ul><li ok-for="item in items">{{item.label}}</li></ul>', state);
+    const nodes = Array.from(element.querySelectorAll('li'));
+
+    expect(nodes).toHaveLength(2);
+    expect(nodes[0]).not.toBe(nodes[1]);
+    expect(warning).toHaveBeenCalledWith(expect.stringContaining('Duplicate ok-for key'));
+    warning.mockRestore();
+  });
+
   it('rejects statement/global expressions and unsafe dynamic URLs', () => {
     const state = { value: 'safe', url: 'javascript:alert(1)' };
     const element = compileTemplate('<section><p ok-if="window.alert(1)">Safe</p><a ok-bind.href="url">Link</a></section>', state);

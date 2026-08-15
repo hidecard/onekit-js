@@ -215,8 +215,15 @@ registerDirective('for', {
 
       const nextBlocks = new Map<string | number, ListBlock>();
       const ordered: Element[] = [];
+      const seenKeys = new Set<string | number>();
       items.forEach((item, index) => {
-        const key = itemKey(item, index);
+        const baseKey = itemKey(item, index);
+        let key: string | number = baseKey;
+        if (seenKeys.has(baseKey)) {
+          key = `${String(baseKey)}::duplicate:${index}`;
+          console.warn(`[OneKit] Duplicate ok-for key "${String(baseKey)}"; using a positional fallback for item ${index}.`);
+        }
+        seenKeys.add(key);
         const previous = blocks.get(key);
         if (previous) {
           previous.context[itemName] = item;
