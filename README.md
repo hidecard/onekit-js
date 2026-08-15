@@ -591,10 +591,15 @@ export default defineConfig({
 The plugin emits OneKit module update events and preserves an application HMR state container when the module accepts an update:
 
 ```ts
-import { preserveHMRState } from "onekit-js/vite";
+import { effectScope } from "onekit-js";
+import { preserveHMRState, registerHMRDisposable } from "onekit-js/vite";
 
 const state = preserveHMRState("counter", { count: 0 });
+const scope = registerHMRDisposable(effectScope(true));
 state.count += 1;
+
+// The scope is disposed automatically before the module is replaced.
+void scope;
 ```
 
 HMR is a development feature. Always verify a clean production build and a fresh browser load; do not depend on HMR state preservation for application correctness.
@@ -683,7 +688,7 @@ Run the repeatable V3 baseline benchmark after building:
 npm run benchmark
 ```
 
-The benchmark writes a JSON report containing reactive updates, batched updates, deep snapshots, and scope teardown timings. CI runs it on Node 22 and uploads `benchmark-results/v3.json` as an artifact. Use the report to compare changes on the same Node version and machine. Do not compare results across different hardware or framework versions without recording the environment and methodology.
+The benchmark writes a JSON report containing reactive updates, batched updates, deep snapshots, scope teardown timings, mean heap deltas, and the Node/CPU environment. CI runs it on Node 22 and uploads `benchmark-results/v3.json` as an artifact. Use the report to compare changes on the same Node version and machine. Do not compare results across different hardware or framework versions without recording the environment and methodology.
 
 ## TypeScript and package imports
 

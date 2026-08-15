@@ -1,5 +1,6 @@
 // Template Engine Module with Directives
 import { reactive, effect, stop } from './reactive';
+import { effectScope, onScopeDispose } from '../core/scope';
 import { sanitizeHTML, sanitizeURL } from '../core/security';
 import { evaluateSafeExpression } from './expression';
 
@@ -182,7 +183,6 @@ registerDirective('show', {
 // ok-for directive
 registerDirective('for', {
   bind(ctx) {
-    // ok-for="item in items" or ok-for="(item, index) in items"
     const forMatch = ctx.expression.match(/^\s*\(?(\w+)(?:\s*,\s*(\w+))?\)?\s+in\s+(.+)$/);
     if (!forMatch) {
       console.error('Invalid ok-for expression:', ctx.expression);
@@ -190,63 +190,81 @@ registerDirective('for', {
     }
 
     const [, itemName, indexName, collectionExpr] = forMatch;
-    const collection = evaluateExpression(collectionExpr, ctx.rootContext);
-
-    if (!Array.isArray(collection)) {
-      console.error('ok-for collection must be an array:', collectionExpr);
-      return;
-    }
-
-    // Store original element
-    const originalElement = ctx.element;
-    const parent = originalElement.parentElement;
+    const templateElement = ctx.element.cloneNode(true) as Element;
+    const parent = ctx.element.parentElement;
     if (!parent) return;
+    parent.removeChild(ctx.element);
 
-    // Remove original element
-    parent.removeChild(originalElement);
+    type ListBlock = { key: string | number; element: Element; scope: ReturnType<typeof effectScope>; context: Record<string, unknown> };
+    let blocks = new Map<string | number, ListBlock>();
 
-    // Determine insertion behavior from modifiers: numeric index, 'start' or 'prepend'
-    const insertModifier = (ctx.modifiers || []).find((m: string) => /^\d+$/.test(m) || m === 'start' || m === 'prepend');
+    const itemKey = (item: unknown, index: number): string | number => {
+      if (item && typeof item === 'object') {
+        const record = item as Record<string, unknown>;
+        const key = record.id ?? record.key;
+        if (typeof key === 'string' || typeof key === 'number') return key;
+      }
+      return index;
+    };
 
-    // Build clones first so we can insert them in a fragment to preserve order
-    const clones: Element[] = [];
-    collection.forEach((item: any, index: number) => {
-      const clone = originalElement.cloneNode(true) as Element;
-
-      // Create item context
-      const itemContext: any = { [itemName]: item };
-      if (indexName) {
-        itemContext[indexName] = index;
+    const renderList = (items: unknown): void => {
+      if (!Array.isArray(items)) {
+        console.error('ok-for collection must be an array:', collectionExpr);
+        return;
       }
 
-      // Compile clone with merged root context and item context
-      const compiledClone = compileTemplate(clone.outerHTML, { ...ctx.rootContext, ...itemContext });
-      clones.push(compiledClone);
+      const nextBlocks = new Map<string | number, ListBlock>();
+      const ordered: Element[] = [];
+      items.forEach((item, index) => {
+        const key = itemKey(item, index);
+        const previous = blocks.get(key);
+        if (previous) {
+          previous.context[itemName] = item;
+          if (indexName) previous.context[indexName] = index;
+          nextBlocks.set(key, previous);
+          ordered.push(previous.element);
+          return;
+        }
+
+        const context = reactive({
+          ...ctx.rootContext,
+          [itemName]: item,
+          ...(indexName ? { [indexName]: index } : {}),
+        });
+        const scope = effectScope(true);
+        const element = scope.run(() => compileTemplate(templateElement.outerHTML, context));
+        const block = { key, element, scope, context };
+        nextBlocks.set(key, block);
+        ordered.push(element);
+      });
+
+      blocks.forEach((block, key) => {
+        if (!nextBlocks.has(key)) block.scope.dispose();
+      });
+
+      ordered.forEach((element, index) => {
+        const anchor = parent.childNodes[index] ?? null;
+        if (anchor !== element) parent.insertBefore(element, anchor);
+      });
+      Array.from(parent.childNodes).forEach((node) => {
+        if (!ordered.includes(node as Element)) parent.removeChild(node);
+      });
+      blocks = nextBlocks;
+    };
+
+    (ctx.element as any).__onekitForUpdate = renderList;
+    (ctx.element as any).__onekitForCollectionExpr = collectionExpr;
+    renderList(evaluateExpression(collectionExpr, ctx.rootContext));
+    onScopeDispose(() => {
+      blocks.forEach(block => block.scope.dispose());
+      blocks.clear();
     });
-
-    if (insertModifier) {
-      // Numeric index
-      let insertIndex: number | undefined;
-      if (/^\d+$/.test(insertModifier)) {
-        insertIndex = parseInt(insertModifier, 10);
-      } else if (insertModifier === 'start' || insertModifier === 'prepend') {
-        insertIndex = 0;
-      }
-
-      const fragment = document.createDocumentFragment();
-      clones.forEach(c => fragment.appendChild(c));
-
-      if (typeof insertIndex === 'number') {
-        const refChild = parent.children[insertIndex] || null;
-        parent.insertBefore(fragment, refChild);
-      } else {
-        // Fallback to append
-        parent.appendChild(fragment);
-      }
-    } else {
-      // Default: append in order
-      clones.forEach(c => parent.appendChild(c));
-    }
+  },
+  update(ctx) {
+    const element = ctx.element as any;
+    const renderList = element.__onekitForUpdate as ((items: unknown) => void) | undefined;
+    const collectionExpr = element.__onekitForCollectionExpr as string | undefined;
+    renderList?.(collectionExpr ? evaluateExpression(collectionExpr, ctx.rootContext) : ctx.value);
   }
 });
 

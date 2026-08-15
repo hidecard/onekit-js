@@ -76,6 +76,22 @@ describe('V3 regression coverage', () => {
     expect(element.querySelector('b')).toBe(sibling);
   });
 
+  it('preserves keyed list DOM nodes when collection order changes', async () => {
+    const state = reactive({
+      items: [{ id: 'a', label: 'A' }, { id: 'b', label: 'B' }],
+    });
+    const element = compileTemplate('<ul><li ok-for="item in items">{{item.label}}</li></ul>', state);
+    const first = element.querySelectorAll('li')[0];
+    const second = element.querySelectorAll('li')[1];
+    state.items = [{ id: 'b', label: 'B2' }, { id: 'a', label: 'A' }];
+    await Promise.resolve();
+
+    const nodes = Array.from(element.querySelectorAll('li'));
+    expect(nodes[0]).toBe(second);
+    expect(nodes[1]).toBe(first);
+    expect(nodes[0].textContent).toBe('B2');
+  });
+
   it('rejects statement/global expressions and unsafe dynamic URLs', () => {
     const state = { value: 'safe', url: 'javascript:alert(1)' };
     const element = compileTemplate('<section><p ok-if="window.alert(1)">Safe</p><a ok-bind.href="url">Link</a></section>', state);

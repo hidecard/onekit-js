@@ -21,6 +21,12 @@ export interface OneKitVitePlugin {
   handleHotUpdate?: (context: { file: string; modules: unknown[]; server: { ws: { send: (message: unknown) => void } } }) => unknown[];
 }
 
+export interface OneKitHMRDisposable {
+  dispose?: () => void;
+  stop?: () => void;
+  unsubscribe?: () => void;
+}
+
 /**
  * Vite plugin that announces OneKit module changes to the DevTools bridge and
  * keeps Vite's normal module graph/HMR behavior intact.
@@ -64,6 +70,17 @@ export function preserveHMRState<T extends Record<string, unknown>>(
     data.updatedAt = Date.now();
   });
   return state;
+}
+
+/** Register a scope/component/store cleanup for Vite module replacement. */
+export function registerHMRDisposable<T extends OneKitHMRDisposable>(
+  resource: T,
+  hot: OneKitHotModule | undefined = getHotModule(),
+): T {
+  if (!hot) return resource;
+  const dispose = resource.dispose ?? resource.stop ?? resource.unsubscribe;
+  if (dispose) hot.dispose(() => dispose.call(resource));
+  return resource;
 }
 
 function getHotModule(): OneKitHotModule | undefined {

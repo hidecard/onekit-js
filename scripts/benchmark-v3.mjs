@@ -1,4 +1,5 @@
 import { performance } from 'node:perf_hooks';
+import { platform, arch, cpus } from 'node:os';
 import { mkdir, writeFile } from 'node:fs/promises';
 import {
   batch,
@@ -14,10 +15,13 @@ const samples = Number(process.env.ONEKIT_BENCH_SAMPLES ?? 5);
 
 function measure(name, fn) {
   const durations = [];
+  const heapDeltas = [];
   for (let sample = 0; sample < samples; sample += 1) {
+    const beforeHeap = process.memoryUsage().heapUsed;
     const start = performance.now();
     fn();
     durations.push(performance.now() - start);
+    heapDeltas.push(Math.max(0, process.memoryUsage().heapUsed - beforeHeap));
   }
   const sorted = [...durations].sort((a, b) => a - b);
   return {
@@ -28,6 +32,7 @@ function measure(name, fn) {
     p50Ms: sorted[Math.floor(sorted.length * 0.5)],
     p95Ms: sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95))],
     opsPerSecond: Math.round((iterations * samples) / (durations.reduce((sum, value) => sum + value, 0) / 1000)),
+    meanHeapDeltaKb: Math.round((heapDeltas.reduce((sum, value) => sum + value, 0) / heapDeltas.length) / 1024),
   };
 }
 
@@ -68,11 +73,17 @@ const report = {
   node: process.version,
   iterations,
   samples,
+  environment: {
+    platform: platform(),
+    arch: arch(),
+    cpu: cpus()[0]?.model ?? 'unknown',
+    cpuCount: cpus().length,
+  },
   results,
   note: 'Compare runs on the same machine and Node version. Framework adapters are intentionally optional; install them in a separate benchmark project for cross-framework comparisons.',
 };
 
 await mkdir('benchmark-results', { recursive: true });
 await writeFile('benchmark-results/v3.json', `${JSON.stringify(report, null, 2)}\n`);
-console.table(results.map(({ name, meanMs, p95Ms, opsPerSecond }) => ({ name, meanMs: meanMs.toFixed(3), p95Ms: p95Ms.toFixed(3), opsPerSecond })));
+console.table(results.map(({ name, meanMs, p95Ms, opsPerSecond, meanHeapDeltaKb }) => ({ name, meanMs: meanMs.toFixed(3), p95Ms: p95Ms.toFixed(3), opsPerSecond, meanHeapDeltaKb })));
 console.log('Wrote benchmark-results/v3.json');
