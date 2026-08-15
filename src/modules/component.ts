@@ -179,6 +179,34 @@ export function register(name: string, definition: ComponentDefinition): void {
   components[name] = definition;
 }
 
+/** Replace a registered component during HMR while preserving live state and props. */
+export function hotUpdateComponent(name: string, definition: ComponentDefinition): number {
+  const active = Array.from(componentInstances.values()).filter(instance => instance.name === name);
+  const snapshots = active.map(instance => ({
+    instance,
+    state: deepCloneSafe(instance.state),
+    props: deepCloneSafe(instance.props),
+    slots: { ...instance.slots },
+    parent: instance.element?.parentNode,
+    nextSibling: instance.element?.nextSibling,
+    mounted: instance.mounted,
+  }));
+  register(name, definition);
+  snapshots.forEach(snapshot => {
+    const { instance, parent, nextSibling, mounted } = snapshot;
+    destroy(instance);
+    const replacement = create(name, snapshot.props, snapshot.slots);
+    if (!replacement) return;
+    Object.assign(replacement.state, snapshot.state);
+    replacement.update();
+    if (parent && replacement.element && mounted) {
+      mount(replacement, parent as Element | ShadowRoot);
+      if (nextSibling && nextSibling.parentNode === parent) parent.insertBefore(replacement.element, nextSibling);
+    }
+  });
+  return snapshots.length;
+}
+
 export function create(name: string, props: ComponentProps = {}, slots: { [key: string]: string } = {}): ComponentInstance | null {
   if (!components[name]) {
     console.error(`Component "${name}" not found`);

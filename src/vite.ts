@@ -50,7 +50,12 @@ export function oneKitVitePlugin(options: OneKitVitePluginOptions = {}): OneKitV
       server.ws.send({
         type: 'custom',
         event: 'onekit:hmr-update',
-        data: { file, timestamp: Date.now() },
+        data: {
+          file,
+          timestamp: Date.now(),
+          kind: file.endsWith('.okjs') ? 'okjs-component' : 'module',
+          reload: file.endsWith('.okjs') ? 'template-and-script' : 'module',
+        },
       });
       return modules;
     },

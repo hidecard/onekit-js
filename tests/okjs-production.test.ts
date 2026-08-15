@@ -25,7 +25,7 @@ article { color: red; }
   it('compiles to a default OneKit component module', () => {
     const result = compileOkjs(source, '/src/Greeting.okjs');
     expect(result.map).toBeNull();
-    expect(result.code).toContain("import { defineComponent as __okjsDefineComponent } from 'onekit-js';");
+    expect(result.code).toContain("import { defineComponent as __okjsDefineComponent, hotUpdateComponent as __okjsHotUpdate } from 'onekit-js';");
     expect(result.code).toContain('data-okjs-scope');
     expect(result.code).toContain('data-okjs-style');
     expect(result.code).toContain('export default __okjsComponent;');

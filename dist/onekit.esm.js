@@ -2216,6 +2216,35 @@ function defineComponent(definition) {
 function register(name, definition) {
     components[name] = definition;
 }
+/** Replace a registered component during HMR while preserving live state and props. */
+function hotUpdateComponent(name, definition) {
+    const active = Array.from(componentInstances.values()).filter(instance => instance.name === name);
+    const snapshots = active.map(instance => ({
+        instance,
+        state: deepCloneSafe(instance.state),
+        props: deepCloneSafe(instance.props),
+        slots: { ...instance.slots },
+        parent: instance.element?.parentNode,
+        nextSibling: instance.element?.nextSibling,
+        mounted: instance.mounted,
+    }));
+    register(name, definition);
+    snapshots.forEach(snapshot => {
+        const { instance, parent, nextSibling, mounted } = snapshot;
+        destroy(instance);
+        const replacement = create(name, snapshot.props, snapshot.slots);
+        if (!replacement)
+            return;
+        Object.assign(replacement.state, snapshot.state);
+        replacement.update();
+        if (parent && replacement.element && mounted) {
+            mount(replacement, parent);
+            if (nextSibling && nextSibling.parentNode === parent)
+                parent.insertBefore(replacement.element, nextSibling);
+        }
+    });
+    return snapshots.length;
+}
 function create(name, props = {}, slots = {}) {
     if (!components[name]) {
         console.error(`Component "${name}" not found`);
@@ -4238,7 +4267,7 @@ function compileOkjs(source, id = 'component.okjs') {
     const options = `const __okjsOptions = typeof __okjsUserExport === 'object' && __okjsUserExport !== null ? __okjsUserExport : {};`;
     const style = styleCode(block.style, id, block.styleScoped);
     const sourceComment = `\n//# sourceURL=${id}\n`;
-    const code = `import { defineComponent as __okjsDefineComponent } from 'onekit-js';\n${script}\n${options}\nconst __okjsTemplate = ${JSON.stringify(template)};${style}\nconst __okjsComponent = __okjsDefineComponent({ ...__okjsOptions, template: __okjsTemplate });\nexport default __okjsComponent;\nif (import.meta.hot) {\n  import.meta.hot.accept();\n  import.meta.hot.dispose(() => {\n    if (typeof document !== 'undefined') document.querySelector('[data-okjs-style="' + __okjsStyleId + '"]')?.remove();\n  });\n}\n${sourceComment}`;
+    const code = `import { defineComponent as __okjsDefineComponent, hotUpdateComponent as __okjsHotUpdate } from 'onekit-js';\n${script}\n${options}\nconst __okjsTemplate = ${JSON.stringify(template)};${style}\nconst __okjsComponent = __okjsDefineComponent({ ...__okjsOptions, template: __okjsTemplate });\nexport default __okjsComponent;\nif (import.meta.hot) {\n  import.meta.hot.accept((__okjsNext) => {\n    const __okjsNextComponent = __okjsNext?.default;\n    if (__okjsNextComponent?.name) __okjsHotUpdate(__okjsNextComponent.name, __okjsNextComponent);\n  });\n  import.meta.hot.dispose(() => {\n    if (typeof document !== 'undefined') document.querySelector('[data-okjs-style="' + __okjsStyleId + '"]')?.remove();\n  });\n}\n${sourceComment}`;
     return { code, map: null };
 }
 
@@ -4412,5 +4441,5 @@ const jsxDEV = h;
 // Version info
 const VERSION = '3.1.13';
 
-export { API, DependencyInjector, Fragment, OneKit, OneKitWebComponent, Router, StreamingRenderer, VERSION, addScript, addStorePlugin, addStyle, addToBody, addToHead, animations, announce, patch as apiPatch, autorun, batch, bind, cache, clearDevToolsDependencies, compileOkjs, compileTemplate, component, computed, create, createElement, createErrorBoundary, createLandmarks, createLoadingBoundary, createRouter, createSSRContext, createSkipLink, createStorage, createStore, debounce, deepClone, defineComponent, defineStore, del, destroy, devToolsSnapshot, di, disableScopeLeakWarnings, disposeDevToolsResource, effect, effectScope, emitDevToolsEvent, enableDevTools, enableScopeLeakWarnings, errorHandler, generateId, get, getActiveScopeDiagnostics, getAllStores, getCurrentScope, getDependencyGraph, getDevToolsEffectId, getDevToolsScopeId, getDevToolsTargetId, getInstance, getResourceGraph, h, hydrate, initTemplateEngine, isClient, isDevToolsEnabled, isServer, jsx, jsxDEV, localStorage, makeFocusable, makeUnfocusable, manageTabOrder, mount, nextTick, ok, okjs, onDestroyed, onDevToolsEvent, onMounted, onPropsChanged, onScopeDispose, onUpdated, parseOkjs, patch$1 as patch, pluginManager, post, preloadModule, preloadScript, preloadStyle, put, reactive, recordDevToolsDependency, register, registerDevToolsInspector, registerDevToolsResource, registerDirective, registerDisposable, registerWebComponent, removeStore, render, renderMeta, renderOpenGraph, renderTitle, renderToString, request, router, safeMethod, sessionStorage, setAriaAttributes, setMeta, setupComponent, skipToContent, snapshot, stop, throttle, trapFocus, unmount, useStore, validateAccessibility, patch$1 as vdomPatch, watch, withCache, withScope };
+export { API, DependencyInjector, Fragment, OneKit, OneKitWebComponent, Router, StreamingRenderer, VERSION, addScript, addStorePlugin, addStyle, addToBody, addToHead, animations, announce, patch as apiPatch, autorun, batch, bind, cache, clearDevToolsDependencies, compileOkjs, compileTemplate, component, computed, create, createElement, createErrorBoundary, createLandmarks, createLoadingBoundary, createRouter, createSSRContext, createSkipLink, createStorage, createStore, debounce, deepClone, defineComponent, defineStore, del, destroy, devToolsSnapshot, di, disableScopeLeakWarnings, disposeDevToolsResource, effect, effectScope, emitDevToolsEvent, enableDevTools, enableScopeLeakWarnings, errorHandler, generateId, get, getActiveScopeDiagnostics, getAllStores, getCurrentScope, getDependencyGraph, getDevToolsEffectId, getDevToolsScopeId, getDevToolsTargetId, getInstance, getResourceGraph, h, hotUpdateComponent, hydrate, initTemplateEngine, isClient, isDevToolsEnabled, isServer, jsx, jsxDEV, localStorage, makeFocusable, makeUnfocusable, manageTabOrder, mount, nextTick, ok, okjs, onDestroyed, onDevToolsEvent, onMounted, onPropsChanged, onScopeDispose, onUpdated, parseOkjs, patch$1 as patch, pluginManager, post, preloadModule, preloadScript, preloadStyle, put, reactive, recordDevToolsDependency, register, registerDevToolsInspector, registerDevToolsResource, registerDirective, registerDisposable, registerWebComponent, removeStore, render, renderMeta, renderOpenGraph, renderTitle, renderToString, request, router, safeMethod, sessionStorage, setAriaAttributes, setMeta, setupComponent, skipToContent, snapshot, stop, throttle, trapFocus, unmount, useStore, validateAccessibility, patch$1 as vdomPatch, watch, withCache, withScope };
 //# sourceMappingURL=onekit.esm.js.map

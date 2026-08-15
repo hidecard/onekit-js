@@ -51,6 +51,8 @@ export interface ComponentInstance {
 }
 export declare function defineComponent(definition: ComponentDefinition): ComponentDefinition;
 export declare function register(name: string, definition: ComponentDefinition): void;
+/** Replace a registered component during HMR while preserving live state and props. */
+export declare function hotUpdateComponent(name: string, definition: ComponentDefinition): number;
 export declare function create(name: string, props?: ComponentProps, slots?: {
     [key: string]: string;
 }): ComponentInstance | null;

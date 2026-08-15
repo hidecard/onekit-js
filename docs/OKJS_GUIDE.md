@@ -45,7 +45,7 @@ export default defineConfig({
 });
 ```
 
-The plugin transforms `.okjs` files and also emits OneKit HMR update events. A compiled module accepts HMR updates and removes its injected style element when the module is disposed.
+The plugin transforms `.okjs` files and also emits OneKit HMR update events. A compiled module accepts HMR updates through a state-preserving component bridge. Template-only changes replace the component definition and rerender active instances while keeping their reactive state and props. Script changes replace methods, lifecycle hooks, and the template definition through the same bridge. Injected style elements are removed when the old module is disposed.
 
 ## Mounting a component
 
@@ -108,7 +108,7 @@ import { registerHMRDisposable } from 'onekit-js/vite';
 const scope = registerHMRDisposable(effectScope(true));
 ```
 
-Always validate a production build separately from HMR development. HMR state preservation is a developer convenience and must not be required for application correctness.
+Always validate a production build separately from HMR development. HMR state preservation is a developer convenience and must not be required for application correctness. The Vite custom event `onekit:hmr-update` identifies `.okjs` updates with `kind: 'okjs-component'` and `reload: 'template-and-script'`.
 
 ## Security model
 
