@@ -19,9 +19,11 @@ my-app/
 Create a starter project with the CLI:
 
 ```bash
-npm create onekit-js@latest my-app
-# or, when using a local checkout:
-npx onekit create my-app
+npm create onekit@latest my-app
+# or, use the official package explicitly:
+npx --yes --package=onekit-js onekit create my-app
+# or, use the standalone create command:
+npx create-onekit my-app
 cd my-app
 npm install
 npm run dev
@@ -76,7 +78,7 @@ onekit build --out-dir dist
 onekit build --no-minify
 ```
 
-`onekit create` generates a Vite-compatible TypeScript starter. `onekit build` reads the current package's `source` field, or falls back to `src/index.js`, and emits ESM, CommonJS, browser, source-map, and optional minified artifacts.
+`onekit create` and `npm create onekit@latest` generate Vite-compatible TypeScript or JavaScript starters. `onekit build` reads the current package's `source` field, or falls back to `src/index.js`, and emits ESM, CommonJS, browser, source-map, and optional minified artifacts.
 
 ## Public package subpaths
 

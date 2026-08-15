@@ -20,4 +20,26 @@ describe('OneKit CLI', () => {
       await rm(root, { recursive: true, force: true });
     }
   });
+
+  it('creates a JavaScript starter with the explicit template option', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'onekit-cli-js-'));
+    const appPath = path.join(root, 'starter-js');
+    try {
+      await run(process.execPath, [path.resolve('bin/onekit.js'), 'create', appPath, '--javascript'], { cwd: process.cwd() });
+      const packageJson = JSON.parse(await readFile(path.join(appPath, 'package.json'), 'utf8'));
+      expect(packageJson.scripts['type-check']).toBeUndefined();
+      expect(await readFile(path.join(appPath, 'src', 'main.js'), 'utf8')).toContain('reactive');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects an existing target directory', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'onekit-cli-existing-'));
+    try {
+      await expect(run(process.execPath, [path.resolve('bin/onekit.js'), 'create', root], { cwd: process.cwd() })).rejects.toThrow('already exists');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
 });

@@ -60,6 +60,16 @@
 - [ ] Confirm generated starter files and its install/build workflow.
 - [ ] Deliver exact recovery and publish instructions.
 
+## Vite-style project scaffolder
+
+- [x] Define supported commands and options: `create`, project name, JavaScript/TypeScript, template, package-manager hints, and non-interactive mode.
+- [x] Implement a Vite-compatible OneKit starter with `index.html`, `src/main.ts`, `src/style.css`, `vite.config.ts`, `tsconfig.json`, and package scripts.
+- [x] Support JavaScript and TypeScript templates without requiring users to copy repository examples.
+- [x] Add target-directory validation, existing-directory safety, and helpful CLI errors.
+- [x] Add CLI tests for generated files, options, invalid names, and rerun behavior.
+- [x] Validate `npx --package=onekit-js onekit create`, generated app install, dev, and production build.
+- [x] Update README, Getting Started, V3 usage, website CLI example, and changelog for the new workflow.
+
 ## Decisions
 
 - Documentation language: English for the public developer docs.

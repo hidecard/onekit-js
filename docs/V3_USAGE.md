@@ -29,7 +29,9 @@ The package also exposes subpath metadata for feature-oriented imports. Prefer t
 The CLI is included in the package and provides a zero-configuration starter and a production build command.
 
 ```bash
-npx onekit create my-app
+npm create onekit@latest my-app
+# or: npx --yes --package=onekit-js onekit create my-app
+# or: npx create-onekit my-app
 cd my-app
 npm install
 npm run dev
@@ -38,10 +40,10 @@ npm run dev
 Create accepts relative or absolute target paths. The generated project contains a Vite entrypoint, TypeScript source, `vite.config.ts`, and a starter component. Build the application with:
 
 ```bash
-npx onekit build
+onekit build
 ```
 
-The build command detects a TypeScript or JavaScript application entrypoint and emits a production bundle. Use `npx onekit --help` to inspect the available commands.
+The create command generates a Vite-compatible TypeScript starter by default. Use `--javascript` or `--template js` for a JavaScript starter. The build command detects a TypeScript or JavaScript application entrypoint and emits a production bundle. Use `onekit --help` after a global install, or `npx --yes --package=onekit-js onekit --help` without a global install.
 
 ## 3. Reactive state
 

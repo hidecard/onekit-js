@@ -2,15 +2,22 @@
 import { createApp } from '../lib/cli/create.js';
 const [command = 'help', ...args] = process.argv.slice(2);
 
+function parseCreateArgs(values) {
+  const positional = values.filter((value) => !value.startsWith('-'));
+  const templateIndex = values.indexOf('--template');
+  const template = templateIndex >= 0 ? values[templateIndex + 1] : values.includes('--javascript') || values.includes('--js') ? 'js' : 'ts';
+  return { appName: positional[0], template };
+}
+
 function printHelp() {
-  console.log(`OneKit JS CLI\n\nUsage:\n  onekit create <name>\n  onekit build [--out-dir <dir>] [--no-minify]\n  onekit help`);
+  console.log(`OneKit JS CLI\n\nUsage:\n  onekit create <name> [--template ts|js]\n  onekit create <name> --typescript\n  onekit create <name> --javascript\n  onekit build [--out-dir <dir>] [--no-minify]\n  onekit help`);
 }
 
 try {
   if (command === 'create') {
-    if (!args[0]) throw new Error('Please provide an application name.');
-    await createApp(args[0]);
-    console.log(`Created OneKit app: ${args[0]}`);
+    const { appName, template } = parseCreateArgs(args);
+    const result = await createApp(appName, { template });
+    console.log(`Created OneKit ${template.toUpperCase()} app: ${result.appPath}`);
   } else if (command === 'build') {
     const { build } = await import('../lib/cli/build.js');
     const outIndex = args.indexOf('--out-dir');

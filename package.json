@@ -57,6 +57,7 @@
       "import": "./dist/onekit.esm.js",
       "require": "./dist/onekit.cjs"
     },
+    "./cli/create": "./lib/cli/create.js",
     "./package.json": "./package.json"
   },
   "files": [
