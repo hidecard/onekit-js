@@ -45,4 +45,14 @@ describe('M2 router production contract', () => {
     const result = await router.navigate('/missing');
     expect(result?.route.path).toBe('/404');
   });
+
+  it('stops notifying subscribers after unsubscribe', async () => {
+    const events: string[] = [];
+    const router = createRouter([{ path: '/one' }, { path: '/two' }], { mode: 'memory' });
+    const unsubscribe = router.subscribe((to) => events.push(to.path));
+    await router.navigate('/one');
+    unsubscribe();
+    await router.navigate('/two');
+    expect(events).toEqual(['/one']);
+  });
 });

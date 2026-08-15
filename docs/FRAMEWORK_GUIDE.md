@@ -109,6 +109,8 @@ Run the following before publishing a package or application:
 npm run type-check
 npm test -- --runInBand
 npm run build
+npm run verify:package
+npm audit --omit=dev
 npm run cli -- help
 npm run cli -- dev --cwd ./examples/counter
 ```

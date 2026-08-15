@@ -4,9 +4,9 @@
 - [ ] Audit README, getting started, framework guide, migration guide, changelog, and examples for stale or missing usage.
 - [ ] Write a complete V3 usage guide covering installation, CLI, reactive state, effects, batching, nextTick, components, templates, JSX, router, stores, plugins, SSR, web components, utilities, and error handling.
 - [ ] Add API reference tables and runnable examples for every public module.
-- [ ] Synchronize README, docs, examples, package metadata, and website documentation with version 3.1.9.
+- [x] Synchronize README, docs, examples, package metadata, and website documentation with version 3.1.12.
 - [ ] Validate documentation code samples against the actual package API.
-- [ ] Run type-check, tests, build, and package dry-run.
+- [x] Run type-check, tests, build, package dry-run, and isolated package verification.
 - [ ] Commit documentation changes and prepare GitHub/website checkpoint delivery.
 
 ## OneKit-only documentation web page
@@ -37,7 +37,7 @@
 
 ## Current-state error audit
 
-- [ ] Run type-check, all Jest suites, production build, npm pack dry-run, and clean git status checks.
+- [x] Run type-check, all Jest suites, production build, npm pack dry-run, isolated package verification, and clean git status checks.
 - [ ] Exercise reactive edge cases including arrays, computed invalidation, conditional dependencies, watch disposal, and batching.
 - [ ] Exercise router edge cases including query/hash parsing, dynamic params, redirects, guards, loaders, memory mode, and browser-safe SSR behavior.
 - [ ] Exercise renderer edge cases including keyed reordering, fragments, event replacement, props removal, refs, and empty children.

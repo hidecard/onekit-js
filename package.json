@@ -82,6 +82,7 @@
     "docs:build": "vite build --config examples/docs/vite.config.ts",
     "cli": "node ./bin/onekit.js",
     "test": "jest --config jest.config.cjs",
+    "verify:package": "node scripts/verify-package.cjs",
     "type-check": "tsc --noEmit",
     "prepublishOnly": "npm run type-check && npm test -- --runInBand && npm run build"
   },
@@ -97,7 +98,7 @@
   "dependencies": {
     "@rollup/plugin-commonjs": "^29.0.0",
     "@rollup/plugin-node-resolve": "^16.0.3",
-    "@rollup/plugin-terser": "^0.4.4",
+    "@rollup/plugin-terser": "^1.0.0",
     "@rollup/plugin-typescript": "^12.3.0",
     "rollup": "^4.53.3",
     "tslib": "^2.8.1",

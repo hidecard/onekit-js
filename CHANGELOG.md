@@ -10,7 +10,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Add bounded DevTools event history with detached snapshots, metadata inspection, clear, and dispose controls.
 - Add optional browser-global installation for development inspectors without mutating SSR globals.
-- Add regression coverage for history overflow, browser/SSR lifecycle behavior, and inspector cleanup.
+- Add isolated `verify:package` clean-install verification for root, ESM, CJS, SSR, and CLI entrypoints.
+- Add GitHub Actions CI for Node 18, 20, and 22.
+- Add regression coverage for history overflow, browser/SSR lifecycle behavior, inspector cleanup, and router subscription disposal.
+
+### Fixed
+- Harden template expression rejection and ensure event/model directives use the correct root context.
+- Preserve `ok-*` directive attributes and semantic HTML elements during sanitization.
+- Upgrade the runtime `@rollup/plugin-terser` dependency to remove the vulnerable older transitive serializer.
+- Remove committed `node_modules` artifacts and add repository ignore rules.
 
 ## [3.1.11] - 2026-08-15
 

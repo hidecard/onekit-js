@@ -534,10 +534,12 @@ Run the complete release checks from the repository root:
 npm run type-check
 npm test -- --runInBand
 npm run build
+npm run verify:package
+npm audit --omit=dev
 npm pack --dry-run
 ```
 
-Then inspect the tarball contents and verify that the package version, declaration paths, CLI files, README, documentation, and license are present. Actual publication requires an authenticated npm session:
+`npm run verify:package` creates an isolated temporary project, installs the packed tarball, and checks the root, ESM, CJS, SSR, and CLI entrypoints. Then inspect the tarball contents and verify that the package version, declaration paths, CLI files, README, documentation, and license are present. Pull requests and pushes to the `V3` branch also run the same checks through GitHub Actions. Actual publication requires an authenticated npm session:
 
 ```bash
 npm login
