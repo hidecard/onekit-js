@@ -2,6 +2,10 @@ import typescript from '@rollup/plugin-typescript';
 import { nodeResolve } from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';
 import terser from '@rollup/plugin-terser';
+import { webcrypto } from 'node:crypto';
+
+// Node 18 does not expose Web Crypto as a global in every CI image.
+if (!globalThis.crypto) globalThis.crypto = webcrypto;
 
 export default {
   input: 'src/index.ts',
