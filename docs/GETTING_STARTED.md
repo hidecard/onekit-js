@@ -108,6 +108,26 @@ if (response.ok) console.log(response.data.name);
 
 Server-side HTML string ထုတ်ရန် `renderToString()` နှင့် async output အတွက် `StreamingRenderer` ကို သုံးနိုင်သည်။ SSR code ကို Node/server runtime တွင်သာ run လုပ်ပြီး browser-only APIs များကို lifecycle hook သို့မဟုတ် environment guard အတွင်းထားပါ။
 
+## CLI Starter Project
+
+The npm package is named `onekit-js`, while its executable is named `onekit`. Therefore, use the explicit package form with `npx`:
+
+```bash
+npx --yes --package=onekit-js onekit create my-app
+cd my-app
+npm install
+npm run dev
+```
+
+Alternatively, install the CLI globally:
+
+```bash
+npm install --global onekit-js
+onekit create my-app
+```
+
+`npx onekit create my-app` searches for a package named `onekit`, not the `onekit` binary shipped by `onekit-js`, and may produce `could not determine executable to run`.
+
 ## Project Commands
 
 | Command | Purpose |

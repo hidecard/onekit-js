@@ -45,6 +45,21 @@
 - [ ] Fix confirmed defects and add regression coverage.
 - [ ] Re-run all validation and record remaining non-blocking risks.
 
+## Published package verification and next milestone
+
+- [ ] Verify npm registry version, tarball metadata, CLI binary, CJS import, ESM import, and clean temporary-project installation.
+- [ ] Identify the next highest-priority production gap after M1-M3.
+- [ ] Implement the selected production improvement with regression tests.
+- [ ] Synchronize release documentation and validate the new package workflow.
+
+## npm CLI resolution incident
+
+- [ ] Inspect npm metadata for 3.1.9 and verify whether the `bin` field was removed during publish.
+- [ ] Verify 3.1.10 local package metadata and identify whether it is published to npm.
+- [ ] Validate `npx onekit create my-app` from a clean temporary project.
+- [ ] Confirm generated starter files and its install/build workflow.
+- [ ] Deliver exact recovery and publish instructions.
+
 ## Decisions
 
 - Documentation language: English for the public developer docs.

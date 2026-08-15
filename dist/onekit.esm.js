@@ -3510,7 +3510,7 @@ const jsxDEV = h;
 // Main entry point with tree-shaking friendly exports
 // Core systems
 // Version info
-const VERSION = '3.1.9';
+const VERSION = '3.1.10';
 
 export { API, DependencyInjector, Fragment, OneKit, OneKitWebComponent, Router, StreamingRenderer, VERSION, addScript, addStorePlugin, addStyle, addToBody, addToHead, animations, announce, patch as apiPatch, autorun, batch, bind, cache, compileTemplate, component, computed, create, createElement, createLandmarks, createRouter, createSSRContext, createSkipLink, createStorage, createStore, debounce, deepClone, defineComponent, defineStore, del, destroy, di, effect, generateId, get, getAllStores, getInstance, h, hydrate, initTemplateEngine, isClient, isServer, jsx, jsxDEV, localStorage, makeFocusable, makeUnfocusable, manageTabOrder, mount, nextTick, ok, okjs, onDestroyed, onMounted, onPropsChanged, onUpdated, patch$1 as patch, pluginManager, post, preloadModule, preloadScript, preloadStyle, put, reactive, register, registerDirective, registerWebComponent, removeStore, render, renderMeta, renderOpenGraph, renderTitle, renderToString, request, router, sessionStorage, setAriaAttributes, setMeta, setupComponent, skipToContent, snapshot, stop, throttle, trapFocus, unmount, useStore, validateAccessibility, patch$1 as vdomPatch, watch, withCache };
 //# sourceMappingURL=onekit.esm.js.map
