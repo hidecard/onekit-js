@@ -8,7 +8,7 @@
   "browser": "dist/onekit.js",
   "types": "./dist/types/index.d.ts",
   "bin": {
-    "onekit": "./bin/onekit.js"
+    "onekit": "bin/onekit.js"
   },
   "exports": {
     ".": {
@@ -86,7 +86,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/hidecard/onekit-js"
+    "url": "git+https://github.com/hidecard/onekit-js.git"
   },
   "author": "Arkar Yan",
   "license": "MIT",
