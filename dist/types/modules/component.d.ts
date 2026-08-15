@@ -1,7 +1,7 @@
-interface ComponentProps {
+export interface ComponentProps {
     [key: string]: unknown;
 }
-interface ComponentState {
+export interface ComponentState {
     [key: string]: unknown;
 }
 export type PropType = 'string' | 'number' | 'boolean' | 'object' | 'array' | 'function' | 'symbol';
@@ -46,11 +46,13 @@ export interface ComponentInstance {
     update: () => void;
     [key: string]: unknown;
 }
+export declare function defineComponent(definition: ComponentDefinition): ComponentDefinition;
 export declare function register(name: string, definition: ComponentDefinition): void;
 export declare function create(name: string, props?: ComponentProps, slots?: {
     [key: string]: string;
 }): ComponentInstance | null;
 export declare function mount(component: ComponentInstance | string, target: string | Element | ShadowRoot): ComponentInstance | null;
+export declare const unmount: typeof destroy;
 export declare function getInstance(element: Element): ComponentInstance | undefined;
 export declare function destroy(component: ComponentInstance): void;
 export declare function onMounted(callback: () => void): void;
@@ -58,4 +60,3 @@ export declare function onUpdated(callback: () => void): void;
 export declare function onDestroyed(callback: () => void): void;
 export declare function onPropsChanged(callback: (newProps: ComponentProps, oldProps: ComponentProps) => void): void;
 export declare function setupComponent(instance: ComponentInstance, setupFn: (props: ComponentProps) => ComponentState): ComponentState;
-export {};

@@ -445,8 +445,9 @@ class OneKit {
         }
         return this.each(function () {
             if (selector && handler) {
+                const delegatedSelector = selector;
                 this.addEventListener(event, function (e) {
-                    if (e.target && e.target.matches?.(selector)) {
+                    if (e.target && e.target.matches?.(delegatedSelector)) {
                         handler.call(e.target, e);
                     }
                 });
@@ -1031,6 +1032,9 @@ function batch(fn) {
         flushJobs();
     }
 }
+function nextTick(callback) {
+    return Promise.resolve().then(() => callback?.());
+}
 function snapshot(obj) {
     return deepCloneSafe(obj);
 }
@@ -1383,6 +1387,10 @@ registerDirective('on', {
         }
     }
 });
+// Initialize built-in directives
+function initTemplateEngine() {
+    // Directives are already registered above
+}
 
 // Component System Module
 const components = {};
@@ -1464,6 +1472,9 @@ function validateProps(props, propDefs, componentName) {
         }
     }
     return validatedProps;
+}
+function defineComponent(definition) {
+    return definition;
 }
 function register(name, definition) {
     components[name] = definition;
@@ -1602,6 +1613,7 @@ function mount(component, target) {
     }
     return comp;
 }
+const unmount = destroy;
 function getInstance(element) {
     return componentInstances.get(element);
 }
@@ -3115,6 +3127,159 @@ function withCache(key, renderFn, ttl = 300000 // 5 minutes
     return result;
 }
 
+// Web Components Integration Module
+class OneKitWebComponent extends HTMLElement {
+    componentInstance = null;
+    componentDef;
+    constructor(componentDef, options = {}) {
+        super();
+        this.componentDef = componentDef;
+        // Create shadow DOM
+        const shadow = this.attachShadow({ mode: 'open' });
+        // Register component if it has a name
+        if (componentDef.name) {
+            register(componentDef.name, componentDef);
+        }
+        // Create component instance
+        this.componentInstance = create(componentDef.name || 'anonymous');
+        // Mount component to shadow DOM
+        if (this.componentInstance) {
+            mount(this.componentInstance, shadow);
+        }
+    }
+    connectedCallback() {
+        // Component is already mounted in constructor
+    }
+    disconnectedCallback() {
+        if (this.componentInstance) {
+            destroy(this.componentInstance);
+        }
+    }
+    attributeChangedCallback(name, oldValue, newValue) {
+        if (this.componentInstance && this.componentInstance.props) {
+            // Update component props when attributes change
+            this.componentInstance.props[name] = newValue;
+            // Trigger update if component has update method
+            if (this.componentInstance.update) {
+                this.componentInstance.update();
+            }
+        }
+    }
+    // Get observed attributes from component props
+    static get observedAttributes() {
+        return [];
+    }
+}
+function registerWebComponent(name, componentDef, options = {}) {
+    // Create custom element class
+    class CustomWebComponent extends OneKitWebComponent {
+        constructor() {
+            super(componentDef, options);
+        }
+        static get observedAttributes() {
+            // Observe attributes based on component props
+            if (componentDef.props) {
+                return Object.keys(componentDef.props);
+            }
+            return options.observedAttributes || [];
+        }
+    }
+    // Register custom element
+    if (!customElements.get(name)) {
+        customElements.define(name, CustomWebComponent, {
+            extends: options.extends
+        });
+    }
+}
+
+// OKJS - OneKit JavaScript Template Syntax Module
+// OKJS template parser - custom syntax: [tag attr="value"]content[/tag]
+function okjs(template, ...values) {
+    const parsed = parseOKJSTemplate(template.raw[0]);
+    return createVNodeFromOKJS(parsed);
+}
+// Parse OKJS template string into AST-like structure
+function parseOKJSTemplate(template) {
+    // Simple parser for [tag attr="value"]content[/tag] syntax
+    const regex = /\[(\w+)(?:\s+([^\/\]]*?))?\](.*?)\[\/(\w+)\]/gs;
+    const selfClosingRegex = /\[(\w+)(?:\s+([^\/\]]*?))?\s*\/\]/g;
+    let result = { tag: 'div', props: {}, children: [] };
+    // Handle self-closing tags
+    template = template.replace(selfClosingRegex, (match, tag, attrs) => {
+        const props = parseAttributes(attrs || '');
+        const element = { tag, props, children: [] };
+        result.children.push(element);
+        return '';
+    });
+    // Handle regular tags
+    let match;
+    while ((match = regex.exec(template)) !== null) {
+        const [, openTag, attrs, content, closeTag] = match;
+        if (openTag !== closeTag) {
+            throw new Error(`OKJS: Mismatched tags: ${openTag} and ${closeTag}`);
+        }
+        const props = parseAttributes(attrs || '');
+        const children = parseContent(content);
+        const element = { tag: openTag, props, children };
+        result.children.push(element);
+    }
+    // If no tags found, treat as text content
+    if (result.children.length === 0) {
+        result.children = [template];
+    }
+    return result;
+}
+// Parse attributes string into props object
+function parseAttributes(attrsStr) {
+    const props = {};
+    const attrRegex = /(\w+)="([^"]*)"/g;
+    let match;
+    while ((match = attrRegex.exec(attrsStr)) !== null) {
+        const [, key, value] = match;
+        props[key] = value;
+    }
+    return props;
+}
+// Parse content string into children array
+function parseContent(content) {
+    const children = [];
+    const parts = content.split(/(\[.*?\])/);
+    for (const part of parts) {
+        if (part.trim()) {
+            if (part.startsWith('[') && part.endsWith(']')) {
+                // Nested element
+                const nested = parseOKJSTemplate(part);
+                children.push(nested);
+            }
+            else {
+                // Text content
+                children.push(part.trim());
+            }
+        }
+    }
+    return children;
+}
+// Create VNode from OKJS element
+function createVNodeFromOKJS(element) {
+    if (typeof element.tag === 'function') {
+        // Component
+        const componentProps = { ...element.props, children: element.children };
+        const instance = create(element.tag.name, componentProps);
+        return instance;
+    }
+    // Regular element
+    const validChildren = element.children.filter(child => child !== null && child !== undefined && child !== false);
+    return createElement(element.tag, element.props, ...validChildren.map(child => typeof child === 'string' || typeof child === 'number' || typeof child === 'boolean' ? String(child) : createVNodeFromOKJS(child)));
+}
+// Fragment support
+const Fragment = 'fragment';
+// Helper for creating components with OKJS
+function component(definition) {
+    return function (props = {}) {
+        return create(definition.name || 'anonymous', props);
+    };
+}
+
 // OneKit - Modern JavaScript Framework
 // Main entry point with tree-shaking friendly exports
 // Core systems
@@ -3123,7 +3288,9 @@ const VERSION = '3.1.8';
 
 exports.API = API;
 exports.DependencyInjector = DependencyInjector;
+exports.Fragment = Fragment;
 exports.OneKit = OneKit;
+exports.OneKitWebComponent = OneKitWebComponent;
 exports.Router = Router;
 exports.StreamingRenderer = StreamingRenderer;
 exports.VERSION = VERSION;
@@ -3139,6 +3306,8 @@ exports.autorun = autorun;
 exports.batch = batch;
 exports.bind = bind;
 exports.cache = cache;
+exports.compileTemplate = compileTemplate;
+exports.component = component;
 exports.computed = computed;
 exports.create = create;
 exports.createElement = createElement;
@@ -3149,6 +3318,7 @@ exports.createStorage = createStorage;
 exports.createStore = createStore;
 exports.debounce = debounce;
 exports.deepClone = deepClone;
+exports.defineComponent = defineComponent;
 exports.defineStore = defineStore;
 exports.del = del;
 exports.destroy = destroy;
@@ -3158,15 +3328,21 @@ exports.generateId = generateId;
 exports.get = get;
 exports.getAllStores = getAllStores;
 exports.getInstance = getInstance;
+exports.h = okjs;
 exports.hydrate = hydrate;
+exports.initTemplateEngine = initTemplateEngine;
 exports.isClient = isClient;
 exports.isServer = isServer;
+exports.jsx = okjs;
+exports.jsxDEV = okjs;
 exports.localStorage = localStorage;
 exports.makeFocusable = makeFocusable;
 exports.makeUnfocusable = makeUnfocusable;
 exports.manageTabOrder = manageTabOrder;
 exports.mount = mount;
+exports.nextTick = nextTick;
 exports.ok = ok;
+exports.okjs = okjs;
 exports.onDestroyed = onDestroyed;
 exports.onMounted = onMounted;
 exports.onPropsChanged = onPropsChanged;
@@ -3179,6 +3355,8 @@ exports.preloadStyle = preloadStyle;
 exports.put = put;
 exports.reactive = reactive;
 exports.register = register;
+exports.registerDirective = registerDirective;
+exports.registerWebComponent = registerWebComponent;
 exports.removeStore = removeStore;
 exports.render = render;
 exports.renderMeta = renderMeta;
@@ -3195,6 +3373,7 @@ exports.skipToContent = skipToContent;
 exports.snapshot = snapshot;
 exports.throttle = throttle;
 exports.trapFocus = trapFocus;
+exports.unmount = unmount;
 exports.useStore = useStore;
 exports.validateAccessibility = validateAccessibility;
 exports.vdomPatch = patch$1;

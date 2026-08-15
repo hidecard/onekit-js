@@ -109,6 +109,19 @@ This is a major version update with breaking changes. See [MIGRATION_GUIDE.md](M
 ### Added
 - Added `docs/GETTING_STARTED.md`, a reactive counter example, and a store-backed todo example.
 
+## Framework Expansion — 2026-08-15
+
+### Added
+- Added `nextTick`, `defineComponent`, and `unmount` ergonomic APIs.
+- Added public template, JSX, web-component, and router exports.
+- Added a working `onekit create` starter generator and `onekit build` TypeScript-aware bundler.
+- Added CLI packaging metadata, Node.js engine requirements, subpath exports, and framework guide documentation.
+- Added CLI regression coverage; the suite now covers ten passing tests.
+
+### Improved
+- Fixed CLI missing-dependency failures by using maintained Rollup plugins and Node.js built-ins.
+- Improved delegated event typing and modern TypeScript build targets.
+
 ## Contributing
 
 When contributing to OneKit, please:

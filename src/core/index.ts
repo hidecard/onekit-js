@@ -313,8 +313,9 @@ export class OneKit {
 
     return this.each(function() {
       if (selector && handler) {
+        const delegatedSelector = selector as string;
         this.addEventListener(event, function(e: Event) {
-          if (e.target && (e.target as Element).matches?.(selector)) {
+          if (e.target && (e.target as Element).matches?.(delegatedSelector)) {
             handler!.call(e.target, e);
           }
         });

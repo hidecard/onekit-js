@@ -259,6 +259,10 @@ export function batch<T>(fn: () => T): T {
   }
 }
 
+export function nextTick<T = void>(callback?: () => T): Promise<T | void> {
+  return Promise.resolve().then(() => callback?.());
+}
+
 export function snapshot<T extends object>(obj: T): T {
   return deepCloneSafe(obj) as T;
 }

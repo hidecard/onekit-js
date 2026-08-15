@@ -23,6 +23,7 @@ export declare function watch(source: string | symbol | object | (() => unknown)
     immediate?: boolean;
 }): () => void;
 export declare function batch<T>(fn: () => T): T;
+export declare function nextTick<T = void>(callback?: () => T): Promise<T | void>;
 export declare function snapshot<T extends object>(obj: T): T;
 export declare function bind(element: string | Element, reactiveObj: ReactiveObject, property: string, attribute?: string): void;
 export {};

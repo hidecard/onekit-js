@@ -42,11 +42,30 @@
       "import": "./dist/onekit.esm.js",
       "require": "./dist/onekit.cjs.js"
     },
+    "./template": {
+      "types": "./dist/types/modules/template.d.ts",
+      "import": "./dist/onekit.esm.js",
+      "require": "./dist/onekit.cjs.js"
+    },
+    "./jsx": {
+      "types": "./dist/types/modules/jsx.d.ts",
+      "import": "./dist/onekit.esm.js",
+      "require": "./dist/onekit.cjs.js"
+    },
+    "./router": {
+      "types": "./dist/types/modules/router.d.ts",
+      "import": "./dist/onekit.esm.js",
+      "require": "./dist/onekit.cjs.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
     "dist",
     "src",
+    "bin",
+    "lib",
+    "docs",
+    "examples",
     "README.md",
     "CHANGELOG.md",
     "MIGRATION_GUIDE.md"
@@ -55,6 +74,7 @@
     "build": "rollup -c",
     "dev": "rollup -c -w",
     "dev:vite": "vite",
+    "cli": "node ./bin/onekit.js",
     "test": "jest --config jest.config.cjs",
     "type-check": "tsc --noEmit"
   },
@@ -64,6 +84,9 @@
   },
   "author": "Arkar Yan",
   "license": "ISC",
+  "engines": {
+    "node": ">=18"
+  },
   "bugs": {
     "url": "https://github.com/hidecard/onekit-js/issues"
   },

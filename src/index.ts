@@ -18,6 +18,9 @@ export * from './modules/utils';
 export * from './modules/a11y';
 export * from './modules/store';
 export * from './modules/ssr';
+export * from './modules/template';
+export { OneKitWebComponent, registerWebComponent } from './modules/web-components';
+export { okjs, component, h, jsx, jsxDEV, Fragment } from './modules/jsx';
 
 // Version info
 export const VERSION = '3.1.8';

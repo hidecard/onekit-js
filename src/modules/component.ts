@@ -5,11 +5,11 @@ import { di } from '../core/di';
 import { compileTemplate } from './template';
 import { reactive, effect } from './reactive';
 
-interface ComponentProps {
+export interface ComponentProps {
   [key: string]: unknown;
 }
 
-interface ComponentState {
+export interface ComponentState {
   [key: string]: unknown;
 }
 
@@ -156,6 +156,10 @@ function validateProps(props: ComponentProps, propDefs: ComponentPropsDefinition
   }
 
   return validatedProps;
+}
+
+export function defineComponent(definition: ComponentDefinition): ComponentDefinition {
+  return definition;
 }
 
 export function register(name: string, definition: ComponentDefinition): void {
@@ -312,6 +316,8 @@ export function mount(component: ComponentInstance | string, target: string | El
 
   return comp;
 }
+
+export const unmount = destroy;
 
 export function getInstance(element: Element): ComponentInstance | undefined {
   return componentInstances.get(element);
