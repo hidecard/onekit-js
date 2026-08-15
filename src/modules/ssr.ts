@@ -78,7 +78,7 @@ function renderHtmlTag(node: VNode, context: SSRContext): string {
     } else if (child.tag === 'body') {
       bodyContent = renderBodyTag(child, context);
     } else {
-      bodyContent += renderVNode(child);
+      bodyContent += renderVNode(child, context);
     }
   });
 
@@ -89,7 +89,7 @@ ${bodyContent}
 </html>`;
 }
 
-function renderVNode(node: VNode | string): string {
+function renderVNode(node: VNode | string, context: SSRContext = createSSRContext()): string {
   if (typeof node === 'string') {
     return escapeHtml(node);
   }
@@ -98,25 +98,25 @@ function renderVNode(node: VNode | string): string {
 
   // Handle special tags
   if (tag === 'html') {
-    return renderHtmlTag(node, { head: [], body: [], styles: [], scripts: [], meta: {} });
+    return renderHtmlTag(node, context);
   }
   if (tag === 'head') {
-    return renderHeadTag(node, { head: [], body: [], styles: [], scripts: [], meta: {} });
+    return renderHeadTag(node, context);
   }
   if (tag === 'body') {
-    return renderBodyTag(node, { head: [], body: [], styles: [], scripts: [], meta: {} });
+    return renderBodyTag(node, context);
   }
 
   // Handle component rendering (simplified for SSR)
   if (typeof tag === 'function') {
     // For functional components, call them to get vnode
     const componentResult = (tag as Function)(props);
-    return renderVNode(componentResult);
+    return renderVNode(componentResult, context);
   }
 
   // Regular HTML element
   const attrs = renderAttributes(props);
-  const childrenHtml = children.map(renderVNode).join('');
+  const childrenHtml = children.map(child => renderVNode(child, context)).join('');
 
   if (isSelfClosingTag(tag)) {
     return `<${tag}${attrs}>`;
@@ -135,7 +135,7 @@ function renderHeadTag(node: VNode, context: SSRContext): string {
     if (typeof child === 'string') {
       content += escapeHtml(child);
     } else {
-      content += renderVNode(child);
+      content += renderVNode(child, context);
     }
   });
 
@@ -146,8 +146,8 @@ function renderHeadTag(node: VNode, context: SSRContext): string {
 
   // Add meta tags from context
   if (context.meta) {
-    Object.entries(context.meta).forEach(([name, content]) => {
-      content += `<meta name="${name}" content="${escapeHtml(content)}">\n`;
+    Object.entries(context.meta).forEach(([name, value]) => {
+      content += `<meta name="${escapeHtml(name)}" content="${escapeHtml(value)}">\n`;
     });
   }
 
@@ -164,7 +164,7 @@ function renderBodyTag(node: VNode, context: SSRContext): string {
     if (typeof child === 'string') {
       content += escapeHtml(child);
     } else {
-      content += renderVNode(child);
+      content += renderVNode(child, context);
     }
   });
 
@@ -213,57 +213,127 @@ function isSelfClosingTag(tag: string): boolean {
 function escapeHtml(text: string): string {
   const htmlEscapes: Record<string, string> = {
     '&': '&amp;',
-    '<': '<',
-    '>': '>',
-    '"': '"',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
     "'": '&#39;'
   };
 
   return text.replace(/[&<>"']/g, char => htmlEscapes[char]);
 }
 
-// Hydration for client-side activation
-export function hydrate(rootElement: Element, vnode: VNode): void {
-  // Walk the DOM and attach event listeners
-  walkAndHydrate(rootElement, vnode);
+export interface HydrationMismatch {
+  path: string;
+  kind: 'tag' | 'text' | 'missing' | 'unexpected';
+  expected: string;
+  actual: string;
 }
 
-function walkAndHydrate(element: Element, vnode: VNode): void {
-  // Attach event listeners from vnode props
+export interface HydrationResult {
+  mismatches: HydrationMismatch[];
+  dispose: () => void;
+}
+
+// Hydration attaches client behavior without rewriting server-rendered DOM.
+// It reports parity problems so applications can fail loudly in development.
+export function hydrate(rootElement: Element, vnode: VNode): HydrationResult {
+  const mismatches: HydrationMismatch[] = [];
+  const cleanups: Array<() => void> = [];
+  walkAndHydrate(rootElement, vnode, 'root', mismatches, cleanups);
+
+  return {
+    mismatches,
+    dispose: () => {
+      while (cleanups.length > 0) cleanups.pop()?.();
+    },
+  };
+}
+
+function walkAndHydrate(
+  element: Element,
+  vnode: VNode,
+  path: string,
+  mismatches: HydrationMismatch[],
+  cleanups: Array<() => void>,
+): void {
+  if (typeof vnode.tag === 'function') {
+    const resolved = (vnode.tag as Function)(vnode.props) as VNode;
+    walkAndHydrate(element, resolved, path, mismatches, cleanups);
+    return;
+  }
+
+  if (vnode.tag !== 'fragment' && element.tagName.toLowerCase() !== vnode.tag.toLowerCase()) {
+    mismatches.push({
+      path,
+      kind: 'tag',
+      expected: vnode.tag,
+      actual: element.tagName.toLowerCase(),
+    });
+  }
+
   for (const [key, value] of Object.entries(vnode.props)) {
     if (key.startsWith('on') && typeof value === 'function') {
       const eventName = key.slice(2).toLowerCase();
-      element.addEventListener(eventName, value as EventListener);
+      const listener = value as EventListener;
+      element.addEventListener(eventName, listener);
+      cleanups.push(() => element.removeEventListener(eventName, listener));
     }
   }
 
-  // Store vnode reference for future patches
-  (element as any)._vnode = vnode;
+  (element as Element & { _vnode?: VNode })._vnode = vnode;
 
-  // Walk children
-  const childNodes = Array.from(element.childNodes);
-  let childIndex = 0;
+  const childNodes = Array.from(element.childNodes).filter(node =>
+    !(node.nodeType === Node.TEXT_NODE && node.textContent?.trim() === ''),
+  );
+  vnode.children.forEach((child, index) => {
+    const domChild = childNodes[index];
+    const childPath = `${path}.${index}`;
 
-  vnode.children.forEach(child => {
-    if (typeof child === 'string') {
-      // Skip text nodes for hydration
-      while (childIndex < childNodes.length && childNodes[childIndex].nodeType !== Node.TEXT_NODE) {
-        childIndex++;
-      }
-      if (childIndex < childNodes.length) {
-        childIndex++;
-      }
-    } else {
-      // Find corresponding element node
-      while (childIndex < childNodes.length && childNodes[childIndex].nodeType !== Node.ELEMENT_NODE) {
-        childIndex++;
-      }
-      if (childIndex < childNodes.length) {
-        walkAndHydrate(childNodes[childIndex] as Element, child);
-        childIndex++;
-      }
+    if (!domChild) {
+      mismatches.push({
+        path: childPath,
+        kind: 'missing',
+        expected: typeof child === 'string' ? child : String(child.tag),
+        actual: 'missing',
+      });
+      return;
     }
+
+    if (typeof child === 'string') {
+      if (domChild.nodeType !== Node.TEXT_NODE || domChild.textContent !== child) {
+        mismatches.push({
+          path: childPath,
+          kind: 'text',
+          expected: child,
+          actual: domChild.textContent || '',
+        });
+      }
+      return;
+    }
+
+    if (domChild.nodeType !== Node.ELEMENT_NODE) {
+      mismatches.push({
+        path: childPath,
+        kind: 'tag',
+        expected: String(child.tag),
+        actual: '#text',
+      });
+      return;
+    }
+
+    walkAndHydrate(domChild as Element, child, childPath, mismatches, cleanups);
   });
+
+  if (childNodes.length > vnode.children.length) {
+    for (let index = vnode.children.length; index < childNodes.length; index += 1) {
+      mismatches.push({
+        path: `${path}.${index}`,
+        kind: 'unexpected',
+        expected: 'none',
+        actual: childNodes[index].textContent || childNodes[index].nodeName.toLowerCase(),
+      });
+    }
+  }
 }
 
 // Streaming SSR utilities

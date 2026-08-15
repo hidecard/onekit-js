@@ -13,7 +13,7 @@ OneKit JS V3 is a usable compact browser framework and a credible foundation for
 | Reactive state | Proxy-based `reactive`, `effect`, `computed`, `watch`, `batch`, and `nextTick` | Foundation is usable; dependency cleanup, cancellation, deep watch semantics, and scheduler behavior need a formal contract. |
 | Components | Options-style components, templates, lifecycle hooks, mount/unmount | Suitable for demos and small apps; update diffing, event listener ownership, prop updates, and composition APIs need hardening. |
 | VDOM/JSX | Basic VDOM and JSX helpers exist | Needs broader reconciliation, keyed lists, fragments, refs, controlled inputs, and hydration parity tests. |
-| SSR | String rendering, streaming utilities, hydration helpers, metadata helpers | Promising but incomplete; async boundaries, mismatch detection, document context handling, serialization, and security need dedicated tests. |
+| SSR | String rendering, streaming utilities, request-scoped context, hydration helpers, metadata helpers | M4 baseline complete: escaping, nested context propagation, metadata safety, hydration mismatch diagnostics, listener disposal, and boundary primitives are tested. Streaming abort/error semantics and async scheduling remain future work. |
 | Router | Minimal `Router` class with exact path lookup and handlers | Not yet comparable to a production router; needs route matching, params, history integration, guards, nested layouts, 404 handling, and SSR URL resolution. |
 | Stores | Named stores and actions are available | Needs lifecycle, reset, subscriptions, dev inspection, persistence policy, and SSR request isolation. |
 | CLI | `create` and `build` commands work | Needs dev command, inspectable configuration, framework templates, diagnostics, plugin hooks, and cross-platform acceptance tests. |
@@ -36,7 +36,9 @@ A production router should support exact and dynamic paths, query strings, param
 
 ### 4. Establish SSR and hydration parity
 
-SSR must have tests that render the same tree on the server and client, including attributes, boolean properties, event handlers, fragments, async components, nested components, text escaping, metadata, and mismatches. Hydration should detect or report structural mismatches rather than silently attaching listeners to the wrong nodes. Streaming should define how errors, aborts, async boundaries, and document head content are handled.
+**M4 baseline status:** SSR now preserves request-scoped context through nested elements and components, escapes text and attributes, safely renders metadata, and remains import-safe in Node. Hydration reports structural mismatches and returns a disposer for listeners without silently rewriting server DOM. Error and loading boundary primitives are available for render, loader, and SSR adapters.
+
+Remaining SSR work includes async component scheduling, streaming abort/error semantics, serialized loader state, and a larger browser compatibility matrix.
 
 ### 5. Improve component rendering architecture
 
@@ -52,7 +54,7 @@ Applications need framework-level error capture for render errors, effect errors
 
 ### 8. Release safely
 
-Before publishing 3.1.9, the package should pass type-checking, all tests, production build, package dry-run, subpath import checks, and a clean-install smoke test from the generated tarball. A changelog entry, migration notes, and a versioned API stability matrix should accompany the release. The actual npm publish remains a user-authenticated step.
+Before publishing a new release, the package should pass type-checking, all tests, production build, package dry-run, subpath import checks, and a clean-install smoke test from the generated tarball. A changelog entry, migration notes, and a versioned API stability matrix should accompany the release. The actual npm publish remains a user-authenticated step.
 
 ## Suggested implementation order
 
@@ -61,7 +63,7 @@ Before publishing 3.1.9, the package should pass type-checking, all tests, produ
 | M1 | Reactive contract and tests | Conditional effects, cleanup, watch stop, computed chains, batching, and arrays pass deterministic tests. |
 | M2 | Router 1.0 | Factory API, dynamic params, history, guards, 404, and SSR matching are documented and tested. |
 | M3 | Renderer 1.0 | Keyed reconciliation, fragments, event cleanup, refs, and component error handling are stable. |
-| M4 | SSR 1.0 | Server/client parity suite, mismatch diagnostics, streaming error semantics, and safe metadata handling pass. |
+| M4 | SSR 1.0 | Server/client parity suite, mismatch diagnostics, safe metadata handling, context isolation, hydration disposal, and boundary primitives are implemented; streaming error semantics remain follow-up work. |
 | M5 | CLI 1.0 | Create/dev/build/preview/test workflow works from a clean install and generated starter. |
 | M6 | Release 3.x | Package export matrix, changelog, migration guide, clean-install smoke test, and npm release verification are complete. |
 
@@ -71,7 +73,7 @@ OneKit should not currently claim to be a drop-in React replacement, a Next.js r
 
 ## Adoption recommendation
 
-Teams can use the current release for documentation sites, interactive pages, internal tools, prototypes, and small browser-first applications after pinning the exact version and keeping an escape hatch to standard DOM APIs. For high-risk production applications, wait until the router, SSR/hydration parity, renderer reconciliation, error boundaries, and clean-install release checks are complete.
+Teams can use the current release for documentation sites, interactive pages, internal tools, prototypes, and small browser-first applications after pinning the exact version and keeping an escape hatch to standard DOM APIs. For high-risk production applications, wait until async/streaming SSR semantics, the complete CLI workflow, renderer benchmarks, and clean-install release checks are complete.
 
 ## References
 

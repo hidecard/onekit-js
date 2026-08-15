@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [3.1.10] - 2026-08-15
 
+### Added
+- Add M4 SSR/Hydration hardening with request-scoped nested rendering, mismatch diagnostics, hydration listener disposal, and error/loading boundary primitives.
+- Add regression coverage for SSR, hydration, boundaries, Node-safe imports, and runtime package behavior.
+
 ### Fixed
 - Preserve the `onekit` CLI binary in published npm packages.
 - Load the Rollup build implementation lazily so `onekit --help` works after a clean install.

@@ -1,5 +1,7 @@
 // Core OneKit functionality
-import { errorHandler, safeMethod } from './error-handler';
+import { errorHandler, safeMethod, createErrorBoundary, createLoadingBoundary } from './error-handler';
+
+export { errorHandler, safeMethod, createErrorBoundary, createLoadingBoundary } from './error-handler';
 import { sanitizeHTML, validateSelector, sanitizeURL, deepCloneSafe, validateStorageKey } from './security';
 import { reactive, computed, effect, autorun, watch, batch, snapshot, bind } from '../modules/reactive';
 import { compileTemplate, registerDirective, initTemplateEngine } from '../modules/template';

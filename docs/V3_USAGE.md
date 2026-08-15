@@ -326,7 +326,31 @@ const result = renderToString(h("main", null, "Rendered on the server"), context
 console.log(result.html);
 ```
 
-Use `hydrate(rootElement, vnode)` on the client when the server-rendered DOM should be connected to the client view. `isServer` and `isClient` help guard environment-specific code. `withCache` can cache repeated SSR render work when its cache key and lifecycle are controlled by the application.
+Use `hydrate(rootElement, vnode)` on the client when the server-rendered DOM should be connected to the client view. Hydration returns `{ mismatches, dispose }`: `mismatches` reports tag, text, missing-node, and unexpected-node parity failures without rewriting the server DOM, while `dispose()` removes listeners attached by hydration. `isServer` and `isClient` help guard environment-specific code. `withCache` can cache repeated SSR render work when its cache key and lifecycle are controlled by the application.
+
+```ts
+const hydration = hydrate(root, App());
+if (hydration.mismatches.length > 0) {
+  console.warn("OneKit hydration mismatch", hydration.mismatches);
+}
+// Call hydration.dispose() when the root is removed.
+```
+
+For recoverable synchronous and asynchronous failures, use the framework boundary primitives:
+
+```ts
+import { createErrorBoundary, createLoadingBoundary } from "onekit-js";
+
+const errors = createErrorBoundary({
+  fallback: (error) => h("p", {}, `Could not render: ${error.message}`),
+});
+const loading = createLoadingBoundary<string>();
+
+const view = errors.render(() => renderPage(), "route-render");
+await loading.run(() => fetchPage());
+```
+
+`createErrorBoundary` captures sync work, async work through `runAsync`, exposes `state.error`, and provides `reset()`. `createLoadingBoundary` exposes `state.pending` and a `render(loading, ready)` helper. These are primitives for route loaders, app shells, and SSR adapters; they do not automatically replace an application router or renderer.
 
 ## 10. HTTP API helpers
 
