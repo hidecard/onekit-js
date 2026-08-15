@@ -5,6 +5,7 @@
   "version": "0.1.0",
   "publisher": "hidecard",
   "license": "MIT",
+  "icon": "icon.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/hidecard/onekit-js.git",
@@ -51,6 +52,7 @@
     "package.json",
     "README.md",
     "LICENSE",
+    "icon.png",
     "language-configuration.json",
     "syntaxes/okjs.tmLanguage.json",
     "snippets/okjs.json",

@@ -633,7 +633,7 @@ The full syntax and security notes are in [`docs/OKJS_GUIDE.md`](docs/OKJS_GUIDE
 
 ### VS Code syntax highlighting
 
-The repository includes a declarative VS Code extension under [`extensions/vscode-okjs`](extensions/vscode-okjs). It associates `.okjs` files with the OneKit OKJS language, embeds TypeScript/JavaScript/CSS/HTML grammars, highlights OneKit directives, and provides `ok-component`, `ok-template`, `ok-interpolation`, and `ok-for` snippets. To create a local VSIX:
+The repository includes a declarative VS Code extension under [`extensions/vscode-okjs`](extensions/vscode-okjs). It associates `.okjs` files with the OneKit OKJS language, embeds TypeScript/JavaScript/CSS/HTML grammars, highlights OneKit directives, provides `ok-component`, `ok-template`, `ok-interpolation`, and `ok-for` snippets, and includes the 128×128 OneKit JS icon at [`extensions/vscode-okjs/icon.png`](extensions/vscode-okjs/icon.png). To create a local VSIX:
 
 ```bash
 cd extensions/vscode-okjs

@@ -1,6 +1,6 @@
 # OneKit OKJS for VS Code
 
-This extension adds language support for OneKit JS V3 `.okjs` single-file components. It associates `.okjs` files with the OneKit OKJS language, highlights `<script>`, `<template>`, and `<style>` blocks, embeds TypeScript/JavaScript/CSS/HTML grammars, highlights OneKit directives, and provides starter snippets.
+This extension adds language support for OneKit JS V3 `.okjs` single-file components. It includes the OneKit JS 128×128 icon for the VS Code extension listing and local VSIX installation. It associates `.okjs` files with the OneKit OKJS language, highlights `<script>`, `<template>`, and `<style>` blocks, embeds TypeScript/JavaScript/CSS/HTML grammars, highlights OneKit directives, and provides starter snippets.
 
 ## Local installation
 
