@@ -1,6 +1,6 @@
 # OneKit JS V3 Usage Guide
 
-**Target release:** OneKit JS V3 / 3.1.9  
+**Target release:** OneKit JS V3 / 3.1.11  
 **License:** MIT  
 **Runtime:** Browser-first JavaScript and TypeScript
 
@@ -41,9 +41,20 @@ Create accepts relative or absolute target paths. The generated project contains
 
 ```bash
 onekit build
+onekit dev
+onekit preview
+onekit test
 ```
 
-The create command generates a Vite-compatible TypeScript starter by default. Use `--javascript` or `--template js` for a JavaScript starter. The build command detects a TypeScript or JavaScript application entrypoint and emits a production bundle. Use `onekit --help` after a global install, or `npx --yes --package=onekit-js onekit --help` without a global install.
+The create command generates a Vite-compatible TypeScript starter by default. Use `--javascript` or `--template js` for a JavaScript starter. The build command detects a TypeScript or JavaScript application entrypoint and emits a production bundle. `onekit dev` delegates to the project `dev` script, `onekit preview` requires a `dist` directory and delegates to the `preview` script, and `onekit test` delegates to the project `test` script while preserving the child process exit code. Use `--cwd <directory>` to run commands from another project and pass additional arguments after the command.
+
+```bash
+onekit dev --cwd ./my-app -- --host 0.0.0.0
+onekit preview --cwd ./my-app -- --port 4173
+onekit test --cwd ./my-app -- --watch
+```
+
+Use `onekit --help` after a global install, or `npx --yes --package=onekit-js onekit --help` without a global install.
 
 ## 3. Reactive state
 
@@ -506,4 +517,5 @@ Never place an npm access token in source files, commit history, chat messages, 
 [6]: ../src/modules/ssr.ts "SSR implementation"  
 [7]: ../bin/onekit.js "OneKit CLI entry point"  
 [8]: ../lib/cli/create.js "OneKit create command"  
-[9]: ../lib/cli/build.js "OneKit build command"
+[9]: ../lib/cli/build.js "OneKit build command"  
+[10]: ../lib/cli/run.js "OneKit project workflow command runner"

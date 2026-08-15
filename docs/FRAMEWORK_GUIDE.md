@@ -1,6 +1,6 @@
 # OneKit JS Framework Guide
 
-OneKit JS V3.1.9 is a small, browser-first JavaScript and TypeScript framework with reactive state, component lifecycle hooks, a store, routing, server-side rendering, JSX helpers, web components, and a zero-configuration CLI. The API is intentionally modular: applications may start with a single `reactive` object and grow into component- and route-based projects without adopting a large runtime. For copy-ready signatures and runnable usage for every public area, continue with [V3_USAGE.md](V3_USAGE.md).
+OneKit JS V3.1.11 is a small, browser-first JavaScript and TypeScript framework with reactive state, component lifecycle hooks, a store, routing, server-side rendering, JSX helpers, web components, and a zero-configuration CLI. The API is intentionally modular: applications may start with a single `reactive` object and grow into component- and route-based projects without adopting a large runtime. For copy-ready signatures and runnable usage for every public area, continue with [V3_USAGE.md](V3_USAGE.md).
 
 ## Recommended application shape
 
@@ -74,11 +74,14 @@ The CLI is included in the npm package and exposes predictable commands:
 ```bash
 onekit help
 onekit create dashboard
+onekit dev
 onekit build --out-dir dist
+onekit preview
+onekit test
 onekit build --no-minify
 ```
 
-`onekit create` and `npm create onekit@latest` generate Vite-compatible TypeScript or JavaScript starters. `onekit build` reads the current package's `source` field, or falls back to `src/index.js`, and emits ESM, CommonJS, browser, source-map, and optional minified artifacts.
+`onekit create` and `npm create onekit@latest` generate Vite-compatible TypeScript or JavaScript starters. `onekit dev`, `onekit preview`, and `onekit test` delegate to the current project's scripts, preserve child exit codes, support `--cwd <directory>`, and forward arguments after `--`. Preview requires a `dist` output directory. `onekit build` reads the current package's `source` field, or falls back to `src/index.js`, and emits ESM, CommonJS, browser, source-map, and optional minified artifacts.
 
 ## Public package subpaths
 

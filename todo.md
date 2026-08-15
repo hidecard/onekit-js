@@ -80,6 +80,16 @@
 - [ ] Define and implement the next CLI/release milestone after the scaffolder.
 - [ ] Run full validation, update changelog/docs, and publish-ready the next M-series release.
 
+## M5 CLI workflow
+
+- [ ] Define `dev`, `preview`, and `test` command flags, exit codes, and project-root detection behavior.
+- [ ] Implement `onekit dev` with passthrough Vite arguments and cross-platform process signals.
+- [ ] Implement `onekit preview` with build/output validation and passthrough preview arguments.
+- [ ] Implement `onekit test` with project test-runner delegation and consistent exit codes.
+- [ ] Add CLI tests for command parsing, missing scripts, invalid projects, passthrough args, and child-process failures.
+- [ ] Validate the commands from a clean generated TypeScript and JavaScript starter project.
+- [ ] Update CLI documentation, changelog, package metadata, and publish-ready versioning.
+
 ## Decisions
 
 - Documentation language: English for the public developer docs.

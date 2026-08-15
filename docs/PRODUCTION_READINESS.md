@@ -16,7 +16,7 @@ OneKit JS V3 is a usable compact browser framework and a credible foundation for
 | SSR | String rendering, streaming utilities, request-scoped context, hydration helpers, metadata helpers | M4 baseline complete: escaping, nested context propagation, metadata safety, hydration mismatch diagnostics, listener disposal, and boundary primitives are tested. Streaming abort/error semantics and async scheduling remain future work. |
 | Router | Minimal `Router` class with exact path lookup and handlers | Not yet comparable to a production router; needs route matching, params, history integration, guards, nested layouts, 404 handling, and SSR URL resolution. |
 | Stores | Named stores and actions are available | Needs lifecycle, reset, subscriptions, dev inspection, persistence policy, and SSR request isolation. |
-| CLI | `create` and `build` commands work | Needs dev command, inspectable configuration, framework templates, diagnostics, plugin hooks, and cross-platform acceptance tests. |
+| CLI | `create`, `build`, `dev`, `preview`, and `test` commands work | Needs broader cross-platform acceptance coverage, plugin hooks, and richer diagnostics. |
 | Package/release | TypeScript declarations, subpath exports, build checks, tests, and npm metadata exist | Release foundation is present; package export matrix, Node/browser compatibility, changelog discipline, and npm publish verification remain. |
 | Documentation | V3 usage guide, framework guide, getting started guide, and OneKit-only docs page exist | Strong baseline; production caveats and API stability labels should be made explicit. |
 
@@ -64,7 +64,7 @@ Before publishing a new release, the package should pass type-checking, all test
 | M2 | Router 1.0 | Factory API, dynamic params, history, guards, 404, and SSR matching are documented and tested. |
 | M3 | Renderer 1.0 | Keyed reconciliation, fragments, event cleanup, refs, and component error handling are stable. |
 | M4 | SSR 1.0 | Server/client parity suite, mismatch diagnostics, safe metadata handling, context isolation, hydration disposal, and boundary primitives are implemented; streaming error semantics remain follow-up work. |
-| M5 | CLI 1.0 | Create/dev/build/preview/test workflow works from a clean install and generated starter. |
+| M5 | CLI 1.0 | Create/dev/build/preview/test workflow works from a clean install and generated starter; child exit codes, `--cwd`, and argument passthrough are implemented. |
 | M6 | Release 3.x | Package export matrix, changelog, migration guide, clean-install smoke test, and npm release verification are complete. |
 
 ## What OneKit should not promise yet

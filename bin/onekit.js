@@ -1,16 +1,38 @@
 #!/usr/bin/env node
 import { createApp } from '../lib/cli/create.js';
+
 const [command = 'help', ...args] = process.argv.slice(2);
 
 function parseCreateArgs(values) {
   const positional = values.filter((value) => !value.startsWith('-'));
   const templateIndex = values.indexOf('--template');
-  const template = templateIndex >= 0 ? values[templateIndex + 1] : values.includes('--javascript') || values.includes('--js') ? 'js' : 'ts';
+  const template = templateIndex >= 0
+    ? values[templateIndex + 1]
+    : values.includes('--javascript') || values.includes('--js') ? 'js' : 'ts';
   return { appName: positional[0], template };
 }
 
+function parseRunnerArgs(values) {
+  const cwdIndex = values.indexOf('--cwd');
+  const cwd = cwdIndex >= 0 ? values[cwdIndex + 1] : undefined;
+  const withoutCwd = values.filter((value, index) => value !== '--cwd' && index !== cwdIndex + 1);
+  const separatorIndex = withoutCwd.indexOf('--');
+  const forwarded = separatorIndex >= 0 ? withoutCwd.slice(separatorIndex + 1) : withoutCwd;
+  return { cwd, forwarded };
+}
+
 function printHelp() {
-  console.log(`OneKit JS CLI\n\nUsage:\n  onekit create <name> [--template ts|js]\n  onekit create <name> --typescript\n  onekit create <name> --javascript\n  onekit build [--out-dir <dir>] [--no-minify]\n  onekit help`);
+  console.log(`OneKit JS CLI
+
+Usage:
+  onekit create <name> [--template ts|js]
+  onekit create <name> --typescript
+  onekit create <name> --javascript
+  onekit dev [--cwd <dir>] [-- vite-options]
+  onekit build [--out-dir <dir>] [--no-minify]
+  onekit preview [--cwd <dir>] [--out-dir <dir>] [-- vite-options]
+  onekit test [--cwd <dir>] [-- test-runner-options]
+  onekit help`);
 }
 
 try {
@@ -23,6 +45,15 @@ try {
     const outIndex = args.indexOf('--out-dir');
     const output = outIndex >= 0 ? args[outIndex + 1] : 'dist';
     await build({ output, minify: !args.includes('--no-minify') });
+  } else if (command === 'dev' || command === 'preview' || command === 'test') {
+    const { cwd, forwarded } = parseRunnerArgs(args);
+    const runner = await import('../lib/cli/run.js');
+    const exitCode = command === 'dev'
+      ? await runner.runDev(forwarded, { cwd })
+      : command === 'preview'
+        ? await runner.runPreview(forwarded, { cwd, output: args.includes('--out-dir') ? args[args.indexOf('--out-dir') + 1] : 'dist' })
+        : await runner.runTest(forwarded, { cwd });
+    if (exitCode !== 0) process.exitCode = exitCode;
   } else if (command === 'help' || command === '--help' || command === '-h') {
     printHelp();
   } else {
