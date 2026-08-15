@@ -17,11 +17,16 @@ export interface OneKitVitePluginOptions {
 
 export interface OneKitVitePlugin {
   name: string;
-  apply?: 'serve';
+  enforce?: 'pre' | 'post';
+  apply?: 'serve' | 'build';
+  resolveId?: (source: string, importer?: string) => string | undefined;
+  load?: (id: string) => { code: string; map: null } | undefined;
   transform?: (code: string, id: string) => { code: string; map: null } | undefined;
   handleHotUpdate?: (context: { file: string; modules: unknown[]; server: { ws: { send: (message: unknown) => void } } }) => unknown[];
 }
 
+import { readFileSync } from 'node:fs';
+import { dirname, resolve as resolvePath } from 'node:path';
 import { compileOkjs } from './okjs';
 
 export interface OneKitHMRDisposable {
@@ -37,11 +42,23 @@ export interface OneKitHMRDisposable {
 export function oneKitVitePlugin(options: OneKitVitePluginOptions = {}): OneKitVitePlugin {
   const include = options.include ?? /\.(ts|tsx|js|jsx|vue|okjs|html)$/;
   const exclude = options.exclude ?? /node_modules/;
+  const isOkjs = (id: string) => id.split('?')[0].endsWith('.okjs') && !exclude.test(id);
   return {
     name: 'onekit-v3-hmr',
-    apply: 'serve',
+    enforce: 'pre',
+    resolveId(source, importer) {
+      if (!isOkjs(source)) return undefined;
+      const cleanSource = source.split('?')[0];
+      if (cleanSource.startsWith('/') && !cleanSource.startsWith('//')) return resolvePath(process.cwd(), `.${cleanSource}`);
+      if (cleanSource.startsWith('.') && importer) return resolvePath(dirname(importer.split('?')[0]), cleanSource);
+      return undefined;
+    },
+    load(id) {
+      if (!isOkjs(id)) return undefined;
+      return compileOkjs(readFileSync(id.split('?')[0], 'utf8'), id);
+    },
     transform(code, id) {
-      if (!id.endsWith('.okjs') || exclude.test(id)) return undefined;
+      if (!isOkjs(id) || code.includes('const __okjsComponent = __okjsDefineComponent')) return undefined;
       return compileOkjs(code, id);
     },
     handleHotUpdate({ file, modules, server }) {

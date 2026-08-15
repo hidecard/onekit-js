@@ -13,7 +13,7 @@
   "exports": {
     ".": {
       "types": "./dist/types/index.d.ts",
-      "browser": "./dist/onekit.js",
+      "browser": "./dist/onekit.esm.js",
       "import": "./dist/onekit.esm.js",
       "require": "./dist/onekit.cjs"
     },

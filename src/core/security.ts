@@ -12,12 +12,12 @@ const DEFAULT_SECURITY_CONFIG: SecurityConfig = {
     'ul', 'ol', 'li', 'a', 'img', 'br', 'strong', 'em', 'b', 'i',
     'table', 'thead', 'tbody', 'tr', 'th', 'td', 'input', 'button',
     'main', 'section', 'article', 'header', 'footer', 'nav', 'aside',
-    'form', 'label', 'select', 'option', 'textarea'
+    'form', 'label', 'select', 'option', 'textarea', 'output'
   ],
   ALLOWED_ATTRIBUTES: [
     'id', 'class', 'style', 'href', 'src', 'alt', 'title', 'type',
     'name', 'value', 'placeholder', 'disabled', 'checked', 'selected',
-    'width', 'height', 'colspan', 'rowspan', 'data-*'
+    'width', 'height', 'colspan', 'rowspan', 'role', 'tabindex', 'target', 'rel', 'aria-*', 'inputmode', 'data-*'
   ],
   enableSanitization: true,
   enableValidation: true

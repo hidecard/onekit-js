@@ -319,11 +319,12 @@ export function create(name: string, props: ComponentProps = {}, slots: { [key: 
         get(_target, key: string | symbol) {
           if (key in instance.state) return instance.state[key as string];
           if (key in instance.props) return instance.props[key as string];
+          if (key in instance && typeof key === 'string') return instance[key];
           if (key === '$slots') return instance.slots;
           return undefined;
         },
         has(_target, key: string | symbol) {
-          return key in instance.state || key in instance.props || key === '$slots';
+          return key in instance.state || key in instance.props || key in instance || key === '$slots';
         },
       });
       instance.element = compileTemplate(definition.template, context);
