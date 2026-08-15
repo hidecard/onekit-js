@@ -93,6 +93,74 @@ function createLoadingBoundary() {
     return { state, run, render };
 }
 
+// OneKit DevTools foundation: opt-in, browser/SSR-safe event inspection.
+let enabled = false;
+let nextTargetId = 1;
+let nextEffectId = 1;
+const targetIds = new WeakMap();
+const effectIds = new WeakMap();
+const listeners = new Set();
+function isDevToolsEnabled() {
+    return enabled;
+}
+function enableDevTools() {
+    enabled = true;
+    return {
+        get enabled() { return enabled; },
+        subscribe(listener) {
+            listeners.add(listener);
+            return () => listeners.delete(listener);
+        },
+        dispose() {
+            enabled = false;
+            listeners.clear();
+        }
+    };
+}
+function onDevToolsEvent(listener) {
+    listeners.add(listener);
+    return () => listeners.delete(listener);
+}
+function getDevToolsTargetId(target) {
+    const existing = targetIds.get(target);
+    if (existing)
+        return existing;
+    const id = nextTargetId++;
+    targetIds.set(target, id);
+    return id;
+}
+function getDevToolsEffectId(effect) {
+    const existing = effectIds.get(effect);
+    if (existing)
+        return existing;
+    const id = nextEffectId++;
+    effectIds.set(effect, id);
+    return id;
+}
+function devToolsSnapshot(value) {
+    if (value === null || typeof value !== 'object')
+        return value;
+    if (Array.isArray(value))
+        return value.map(item => devToolsSnapshot(item));
+    const result = {};
+    Object.keys(value).forEach(key => {
+        result[key] = devToolsSnapshot(value[key]);
+    });
+    return result;
+}
+function emitDevToolsEvent(event) {
+    if (!enabled)
+        return;
+    listeners.forEach(listener => {
+        try {
+            listener(event);
+        }
+        catch {
+            // DevTools must never break application execution.
+        }
+    });
+}
+
 const DEFAULT_SECURITY_CONFIG = {
     ALLOWED_TAGS: [
         'div', 'span', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
@@ -946,7 +1014,14 @@ function track(target, key) {
         activeEffect.deps.push(dep);
     }
 }
-function trigger(target, key) {
+function trigger(target, key, oldValue, newValue) {
+    emitDevToolsEvent({
+        type: 'reactive:trigger',
+        targetId: getDevToolsTargetId(target),
+        key: String(key),
+        oldValue,
+        newValue
+    });
     const depsMap = targetMap.get(target);
     if (!depsMap)
         return;
@@ -985,7 +1060,7 @@ function reactive(obj) {
             const oldValue = Reflect.get(target, key, receiver);
             const result = Reflect.set(target, key, value, receiver);
             if (oldValue !== value) {
-                trigger(target, key);
+                trigger(target, key, oldValue, value);
                 // Also trigger watchers for backward compatibility
                 if (watchers[key]) {
                     watchers[key].forEach(watcher => {
@@ -1029,6 +1104,7 @@ function effect(fn, options = {}) {
         if (effectFn.stopped || effectStack.includes(effectFn)) {
             return; // Prevent infinite recursion
         }
+        emitDevToolsEvent({ type: 'reactive:effect', effectId: getDevToolsEffectId(effectFn), phase: 'run' });
         cleanup(effectFn);
         try {
             effectStack.push(effectFn);
@@ -1050,6 +1126,7 @@ function effect(fn, options = {}) {
 function stop(runner) {
     const effectFn = runner;
     effectFn.stopped = true;
+    emitDevToolsEvent({ type: 'reactive:effect', effectId: getDevToolsEffectId(effectFn), phase: 'stop' });
     cleanup(effectFn);
 }
 // Alias for effect
@@ -2409,11 +2486,16 @@ class Router {
         const matched = this.match(to);
         const from = this.current;
         const context = { to, from };
+        emitDevToolsEvent({ type: 'router:navigation', phase: 'start', to: to.fullPath, from: from?.fullPath ?? null });
         const guardResult = await this.runGuard(this.options.beforeEach, context);
-        if (guardResult === false)
+        if (guardResult === false) {
+            emitDevToolsEvent({ type: 'router:navigation', phase: 'cancel', to: to.fullPath, from: from?.fullPath ?? null });
             return null;
-        if (typeof guardResult === 'string' && guardResult !== to.fullPath)
+        }
+        if (typeof guardResult === 'string' && guardResult !== to.fullPath) {
+            emitDevToolsEvent({ type: 'router:navigation', phase: 'cancel', to: to.fullPath, from: from?.fullPath ?? null });
             return this.resolve(guardResult, true);
+        }
         const route = matched?.route ?? this.options.notFound;
         if (!route) {
             this.current = to;
@@ -2421,13 +2503,24 @@ class Router {
             return null;
         }
         const routeGuard = await this.runGuard(route.beforeEnter, context);
-        if (routeGuard === false)
+        if (routeGuard === false) {
+            emitDevToolsEvent({ type: 'router:navigation', phase: 'cancel', to: to.fullPath, from: from?.fullPath ?? null, route: route.path });
             return null;
-        if (typeof routeGuard === 'string' && routeGuard !== to.fullPath)
+        }
+        if (typeof routeGuard === 'string' && routeGuard !== to.fullPath) {
+            emitDevToolsEvent({ type: 'router:navigation', phase: 'cancel', to: to.fullPath, from: from?.fullPath ?? null, route: route.path });
             return this.resolve(routeGuard, true);
+        }
         const result = matched ?? { route, location: to };
-        if (route.loader)
-            result.data = await route.loader(context);
+        if (route.loader) {
+            try {
+                result.data = await route.loader(context);
+            }
+            catch (error) {
+                emitDevToolsEvent({ type: 'router:navigation', phase: 'error', to: to.fullPath, from: from?.fullPath ?? null, route: route.path, error });
+                throw error;
+            }
+        }
         if (push)
             this.commit(to);
         this.current = to;
@@ -2435,6 +2528,7 @@ class Router {
             await route.handler({ ...context, to });
         this.notify(to, from);
         this.options.afterEach?.({ ...context, matched: result });
+        emitDevToolsEvent({ type: 'router:navigation', phase: 'success', to: to.fullPath, from: from?.fullPath ?? null, route: route.path });
         return result;
     }
     match(location) {
@@ -3621,7 +3715,7 @@ const jsxDEV = h;
 // Main entry point with tree-shaking friendly exports
 // Core systems
 // Version info
-const VERSION = '3.1.10';
+const VERSION = '3.1.11';
 
-export { API, DependencyInjector, Fragment, OneKit, OneKitWebComponent, Router, StreamingRenderer, VERSION, addScript, addStorePlugin, addStyle, addToBody, addToHead, animations, announce, patch as apiPatch, autorun, batch, bind, cache, compileTemplate, component, computed, create, createElement, createErrorBoundary, createLandmarks, createLoadingBoundary, createRouter, createSSRContext, createSkipLink, createStorage, createStore, debounce, deepClone, defineComponent, defineStore, del, destroy, di, effect, errorHandler, generateId, get, getAllStores, getInstance, h, hydrate, initTemplateEngine, isClient, isServer, jsx, jsxDEV, localStorage, makeFocusable, makeUnfocusable, manageTabOrder, mount, nextTick, ok, okjs, onDestroyed, onMounted, onPropsChanged, onUpdated, patch$1 as patch, pluginManager, post, preloadModule, preloadScript, preloadStyle, put, reactive, register, registerDirective, registerWebComponent, removeStore, render, renderMeta, renderOpenGraph, renderTitle, renderToString, request, router, safeMethod, sessionStorage, setAriaAttributes, setMeta, setupComponent, skipToContent, snapshot, stop, throttle, trapFocus, unmount, useStore, validateAccessibility, patch$1 as vdomPatch, watch, withCache };
+export { API, DependencyInjector, Fragment, OneKit, OneKitWebComponent, Router, StreamingRenderer, VERSION, addScript, addStorePlugin, addStyle, addToBody, addToHead, animations, announce, patch as apiPatch, autorun, batch, bind, cache, compileTemplate, component, computed, create, createElement, createErrorBoundary, createLandmarks, createLoadingBoundary, createRouter, createSSRContext, createSkipLink, createStorage, createStore, debounce, deepClone, defineComponent, defineStore, del, destroy, devToolsSnapshot, di, effect, emitDevToolsEvent, enableDevTools, errorHandler, generateId, get, getAllStores, getDevToolsEffectId, getDevToolsTargetId, getInstance, h, hydrate, initTemplateEngine, isClient, isDevToolsEnabled, isServer, jsx, jsxDEV, localStorage, makeFocusable, makeUnfocusable, manageTabOrder, mount, nextTick, ok, okjs, onDestroyed, onDevToolsEvent, onMounted, onPropsChanged, onUpdated, patch$1 as patch, pluginManager, post, preloadModule, preloadScript, preloadStyle, put, reactive, register, registerDirective, registerWebComponent, removeStore, render, renderMeta, renderOpenGraph, renderTitle, renderToString, request, router, safeMethod, sessionStorage, setAriaAttributes, setMeta, setupComponent, skipToContent, snapshot, stop, throttle, trapFocus, unmount, useStore, validateAccessibility, patch$1 as vdomPatch, watch, withCache };
 //# sourceMappingURL=onekit.esm.js.map

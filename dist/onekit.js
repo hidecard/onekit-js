@@ -99,6 +99,74 @@
         return { state, run, render };
     }
 
+    // OneKit DevTools foundation: opt-in, browser/SSR-safe event inspection.
+    let enabled = false;
+    let nextTargetId = 1;
+    let nextEffectId = 1;
+    const targetIds = new WeakMap();
+    const effectIds = new WeakMap();
+    const listeners = new Set();
+    function isDevToolsEnabled() {
+        return enabled;
+    }
+    function enableDevTools() {
+        enabled = true;
+        return {
+            get enabled() { return enabled; },
+            subscribe(listener) {
+                listeners.add(listener);
+                return () => listeners.delete(listener);
+            },
+            dispose() {
+                enabled = false;
+                listeners.clear();
+            }
+        };
+    }
+    function onDevToolsEvent(listener) {
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+    }
+    function getDevToolsTargetId(target) {
+        const existing = targetIds.get(target);
+        if (existing)
+            return existing;
+        const id = nextTargetId++;
+        targetIds.set(target, id);
+        return id;
+    }
+    function getDevToolsEffectId(effect) {
+        const existing = effectIds.get(effect);
+        if (existing)
+            return existing;
+        const id = nextEffectId++;
+        effectIds.set(effect, id);
+        return id;
+    }
+    function devToolsSnapshot(value) {
+        if (value === null || typeof value !== 'object')
+            return value;
+        if (Array.isArray(value))
+            return value.map(item => devToolsSnapshot(item));
+        const result = {};
+        Object.keys(value).forEach(key => {
+            result[key] = devToolsSnapshot(value[key]);
+        });
+        return result;
+    }
+    function emitDevToolsEvent(event) {
+        if (!enabled)
+            return;
+        listeners.forEach(listener => {
+            try {
+                listener(event);
+            }
+            catch {
+                // DevTools must never break application execution.
+            }
+        });
+    }
+
     const DEFAULT_SECURITY_CONFIG = {
         ALLOWED_TAGS: [
             'div', 'span', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
@@ -952,7 +1020,14 @@
             activeEffect.deps.push(dep);
         }
     }
-    function trigger(target, key) {
+    function trigger(target, key, oldValue, newValue) {
+        emitDevToolsEvent({
+            type: 'reactive:trigger',
+            targetId: getDevToolsTargetId(target),
+            key: String(key),
+            oldValue,
+            newValue
+        });
         const depsMap = targetMap.get(target);
         if (!depsMap)
             return;
@@ -991,7 +1066,7 @@
                 const oldValue = Reflect.get(target, key, receiver);
                 const result = Reflect.set(target, key, value, receiver);
                 if (oldValue !== value) {
-                    trigger(target, key);
+                    trigger(target, key, oldValue, value);
                     // Also trigger watchers for backward compatibility
                     if (watchers[key]) {
                         watchers[key].forEach(watcher => {
@@ -1035,6 +1110,7 @@
             if (effectFn.stopped || effectStack.includes(effectFn)) {
                 return; // Prevent infinite recursion
             }
+            emitDevToolsEvent({ type: 'reactive:effect', effectId: getDevToolsEffectId(effectFn), phase: 'run' });
             cleanup(effectFn);
             try {
                 effectStack.push(effectFn);
@@ -1056,6 +1132,7 @@
     function stop(runner) {
         const effectFn = runner;
         effectFn.stopped = true;
+        emitDevToolsEvent({ type: 'reactive:effect', effectId: getDevToolsEffectId(effectFn), phase: 'stop' });
         cleanup(effectFn);
     }
     // Alias for effect
@@ -2415,11 +2492,16 @@
             const matched = this.match(to);
             const from = this.current;
             const context = { to, from };
+            emitDevToolsEvent({ type: 'router:navigation', phase: 'start', to: to.fullPath, from: from?.fullPath ?? null });
             const guardResult = await this.runGuard(this.options.beforeEach, context);
-            if (guardResult === false)
+            if (guardResult === false) {
+                emitDevToolsEvent({ type: 'router:navigation', phase: 'cancel', to: to.fullPath, from: from?.fullPath ?? null });
                 return null;
-            if (typeof guardResult === 'string' && guardResult !== to.fullPath)
+            }
+            if (typeof guardResult === 'string' && guardResult !== to.fullPath) {
+                emitDevToolsEvent({ type: 'router:navigation', phase: 'cancel', to: to.fullPath, from: from?.fullPath ?? null });
                 return this.resolve(guardResult, true);
+            }
             const route = matched?.route ?? this.options.notFound;
             if (!route) {
                 this.current = to;
@@ -2427,13 +2509,24 @@
                 return null;
             }
             const routeGuard = await this.runGuard(route.beforeEnter, context);
-            if (routeGuard === false)
+            if (routeGuard === false) {
+                emitDevToolsEvent({ type: 'router:navigation', phase: 'cancel', to: to.fullPath, from: from?.fullPath ?? null, route: route.path });
                 return null;
-            if (typeof routeGuard === 'string' && routeGuard !== to.fullPath)
+            }
+            if (typeof routeGuard === 'string' && routeGuard !== to.fullPath) {
+                emitDevToolsEvent({ type: 'router:navigation', phase: 'cancel', to: to.fullPath, from: from?.fullPath ?? null, route: route.path });
                 return this.resolve(routeGuard, true);
+            }
             const result = matched ?? { route, location: to };
-            if (route.loader)
-                result.data = await route.loader(context);
+            if (route.loader) {
+                try {
+                    result.data = await route.loader(context);
+                }
+                catch (error) {
+                    emitDevToolsEvent({ type: 'router:navigation', phase: 'error', to: to.fullPath, from: from?.fullPath ?? null, route: route.path, error });
+                    throw error;
+                }
+            }
             if (push)
                 this.commit(to);
             this.current = to;
@@ -2441,6 +2534,7 @@
                 await route.handler({ ...context, to });
             this.notify(to, from);
             this.options.afterEach?.({ ...context, matched: result });
+            emitDevToolsEvent({ type: 'router:navigation', phase: 'success', to: to.fullPath, from: from?.fullPath ?? null, route: route.path });
             return result;
         }
         match(location) {
@@ -3627,7 +3721,7 @@ ${bodyContent}
     // Main entry point with tree-shaking friendly exports
     // Core systems
     // Version info
-    const VERSION = '3.1.10';
+    const VERSION = '3.1.11';
 
     exports.API = API;
     exports.DependencyInjector = DependencyInjector;
@@ -3668,17 +3762,23 @@ ${bodyContent}
     exports.defineStore = defineStore;
     exports.del = del;
     exports.destroy = destroy;
+    exports.devToolsSnapshot = devToolsSnapshot;
     exports.di = di;
     exports.effect = effect;
+    exports.emitDevToolsEvent = emitDevToolsEvent;
+    exports.enableDevTools = enableDevTools;
     exports.errorHandler = errorHandler;
     exports.generateId = generateId;
     exports.get = get;
     exports.getAllStores = getAllStores;
+    exports.getDevToolsEffectId = getDevToolsEffectId;
+    exports.getDevToolsTargetId = getDevToolsTargetId;
     exports.getInstance = getInstance;
     exports.h = h;
     exports.hydrate = hydrate;
     exports.initTemplateEngine = initTemplateEngine;
     exports.isClient = isClient;
+    exports.isDevToolsEnabled = isDevToolsEnabled;
     exports.isServer = isServer;
     exports.jsx = jsx;
     exports.jsxDEV = jsxDEV;
@@ -3691,6 +3791,7 @@ ${bodyContent}
     exports.ok = ok;
     exports.okjs = okjs;
     exports.onDestroyed = onDestroyed;
+    exports.onDevToolsEvent = onDevToolsEvent;
     exports.onMounted = onMounted;
     exports.onPropsChanged = onPropsChanged;
     exports.onUpdated = onUpdated;
