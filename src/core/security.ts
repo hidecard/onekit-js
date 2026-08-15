@@ -11,6 +11,7 @@ const DEFAULT_SECURITY_CONFIG: SecurityConfig = {
     'div', 'span', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
     'ul', 'ol', 'li', 'a', 'img', 'br', 'strong', 'em', 'b', 'i',
     'table', 'thead', 'tbody', 'tr', 'th', 'td', 'input', 'button',
+    'main', 'section', 'article', 'header', 'footer', 'nav', 'aside',
     'form', 'label', 'select', 'option', 'textarea'
   ],
   ALLOWED_ATTRIBUTES: [
@@ -60,7 +61,8 @@ export function sanitizeHTML(html: string): string {
 
         const isDangerous = dangerousAttrPatterns.some(pattern => pattern.test(attrName) || pattern.test(attrValue));
 
-        const isAllowed = securityConfig.ALLOWED_ATTRIBUTES.some(allowed => {
+        const isDirective = attrName.startsWith('ok-') && /^ok-[a-z][a-z0-9]*(?:\.[a-z0-9_-]+)*$/i.test(attrName);
+        const isAllowed = isDirective || securityConfig.ALLOWED_ATTRIBUTES.some(allowed => {
           if (allowed.endsWith('*')) {
             return attrName.startsWith(allowed.slice(0, -1));
           }

@@ -2,7 +2,7 @@
 
 **OneKit JS V3** is a compact, TypeScript-first reactive JavaScript framework for component-based browser applications. It provides a small runtime with explicit APIs for state, components, templates, JSX, routing, stores, SSR helpers, HTTP requests, browser storage, accessibility, security, plugins, dependency injection, animations, and Web Components.
 
-> **Current release:** `3.1.9`  
+> **Current release:** `3.1.12`
 > **License:** MIT  
 > **Documentation:** [Complete V3 usage guide](docs/V3_USAGE.md)
 

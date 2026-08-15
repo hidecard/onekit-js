@@ -1,4 +1,5 @@
 import { create, defineComponent, defineStore, nextTick, register, renderToString } from '../src/index';
+import { compileTemplate } from '../src/modules/template';
 
 describe('V3 regression coverage', () => {
   it('creates a component with validated props', () => {
@@ -37,5 +38,34 @@ describe('V3 regression coverage', () => {
   it('renders SSR output', () => {
     const result = renderToString({ tag: 'p', props: {}, children: ['Hello'] } as any);
     expect(result.html).toContain('Hello');
+  });
+
+  it('preserves directives through sanitization and uses the root context for events and models', () => {
+    const state: { user: { name: string }; clicks: number; increment: () => void } = {
+      user: { name: 'Before' },
+      clicks: 0,
+      increment: () => {
+        state.clicks += 1;
+      }
+    };
+    const element = compileTemplate(
+      '<section><button ok-on.click="increment()">Click</button><input ok-model="user.name"></section>',
+      state
+    );
+
+    const button = element.querySelector('button') as HTMLButtonElement;
+    const input = element.querySelector('input') as HTMLInputElement;
+    expect(button).not.toBeNull();
+    button.click();
+    expect(state.clicks).toBe(1);
+    input.value = 'After';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(state.user.name).toBe('After');
+  });
+
+  it('rejects statement and global access expressions', () => {
+    const state = { value: 'safe' };
+    const element = compileTemplate('<p ok-if="window.alert(1)">Safe</p>', state);
+    expect((element as HTMLElement).style.display).toBe('none');
   });
 });

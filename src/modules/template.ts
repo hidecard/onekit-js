@@ -1,5 +1,5 @@
 // Template Engine Module with Directives
-import { reactive, effect, computed } from './reactive';
+import { reactive, effect, stop } from './reactive';
 import { sanitizeHTML } from '../core/security';
 
 export interface DirectiveContext {
@@ -36,16 +36,41 @@ function parseDirective(attrName: string): { name: string; modifiers: string[]; 
   return { name, modifiers, rawName: attrName };
 }
 
-// Evaluate expression in context
+// Evaluate only the expression subset supported by the template engine.
+// This is a guard against statement injection; applications should still only
+// compile templates from trusted sources because JavaScript expressions are used.
+function isSafeExpression(expression: string): boolean {
+  const blocked = /(?:^|[^\w$])(?:globalThis|window|document|Function|eval|constructor|__proto__|prototype|import|new)(?:[^\w$]|$)|[;{}]|=>|`/;
+  return expression.trim().length > 0 && !blocked.test(expression);
+}
+
 function evaluateExpression(expression: string, context: any): any {
+  if (!isSafeExpression(expression)) {
+    console.error('Template expression rejected:', expression);
+    return undefined;
+  }
+
   try {
-    // Simple expression evaluation - in production, use a proper expression parser
-    const func = new Function('context', `with(context) { return ${expression}; }`);
-    return func(context);
+    const func = new Function('context', `with (context) { return (${expression}); }`);
+    return func(Object.create(context ?? null));
   } catch (e) {
     console.error('Template expression error:', expression, e);
     return undefined;
   }
+}
+
+function assignExpression(expression: string, context: any, value: any): boolean {
+  const path = expression.trim().split('.');
+  if (!path.length || path.some(part => !/^[A-Za-z_$][\w$]*$/.test(part))) return false;
+
+  let target = context;
+  for (const key of path.slice(0, -1)) {
+    if (target == null || typeof target !== 'object') return false;
+    target = target[key];
+  }
+  if (target == null || typeof target !== 'object') return false;
+  target[path[path.length - 1]] = value;
+  return true;
 }
 
 // Compile template with directives
@@ -100,22 +125,24 @@ export function compileTemplate(template: string, context: any): Element {
     const getter = () => evaluateExpression(binding.expression, context);
 
     if (handler.bind) {
-      directiveCtx.value = getter();
+      // Event expressions must run only when the event fires, not during bind.
+      directiveCtx.value = binding.directive === 'on' ? undefined : getter();
       handler.bind(directiveCtx);
     }
 
     if (handler.update) {
       // Create effect for reactive updates
-      const effectFn = effect(() => {
+            const effectFn = effect(() => {
         const newValue = getter();
         directiveCtx.oldValue = directiveCtx.value;
         directiveCtx.value = newValue;
         handler.update!(directiveCtx);
       });
-
       binding.cleanup = () => {
-        // Cleanup effect
+        stop(effectFn);
+        handler.unbind?.(directiveCtx);
       };
+      (binding.element as any).__onekitTemplateCleanup = binding.cleanup;
     }
   });
 
@@ -251,13 +278,9 @@ registerDirective('model', {
     // Listen for changes
     const handler = () => {
       const newValue = getElementValue(element);
-      // Update reactive value
-      const keys = ctx.expression.split('.');
-      let target = ctx.value;
-      for (let i = 0; i < keys.length - 1; i++) {
-        target = target[keys[i]];
+      if (!assignExpression(ctx.expression, ctx.rootContext, newValue)) {
+        console.error('ok-model expression must be an assignable property path:', ctx.expression);
       }
-      target[keys[keys.length - 1]] = newValue;
     };
 
     element.addEventListener(eventType, handler);
@@ -365,8 +388,8 @@ registerDirective('on', {
         event.stopPropagation();
       }
 
-      // Evaluate expression
-      evaluateExpression(ctx.expression, ctx.value);
+      // Evaluate against the root context and expose the DOM event explicitly.
+      evaluateExpression(ctx.expression, { ...ctx.rootContext, $event: event });
     };
 
     element.addEventListener(eventType, handler);

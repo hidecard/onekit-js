@@ -1,0 +1,15 @@
+node_modules/
+dist/
+coverage/
+*.log
+.DS_Store
+.env
+.env.*
+!.env.example
+
+# Local tooling caches
+.vite/
+.cache/
+
+# Keep release artifacts only when explicitly force-added.
+!dist/.gitkeep

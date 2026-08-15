@@ -212,6 +212,7 @@ const DEFAULT_SECURITY_CONFIG = {
         'div', 'span', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
         'ul', 'ol', 'li', 'a', 'img', 'br', 'strong', 'em', 'b', 'i',
         'table', 'thead', 'tbody', 'tr', 'th', 'td', 'input', 'button',
+        'main', 'section', 'article', 'header', 'footer', 'nav', 'aside',
         'form', 'label', 'select', 'option', 'textarea'
     ],
     ALLOWED_ATTRIBUTES: [
@@ -253,7 +254,8 @@ function sanitizeHTML(html) {
                     /Function\s*\(/i
                 ];
                 const isDangerous = dangerousAttrPatterns.some(pattern => pattern.test(attrName) || pattern.test(attrValue));
-                const isAllowed = securityConfig.ALLOWED_ATTRIBUTES.some(allowed => {
+                const isDirective = attrName.startsWith('ok-') && /^ok-[a-z][a-z0-9]*(?:\.[a-z0-9_-]+)*$/i.test(attrName);
+                const isAllowed = isDirective || securityConfig.ALLOWED_ATTRIBUTES.some(allowed => {
                     if (allowed.endsWith('*')) {
                         return attrName.startsWith(allowed.slice(0, -1));
                     }
@@ -1299,17 +1301,41 @@ function parseDirective(attrName) {
     const modifiers = match[2] ? match[2].split('.') : [];
     return { name, modifiers, rawName: attrName };
 }
-// Evaluate expression in context
+// Evaluate only the expression subset supported by the template engine.
+// This is a guard against statement injection; applications should still only
+// compile templates from trusted sources because JavaScript expressions are used.
+function isSafeExpression(expression) {
+    const blocked = /(?:^|[^\w$])(?:globalThis|window|document|Function|eval|constructor|__proto__|prototype|import|new)(?:[^\w$]|$)|[;{}]|=>|`/;
+    return expression.trim().length > 0 && !blocked.test(expression);
+}
 function evaluateExpression(expression, context) {
+    if (!isSafeExpression(expression)) {
+        console.error('Template expression rejected:', expression);
+        return undefined;
+    }
     try {
-        // Simple expression evaluation - in production, use a proper expression parser
-        const func = new Function('context', `with(context) { return ${expression}; }`);
-        return func(context);
+        const func = new Function('context', `with (context) { return (${expression}); }`);
+        return func(Object.create(context ?? null));
     }
     catch (e) {
         console.error('Template expression error:', expression, e);
         return undefined;
     }
+}
+function assignExpression(expression, context, value) {
+    const path = expression.trim().split('.');
+    if (!path.length || path.some(part => !/^[A-Za-z_$][\w$]*$/.test(part)))
+        return false;
+    let target = context;
+    for (const key of path.slice(0, -1)) {
+        if (target == null || typeof target !== 'object')
+            return false;
+        target = target[key];
+    }
+    if (target == null || typeof target !== 'object')
+        return false;
+    target[path[path.length - 1]] = value;
+    return true;
 }
 // Compile template with directives
 function compileTemplate(template, context) {
@@ -1354,20 +1380,23 @@ function compileTemplate(template, context) {
         // Create reactive binding
         const getter = () => evaluateExpression(binding.expression, context);
         if (handler.bind) {
-            directiveCtx.value = getter();
+            // Event expressions must run only when the event fires, not during bind.
+            directiveCtx.value = binding.directive === 'on' ? undefined : getter();
             handler.bind(directiveCtx);
         }
         if (handler.update) {
             // Create effect for reactive updates
-            effect(() => {
+            const effectFn = effect(() => {
                 const newValue = getter();
                 directiveCtx.oldValue = directiveCtx.value;
                 directiveCtx.value = newValue;
                 handler.update(directiveCtx);
             });
             binding.cleanup = () => {
-                // Cleanup effect
+                stop(effectFn);
+                handler.unbind?.(directiveCtx);
             };
+            binding.element.__onekitTemplateCleanup = binding.cleanup;
         }
     });
     // Return the first child (the actual template content)
@@ -1487,13 +1516,9 @@ registerDirective('model', {
         // Listen for changes
         const handler = () => {
             const newValue = getElementValue(element);
-            // Update reactive value
-            const keys = ctx.expression.split('.');
-            let target = ctx.value;
-            for (let i = 0; i < keys.length - 1; i++) {
-                target = target[keys[i]];
+            if (!assignExpression(ctx.expression, ctx.rootContext, newValue)) {
+                console.error('ok-model expression must be an assignable property path:', ctx.expression);
             }
-            target[keys[keys.length - 1]] = newValue;
         };
         element.addEventListener(eventType, handler);
         // Store cleanup
@@ -1583,8 +1608,8 @@ registerDirective('on', {
             if (ctx.modifiers.includes('stop')) {
                 event.stopPropagation();
             }
-            // Evaluate expression
-            evaluateExpression(ctx.expression, ctx.value);
+            // Evaluate against the root context and expose the DOM event explicitly.
+            evaluateExpression(ctx.expression, { ...ctx.rootContext, $event: event });
         };
         element.addEventListener(eventType, handler);
         // Store cleanup
