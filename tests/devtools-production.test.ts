@@ -1,4 +1,4 @@
-import { createRouter, effect, enableDevTools, reactive, stop } from '../src/index';
+import { createRouter, effect, effectScope, enableDevTools, reactive, stop } from '../src/index';
 
 describe('DevTools foundation', () => {
   it('is opt-in and reports reactive triggers, effect runs, and stop events', async () => {
@@ -66,5 +66,29 @@ describe('DevTools foundation', () => {
     bridge.dispose();
     await router.navigate('/');
     expect(events).toEqual(['start', 'success', 'start', 'success']);
+  });
+});
+
+
+describe('DevTools live inspectors', () => {
+  it('exposes registered inspector snapshots and lifecycle events', () => {
+    const events: string[] = [];
+    const bridge = enableDevTools();
+    const unsubscribe = bridge.subscribe((event) => events.push(event.type));
+    const scope = effectScope(true);
+    scope.run(() => {
+      const state = reactive({ ready: true });
+      effect(() => state.ready);
+    });
+
+    expect(bridge.getInspectors()).toEqual(expect.objectContaining({
+      components: expect.any(Array),
+      stores: expect.any(Array),
+    }));
+    expect(events).toContain('scope:lifecycle');
+
+    scope.dispose();
+    unsubscribe();
+    bridge.dispose();
   });
 });

@@ -57,6 +57,11 @@
       "import": "./dist/onekit.esm.js",
       "require": "./dist/onekit.cjs"
     },
+    "./vite": {
+      "types": "./dist/types/vite.d.ts",
+      "import": "./dist/vite.mjs",
+      "require": "./dist/vite.cjs"
+    },
     "./cli/create": "./lib/cli/create.js",
     "./package.json": "./package.json"
   },
@@ -75,7 +80,9 @@
     "access": "public"
   },
   "scripts": {
-    "build": "rollup -c",
+    "build": "rollup -c && npm run build:vite-plugin",
+    "build:vite-plugin": "node scripts/build-vite-plugin.mjs",
+    "benchmark": "npm run build && node scripts/benchmark-v3.mjs",
     "dev": "rollup -c -w",
     "dev:vite": "vite",
     "docs:dev": "vite --config examples/docs/vite.config.ts",
@@ -84,7 +91,7 @@
     "test": "jest --config jest.config.cjs",
     "verify:package": "node scripts/verify-package.cjs",
     "type-check": "tsc --noEmit",
-    "prepublishOnly": "npm run type-check && npm test -- --runInBand && npm run build"
+    "prepublishOnly": "npm run type-check && npm test -- --runInBand && npm run build && npm run verify:package"
   },
   "repository": {
     "type": "git",

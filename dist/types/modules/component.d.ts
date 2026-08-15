@@ -1,3 +1,4 @@
+import { DisposableScope } from '../core/scope';
 export interface ComponentProps {
     [key: string]: unknown;
 }
@@ -43,6 +44,8 @@ export interface ComponentInstance {
     element: Element | null;
     mounted: boolean;
     listeners: unknown[];
+    scope: DisposableScope;
+    componentId: number;
     update: () => void;
     [key: string]: unknown;
 }

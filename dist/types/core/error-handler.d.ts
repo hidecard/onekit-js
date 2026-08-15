@@ -13,6 +13,7 @@ export interface ErrorBoundary<T> {
     run: (work: () => T, context?: string) => T;
     runAsync: (work: () => Promise<T>, context?: string) => Promise<T>;
     render: (work: () => T, context?: string) => T;
+    renderAsync: (work: () => Promise<T>, context?: string) => Promise<T>;
     reset: () => void;
 }
 export declare function createErrorBoundary<T>(options: ErrorBoundaryOptions<T>): ErrorBoundary<T>;

@@ -2,6 +2,7 @@ node_modules/
 dist/
 dist-docs/
 coverage/
+benchmark-results/
 *.log
 .DS_Store
 .env

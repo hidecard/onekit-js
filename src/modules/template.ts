@@ -1,6 +1,7 @@
 // Template Engine Module with Directives
 import { reactive, effect, stop } from './reactive';
 import { sanitizeHTML } from '../core/security';
+import { evaluateSafeExpression } from './expression';
 
 export interface DirectiveContext {
   element: Element;
@@ -36,27 +37,10 @@ function parseDirective(attrName: string): { name: string; modifiers: string[]; 
   return { name, modifiers, rawName: attrName };
 }
 
-// Evaluate only the expression subset supported by the template engine.
-// This is a guard against statement injection; applications should still only
-// compile templates from trusted sources because JavaScript expressions are used.
-function isSafeExpression(expression: string): boolean {
-  const blocked = /(?:^|[^\w$])(?:globalThis|window|document|Function|eval|constructor|__proto__|prototype|import|new)(?:[^\w$]|$)|[;{}]|=>|`/;
-  return expression.trim().length > 0 && !blocked.test(expression);
-}
-
+// Evaluate the deliberately small, side-effect-limited expression grammar.
+// No dynamic JavaScript compilation is used here.
 function evaluateExpression(expression: string, context: any): any {
-  if (!isSafeExpression(expression)) {
-    console.error('Template expression rejected:', expression);
-    return undefined;
-  }
-
-  try {
-    const func = new Function('context', `with (context) { return (${expression}); }`);
-    return func(Object.create(context ?? null));
-  } catch (e) {
-    console.error('Template expression error:', expression, e);
-    return undefined;
-  }
+  return evaluateSafeExpression(expression, context ?? {});
 }
 
 function assignExpression(expression: string, context: any, value: any): boolean {

@@ -20,6 +20,23 @@ export type DevToolsEvent =
       from: string | null;
       route?: string;
       error?: unknown;
+    }
+  | {
+      type: 'component:lifecycle';
+      componentId: number;
+      name: string;
+      phase: 'create' | 'mount' | 'update' | 'unmount';
+    }
+  | {
+      type: 'store:lifecycle';
+      storeId: string;
+      phase: 'create' | 'subscribe' | 'unsubscribe' | 'remove';
+      listenerCount?: number;
+    }
+  | {
+      type: 'scope:lifecycle';
+      scopeId: number;
+      phase: 'create' | 'dispose';
     };
 
 export type DevToolsListener = (event: DevToolsEvent) => void;
@@ -43,6 +60,7 @@ export interface DevToolsBridge {
   getHistory(): readonly DevToolsEvent[];
   clearHistory(): void;
   getMetadata(): DevToolsMetadata;
+  getInspectors(): Record<string, unknown>;
   dispose(): void;
 }
 
@@ -57,6 +75,9 @@ const targetIds = new WeakMap<object, number>();
 const effectIds = new WeakMap<Function, number>();
 const listeners = new Set<DevToolsListener>();
 const history: DevToolsEvent[] = [];
+const inspectors = new Map<string, () => unknown>();
+const scopeIds = new WeakMap<object, number>();
+let nextScopeId = 1;
 
 export function isDevToolsEnabled(): boolean {
   return enabled;
@@ -86,6 +107,13 @@ export function enableDevTools(options: DevToolsOptions = {}): DevToolsBridge {
         eventCount: history.length,
         listenerCount: listeners.size
       };
+    },
+    getInspectors() {
+      const result: Record<string, unknown> = {};
+      inspectors.forEach((provider, name) => {
+        try { result[name] = devToolsSnapshot(provider()); } catch { result[name] = { error: 'inspector failed' }; }
+      });
+      return result;
     },
     dispose() {
       enabled = false;
@@ -118,6 +146,19 @@ export function getDevToolsTargetId(target: object): number {
   const id = nextTargetId++;
   targetIds.set(target, id);
   return id;
+}
+
+export function getDevToolsScopeId(scope: object): number {
+  const existing = scopeIds.get(scope);
+  if (existing) return existing;
+  const id = nextScopeId++;
+  scopeIds.set(scope, id);
+  return id;
+}
+
+export function registerDevToolsInspector(name: string, provider: () => unknown): () => void {
+  inspectors.set(name, provider);
+  return () => inspectors.delete(name);
 }
 
 export function getDevToolsEffectId(effect: Function): number {

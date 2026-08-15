@@ -1,6 +1,7 @@
 /* OneKit style: explicit, browser-first navigation with small composable contracts and no hidden global state in application routers. */
 
 import { emitDevToolsEvent } from '../core/devtools';
+import { onScopeDispose } from '../core/scope';
 
 export type RouteParams = Record<string, string>;
 export type QueryParams = Record<string, string | string[]>;
@@ -144,7 +145,9 @@ export class Router {
 
   subscribe(listener: Listener): () => void {
     this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
+    const unsubscribe = () => this.listeners.delete(listener);
+    onScopeDispose(unsubscribe);
+    return unsubscribe;
   }
 
   start(): Promise<MatchedRoute | null> {

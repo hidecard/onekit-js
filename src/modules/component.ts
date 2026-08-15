@@ -4,6 +4,8 @@ import { deepCloneSafe } from '../core/security';
 import { di } from '../core/di';
 import { compileTemplate } from './template';
 import { reactive, effect } from './reactive';
+import { DisposableScope, effectScope } from '../core/scope';
+import { emitDevToolsEvent, getDevToolsTargetId, registerDevToolsInspector } from '../core/devtools';
 
 export interface ComponentProps {
   [key: string]: unknown;
@@ -52,12 +54,22 @@ export interface ComponentInstance {
   element: Element | null;
   mounted: boolean;
   listeners: unknown[];
+  scope: DisposableScope;
+  componentId: number;
   update: () => void;
   [key: string]: unknown;
 }
 
 const components: { [key: string]: ComponentDefinition } = {};
 const componentInstances = new Map<Element, ComponentInstance>();
+
+registerDevToolsInspector('components', () => Array.from(componentInstances.values()).map((instance) => ({
+  id: instance.componentId,
+  name: instance.name,
+  mounted: instance.mounted,
+  props: instance.props,
+  state: instance.state,
+})));
 
 // Lifecycle hooks registry for composition API style
 const lifecycleHooks = new WeakMap<ComponentInstance, {
@@ -180,6 +192,8 @@ export function create(name: string, props: ComponentProps = {}, slots: { [key: 
   const instance: ComponentInstance = {
     name,
     props: validatedProps,
+    scope: effectScope(true),
+    componentId: getDevToolsTargetId({}),
     slots,
     state: definition.data ? deepCloneSafe(definition.data()) : {},
     element: null,
@@ -254,6 +268,7 @@ export function create(name: string, props: ComponentProps = {}, slots: { [key: 
         }
       }
 
+      emitDevToolsEvent({ type: 'component:lifecycle', componentId: this.componentId, name: this.name, phase: 'update' });
       definition.updated?.call(this);
     }
   };
@@ -274,6 +289,8 @@ export function create(name: string, props: ComponentProps = {}, slots: { [key: 
   // Add lifecycle hooks
   definition.beforeCreate?.call(instance);
   definition.created?.call(instance);
+
+  emitDevToolsEvent({ type: 'component:lifecycle', componentId: instance.componentId, name: instance.name, phase: 'create' });
 
   // Store instance
   if (instance.element) {
@@ -304,15 +321,18 @@ export function mount(component: ComponentInstance | string, target: string | El
 
   targetElement.appendChild(comp.element);
   comp.mounted = true;
+  emitDevToolsEvent({ type: 'component:lifecycle', componentId: comp.componentId, name: comp.name, phase: 'mount' });
 
   const definition = components[comp.name];
-  definition?.mounted?.call(comp);
+  comp.scope.run(() => {
+    definition?.mounted?.call(comp!);
 
-  // Call composition API onMounted hooks
-  const hooks = lifecycleHooks.get(comp);
-  if (hooks?.onMounted) {
-    hooks.onMounted.forEach(hook => hook());
-  }
+    // Call composition API onMounted hooks
+    const hooks = lifecycleHooks.get(comp!);
+    if (hooks?.onMounted) {
+      hooks.onMounted.forEach(hook => hook());
+    }
+  });
 
   return comp;
 }
@@ -352,6 +372,9 @@ export function destroy(component: ComponentInstance): void {
   if (definition && definition.unmounted) {
     definition.unmounted.call(component);
   }
+
+  component.scope.dispose();
+  emitDevToolsEvent({ type: 'component:lifecycle', componentId: component.componentId, name: component.name, phase: 'unmount' });
 }
 
 // Composition API lifecycle hooks
@@ -441,8 +464,7 @@ export function setupComponent(instance: ComponentInstance, setupFn: (props: Com
   currentInstance = instance;
 
   try {
-    const result = setupFn(instance.props);
-    return result;
+    return instance.scope.run(() => setupFn(instance.props));
   } finally {
     currentInstance = prevInstance;
   }

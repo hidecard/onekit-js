@@ -1,6 +1,7 @@
 // Reactive State Management Module (Vue 3-style)
 import { deepCloneSafe, validateStorageKey } from '../core/security';
 import { emitDevToolsEvent, getDevToolsEffectId, getDevToolsTargetId } from '../core/devtools';
+import { onScopeDispose } from '../core/scope';
 
 interface ReactiveObject {
   [key: string]: unknown;
@@ -202,6 +203,7 @@ export function effect(
     effectFn();
   }
 
+  onScopeDispose(() => stop(effectFn));
   return effectFn;
 }
 

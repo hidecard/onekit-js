@@ -1,5 +1,7 @@
 // Integrated State Manager (Pinia-like)
 import { reactive, computed, effect } from './reactive';
+import { onScopeDispose } from '../core/scope';
+import { emitDevToolsEvent, registerDevToolsInspector } from '../core/devtools';
 
 export interface StoreDefinition {
   id: string;
@@ -19,6 +21,12 @@ export interface Store {
 
 const stores = new Map<string, Store>();
 const storeSubscriptions = new WeakMap<Store, Set<(mutation: { storeId: string; type: string; payload?: unknown }, state: Record<string, unknown>) => void>>();
+
+registerDevToolsInspector('stores', () => Array.from(stores.values()).map((store) => ({
+  id: store.$id,
+  state: store.$state,
+  subscriberCount: storeSubscriptions.get(store)?.size ?? 0,
+})));
 
 export function defineStore(id: string | StoreDefinition, setup?: () => StoreDefinition): Store {
   let definition: StoreDefinition;
@@ -80,11 +88,15 @@ export function defineStore(id: string | StoreDefinition, setup?: () => StoreDef
       }
 
       subscribers.add(callback);
+      emitDevToolsEvent({ type: 'store:lifecycle', storeId: definition.id, phase: 'subscribe', listenerCount: subscribers.size });
 
-      // Return unsubscribe function
-      return () => {
+      // Return unsubscribe function and bind it to the current disposable scope.
+      const unsubscribe = () => {
         subscribers!.delete(callback);
+        emitDevToolsEvent({ type: 'store:lifecycle', storeId: definition.id, phase: 'unsubscribe', listenerCount: subscribers!.size });
       };
+      onScopeDispose(unsubscribe);
+      return unsubscribe;
     }
   };
 
@@ -118,6 +130,7 @@ export function defineStore(id: string | StoreDefinition, setup?: () => StoreDef
 
   // Store the instance
   stores.set(definition.id, store);
+  emitDevToolsEvent({ type: 'store:lifecycle', storeId: definition.id, phase: 'create', listenerCount: 0 });
   applyPlugins(store);
 
   return store;
@@ -139,6 +152,7 @@ export function removeStore(id: string): boolean {
   const store = stores.get(id);
   if (store) {
     storeSubscriptions.delete(store);
+    emitDevToolsEvent({ type: 'store:lifecycle', storeId: id, phase: 'remove', listenerCount: 0 });
     return stores.delete(id);
   }
   return false;

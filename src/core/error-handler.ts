@@ -42,6 +42,7 @@ export interface ErrorBoundary<T> {
   run: (work: () => T, context?: string) => T;
   runAsync: (work: () => Promise<T>, context?: string) => Promise<T>;
   render: (work: () => T, context?: string) => T;
+  renderAsync: (work: () => Promise<T>, context?: string) => Promise<T>;
   reset: () => void;
 }
 
@@ -93,7 +94,15 @@ export function createErrorBoundary<T>(options: ErrorBoundaryOptions<T>): ErrorB
     }
   };
 
-  return { state, run, runAsync, render, reset };
+  const renderAsync = async (work: () => Promise<T>, context = 'render'): Promise<T> => {
+    try {
+      return await runAsync(work, context);
+    } catch (error) {
+      return options.fallback(toError(error), reset);
+    }
+  };
+
+  return { state, run, runAsync, render, renderAsync, reset };
 }
 
 export interface LoadingBoundary<T> {

@@ -71,7 +71,15 @@ function createErrorBoundary(options) {
             return options.fallback(toError(error), reset);
         }
     };
-    return { state, run, runAsync, render, reset };
+    const renderAsync = async (work, context = 'render') => {
+        try {
+            return await runAsync(work, context);
+        }
+        catch (error) {
+            return options.fallback(toError(error), reset);
+        }
+    };
+    return { state, run, runAsync, render, renderAsync, reset };
 }
 function createLoadingBoundary() {
     const state = { error: null, pending: false };
@@ -107,6 +115,9 @@ const targetIds = new WeakMap();
 const effectIds = new WeakMap();
 const listeners = new Set();
 const history = [];
+const inspectors = new Map();
+const scopeIds = new WeakMap();
+let nextScopeId = 1;
 function isDevToolsEnabled() {
     return enabled;
 }
@@ -134,6 +145,18 @@ function enableDevTools(options = {}) {
                 eventCount: history.length,
                 listenerCount: listeners.size
             };
+        },
+        getInspectors() {
+            const result = {};
+            inspectors.forEach((provider, name) => {
+                try {
+                    result[name] = devToolsSnapshot(provider());
+                }
+                catch {
+                    result[name] = { error: 'inspector failed' };
+                }
+            });
+            return result;
         },
         dispose() {
             enabled = false;
@@ -163,6 +186,18 @@ function getDevToolsTargetId(target) {
     const id = nextTargetId++;
     targetIds.set(target, id);
     return id;
+}
+function getDevToolsScopeId(scope) {
+    const existing = scopeIds.get(scope);
+    if (existing)
+        return existing;
+    const id = nextScopeId++;
+    scopeIds.set(scope, id);
+    return id;
+}
+function registerDevToolsInspector(name, provider) {
+    inspectors.set(name, provider);
+    return () => inspectors.delete(name);
 }
 function getDevToolsEffectId(effect) {
     const existing = effectIds.get(effect);
@@ -205,6 +240,130 @@ function emitDevToolsEvent(event) {
             // DevTools must never break application execution.
         }
     });
+}
+
+let activeScope = null;
+const activeScopes = new Set();
+let leakTimer;
+class ScopeImpl {
+    parent;
+    createdAt = Date.now();
+    id = getDevToolsScopeId(this);
+    cleanups = new Set();
+    children = new Set();
+    disposedState = false;
+    constructor(detached = false) {
+        this.parent = detached ? null : activeScope;
+        if (this.parent instanceof ScopeImpl)
+            this.parent.children.add(this);
+        activeScopes.add(this);
+        emitDevToolsEvent({ type: 'scope:lifecycle', scopeId: this.id, phase: 'create' });
+    }
+    get disposed() { return this.disposedState; }
+    run(fn) {
+        if (this.disposedState)
+            throw new Error('[OneKit] Cannot run a disposed scope');
+        const previous = activeScope;
+        activeScope = this;
+        try {
+            return fn();
+        }
+        finally {
+            activeScope = previous;
+        }
+    }
+    add(dispose) {
+        if (this.disposedState) {
+            dispose();
+            return () => undefined;
+        }
+        let active = true;
+        const wrapped = () => {
+            if (!active)
+                return;
+            active = false;
+            this.cleanups.delete(wrapped);
+            dispose();
+        };
+        this.cleanups.add(wrapped);
+        return wrapped;
+    }
+    diagnostics() {
+        return {
+            id: this.id,
+            disposed: this.disposedState,
+            createdAt: this.createdAt,
+            ageMs: Math.max(0, Date.now() - this.createdAt),
+            cleanupCount: this.cleanups.size,
+            childCount: this.children.size,
+        };
+    }
+    dispose() {
+        if (this.disposedState)
+            return;
+        this.disposedState = true;
+        for (const child of Array.from(this.children))
+            child.dispose();
+        this.children.clear();
+        for (const cleanup of Array.from(this.cleanups).reverse()) {
+            try {
+                cleanup();
+            }
+            catch (error) {
+                console.warn('[OneKit] Scope cleanup failed', error);
+            }
+        }
+        this.cleanups.clear();
+        activeScopes.delete(this);
+        if (this.parent instanceof ScopeImpl)
+            this.parent.children.delete(this);
+        emitDevToolsEvent({ type: 'scope:lifecycle', scopeId: this.id, phase: 'dispose' });
+    }
+}
+function effectScope(detached = false) { return new ScopeImpl(detached); }
+function getCurrentScope() { return activeScope; }
+function onScopeDispose(dispose) {
+    if (!activeScope)
+        return () => undefined;
+    return activeScope.add(dispose);
+}
+function withScope(fn, detached = false) {
+    const scope = effectScope(detached);
+    return { value: scope.run(fn), scope };
+}
+function registerDisposable(resource) {
+    const dispose = resource.dispose ?? resource.stop ?? resource.unsubscribe;
+    if (dispose)
+        onScopeDispose(() => dispose.call(resource));
+    return resource;
+}
+function getActiveScopeDiagnostics() {
+    return Array.from(activeScopes, (scope) => scope.diagnostics());
+}
+function enableScopeLeakWarnings(options = {}) {
+    disableScopeLeakWarnings();
+    const thresholdMs = Math.max(1_000, options.thresholdMs ?? 60_000);
+    const intervalMs = Math.max(1_000, options.intervalMs ?? 30_000);
+    const warn = () => {
+        for (const scope of activeScopes) {
+            const diagnostics = scope.diagnostics();
+            if (diagnostics.ageMs < thresholdMs || diagnostics.cleanupCount === 0)
+                continue;
+            const message = `[OneKit] Scope ${diagnostics.id} has been active for ${diagnostics.ageMs}ms with ${diagnostics.cleanupCount} pending cleanup(s)`;
+            if (options.onWarning)
+                options.onWarning(diagnostics);
+            else
+                console.warn(message, diagnostics);
+            emitDevToolsEvent({ type: 'scope:lifecycle', scopeId: diagnostics.id, phase: 'create' });
+        }
+    };
+    leakTimer = setInterval(warn, intervalMs);
+    return disableScopeLeakWarnings;
+}
+function disableScopeLeakWarnings() {
+    if (leakTimer !== undefined)
+        clearInterval(leakTimer);
+    leakTimer = undefined;
 }
 
 const DEFAULT_SECURITY_CONFIG = {
@@ -1169,6 +1328,7 @@ function effect(fn, options = {}) {
     if (!options.lazy) {
         effectFn();
     }
+    onScopeDispose(() => stop(effectFn));
     return effectFn;
 }
 function stop(runner) {
@@ -1285,6 +1445,230 @@ function bind(element, reactiveObj, property, attribute = 'value') {
     });
 }
 
+const blockedIdentifiers = new Set(['globalThis', 'window', 'document', 'Function', 'eval', 'constructor', '__proto__', 'prototype', 'import', 'new']);
+function tokenize(input) {
+    const tokens = [];
+    let index = 0;
+    while (index < input.length) {
+        const rest = input.slice(index);
+        const whitespace = rest.match(/^\s+/);
+        if (whitespace) {
+            index += whitespace[0].length;
+            continue;
+        }
+        const string = rest.match(/^("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')/);
+        if (string) {
+            tokens.push({ type: 'string', value: string[0] });
+            index += string[0].length;
+            continue;
+        }
+        const number = rest.match(/^\d+(?:\.\d+)?/);
+        if (number) {
+            tokens.push({ type: 'number', value: number[0] });
+            index += number[0].length;
+            continue;
+        }
+        const identifier = rest.match(/^[A-Za-z_$][\w$]*/);
+        if (identifier) {
+            if (blockedIdentifiers.has(identifier[0]))
+                throw new Error(`Blocked identifier: ${identifier[0]}`);
+            tokens.push({ type: 'identifier', value: identifier[0] });
+            index += identifier[0].length;
+            continue;
+        }
+        const operator = rest.match(/^(===|!==|==|!=|>=|<=|&&|\|\||[+\-*/%><!?:.,()[\]])/);
+        if (operator) {
+            const value = operator[0];
+            tokens.push({ type: value.match(/^[()[\].,?:]$/) ? 'punctuation' : 'operator', value });
+            index += value.length;
+            continue;
+        }
+        throw new Error(`Unsupported token near: ${rest.slice(0, 12)}`);
+    }
+    tokens.push({ type: 'eof', value: '' });
+    return tokens;
+}
+class Parser {
+    tokens;
+    context;
+    index = 0;
+    constructor(tokens, context) {
+        this.tokens = tokens;
+        this.context = context;
+    }
+    parse() {
+        const result = this.parseConditional();
+        if (this.peek().type !== 'eof')
+            throw new Error(`Unexpected token: ${this.peek().value}`);
+        return result;
+    }
+    peek() { return this.tokens[this.index]; }
+    take(value) {
+        const token = this.peek();
+        if (value && token.value !== value)
+            throw new Error(`Expected ${value}, received ${token.value}`);
+        this.index += 1;
+        return token;
+    }
+    parseConditional() {
+        const condition = this.parseOr();
+        if (this.peek().value !== '?')
+            return condition;
+        this.take('?');
+        const whenTrue = this.parseConditional();
+        this.take(':');
+        const whenFalse = this.parseConditional();
+        return condition ? whenTrue : whenFalse;
+    }
+    parseOr() {
+        let value = this.parseAnd();
+        while (this.peek().value === '||') {
+            this.take();
+            const right = this.parseAnd();
+            value = value || right;
+        }
+        return value;
+    }
+    parseAnd() {
+        let value = this.parseEquality();
+        while (this.peek().value === '&&') {
+            this.take();
+            const right = this.parseEquality();
+            value = value && right;
+        }
+        return value;
+    }
+    parseEquality() {
+        let value = this.parseComparison();
+        while (['===', '!==', '==', '!='].includes(this.peek().value)) {
+            const operator = this.take().value;
+            const right = this.parseComparison();
+            value = operator === '===' ? value === right : operator === '!==' ? value !== right : operator === '==' ? value == right : value != right;
+        }
+        return value;
+    }
+    parseComparison() {
+        let value = this.parseTerm();
+        while (['>', '<', '>=', '<='].includes(this.peek().value)) {
+            const operator = this.take().value;
+            const right = this.parseTerm();
+            if (operator === '>')
+                value = value > right;
+            if (operator === '<')
+                value = value < right;
+            if (operator === '>=')
+                value = value >= right;
+            if (operator === '<=')
+                value = value <= right;
+        }
+        return value;
+    }
+    parseTerm() {
+        let value = this.parseFactor();
+        while (['+', '-'].includes(this.peek().value)) {
+            const operator = this.take().value;
+            const right = this.parseFactor();
+            value = operator === '+' ? value + right : value - right;
+        }
+        return value;
+    }
+    parseFactor() {
+        let value = this.parseUnary();
+        while (['*', '/', '%'].includes(this.peek().value)) {
+            const operator = this.take().value;
+            const right = this.parseUnary();
+            if (operator === '*')
+                value = value * right;
+            if (operator === '/')
+                value = value / right;
+            if (operator === '%')
+                value = value % right;
+        }
+        return value;
+    }
+    parseUnary() {
+        if (this.peek().value === '!') {
+            this.take();
+            return !this.parseUnary();
+        }
+        if (this.peek().value === '-') {
+            this.take();
+            return -this.parseUnary();
+        }
+        if (this.peek().value === '+') {
+            this.take();
+            return +this.parseUnary();
+        }
+        return this.parsePostfix().value;
+    }
+    parsePostfix() {
+        let reference = this.parsePrimary();
+        while (this.peek().value === '.' || this.peek().value === '[' || this.peek().value === '(') {
+            if (this.peek().value === '.') {
+                this.take('.');
+                const key = this.take().value;
+                if (blockedIdentifiers.has(key))
+                    throw new Error(`Blocked property: ${key}`);
+                const owner = reference.value;
+                reference = { value: owner == null ? undefined : owner[key], owner };
+            }
+            else if (this.peek().value === '[') {
+                this.take('[');
+                const key = this.parseConditional();
+                this.take(']');
+                const owner = reference.value;
+                reference = { value: owner == null ? undefined : owner[key], owner };
+            }
+            else {
+                this.take('(');
+                const args = [];
+                if (this.peek().value !== ')') {
+                    do {
+                        args.push(this.parseConditional());
+                    } while (this.peek().value === ',' && (this.take(), true));
+                }
+                this.take(')');
+                if (typeof reference.value !== 'function')
+                    throw new Error('Expression value is not callable');
+                reference = { value: reference.value.apply(reference.owner ?? this.context, args), owner: this.context };
+            }
+        }
+        return reference;
+    }
+    parsePrimary() {
+        const token = this.take();
+        if (token.type === 'number')
+            return { value: Number(token.value), owner: this.context };
+        if (token.type === 'string')
+            return { value: JSON.parse(token.value[0] === '"' ? token.value : `"${token.value.slice(1, -1).replace(/"/g, '\\"')}"`), owner: this.context };
+        if (token.value === '(') {
+            const value = this.parseConditional();
+            this.take(')');
+            return { value, owner: this.context };
+        }
+        if (token.type === 'identifier') {
+            if (token.value === 'true')
+                return { value: true, owner: this.context };
+            if (token.value === 'false')
+                return { value: false, owner: this.context };
+            if (token.value === 'null')
+                return { value: null, owner: this.context };
+            return { value: this.context[token.value], owner: this.context };
+        }
+        throw new Error(`Unexpected token: ${token.value}`);
+    }
+}
+function evaluateSafeExpression(expression, context) {
+    if (!expression.trim() || /[;{}]|=>|`/.test(expression))
+        return undefined;
+    try {
+        return new Parser(tokenize(expression), context ?? {}).parse();
+    }
+    catch {
+        return undefined;
+    }
+}
+
 // Template Engine Module with Directives
 const directives = {};
 // Register a directive
@@ -1301,26 +1685,10 @@ function parseDirective(attrName) {
     const modifiers = match[2] ? match[2].split('.') : [];
     return { name, modifiers, rawName: attrName };
 }
-// Evaluate only the expression subset supported by the template engine.
-// This is a guard against statement injection; applications should still only
-// compile templates from trusted sources because JavaScript expressions are used.
-function isSafeExpression(expression) {
-    const blocked = /(?:^|[^\w$])(?:globalThis|window|document|Function|eval|constructor|__proto__|prototype|import|new)(?:[^\w$]|$)|[;{}]|=>|`/;
-    return expression.trim().length > 0 && !blocked.test(expression);
-}
+// Evaluate the deliberately small, side-effect-limited expression grammar.
+// No dynamic JavaScript compilation is used here.
 function evaluateExpression(expression, context) {
-    if (!isSafeExpression(expression)) {
-        console.error('Template expression rejected:', expression);
-        return undefined;
-    }
-    try {
-        const func = new Function('context', `with (context) { return (${expression}); }`);
-        return func(Object.create(context ?? null));
-    }
-    catch (e) {
-        console.error('Template expression error:', expression, e);
-        return undefined;
-    }
+    return evaluateSafeExpression(expression, context ?? {});
 }
 function assignExpression(expression, context, value) {
     const path = expression.trim().split('.');
@@ -1631,6 +1999,13 @@ function initTemplateEngine() {
 // Component System Module
 const components = {};
 const componentInstances = new Map();
+registerDevToolsInspector('components', () => Array.from(componentInstances.values()).map((instance) => ({
+    id: instance.componentId,
+    name: instance.name,
+    mounted: instance.mounted,
+    props: instance.props,
+    state: instance.state,
+})));
 // Lifecycle hooks registry for composition API style
 const lifecycleHooks = new WeakMap();
 // Current component instance for composition API
@@ -1726,6 +2101,8 @@ function create(name, props = {}, slots = {}) {
     const instance = {
         name,
         props: validatedProps,
+        scope: effectScope(true),
+        componentId: getDevToolsTargetId({}),
         slots,
         state: definition.data ? deepCloneSafe(definition.data()) : {},
         element: null,
@@ -1796,6 +2173,7 @@ function create(name, props = {}, slots = {}) {
                     });
                 }
             }
+            emitDevToolsEvent({ type: 'component:lifecycle', componentId: this.componentId, name: this.name, phase: 'update' });
             definition.updated?.call(this);
         }
     };
@@ -1815,6 +2193,7 @@ function create(name, props = {}, slots = {}) {
     // Add lifecycle hooks
     definition.beforeCreate?.call(instance);
     definition.created?.call(instance);
+    emitDevToolsEvent({ type: 'component:lifecycle', componentId: instance.componentId, name: instance.name, phase: 'create' });
     // Store instance
     if (instance.element) {
         componentInstances.set(instance.element, instance);
@@ -1840,13 +2219,16 @@ function mount(component, target) {
     }
     targetElement.appendChild(comp.element);
     comp.mounted = true;
+    emitDevToolsEvent({ type: 'component:lifecycle', componentId: comp.componentId, name: comp.name, phase: 'mount' });
     const definition = components[comp.name];
-    definition?.mounted?.call(comp);
-    // Call composition API onMounted hooks
-    const hooks = lifecycleHooks.get(comp);
-    if (hooks?.onMounted) {
-        hooks.onMounted.forEach(hook => hook());
-    }
+    comp.scope.run(() => {
+        definition?.mounted?.call(comp);
+        // Call composition API onMounted hooks
+        const hooks = lifecycleHooks.get(comp);
+        if (hooks?.onMounted) {
+            hooks.onMounted.forEach(hook => hook());
+        }
+    });
     return comp;
 }
 const unmount = destroy;
@@ -1877,6 +2259,8 @@ function destroy(component) {
     if (definition && definition.unmounted) {
         definition.unmounted.call(component);
     }
+    component.scope.dispose();
+    emitDevToolsEvent({ type: 'component:lifecycle', componentId: component.componentId, name: component.name, phase: 'unmount' });
 }
 // Composition API lifecycle hooks
 function onMounted(callback) {
@@ -1952,8 +2336,7 @@ function setupComponent(instance, setupFn) {
     const prevInstance = currentInstance;
     currentInstance = instance;
     try {
-        const result = setupFn(instance.props);
-        return result;
+        return instance.scope.run(() => setupFn(instance.props));
     }
     finally {
         currentInstance = prevInstance;
@@ -2530,7 +2913,9 @@ class Router {
     getCurrentLocation() { return this.current; }
     subscribe(listener) {
         this.listeners.add(listener);
-        return () => this.listeners.delete(listener);
+        const unsubscribe = () => this.listeners.delete(listener);
+        onScopeDispose(unsubscribe);
+        return unsubscribe;
     }
     start() {
         if (this.started)
@@ -3087,6 +3472,11 @@ function validateAccessibility(element) {
 // Integrated State Manager (Pinia-like)
 const stores = new Map();
 const storeSubscriptions = new WeakMap();
+registerDevToolsInspector('stores', () => Array.from(stores.values()).map((store) => ({
+    id: store.$id,
+    state: store.$state,
+    subscriberCount: storeSubscriptions.get(store)?.size ?? 0,
+})));
 function defineStore(id, setup) {
     let definition;
     if (typeof id === 'string') {
@@ -3142,10 +3532,14 @@ function defineStore(id, setup) {
                 storeSubscriptions.set(store, subscribers);
             }
             subscribers.add(callback);
-            // Return unsubscribe function
-            return () => {
+            emitDevToolsEvent({ type: 'store:lifecycle', storeId: definition.id, phase: 'subscribe', listenerCount: subscribers.size });
+            // Return unsubscribe function and bind it to the current disposable scope.
+            const unsubscribe = () => {
                 subscribers.delete(callback);
+                emitDevToolsEvent({ type: 'store:lifecycle', storeId: definition.id, phase: 'unsubscribe', listenerCount: subscribers.size });
             };
+            onScopeDispose(unsubscribe);
+            return unsubscribe;
         }
     };
     // Add getters
@@ -3174,6 +3568,7 @@ function defineStore(id, setup) {
     }
     // Store the instance
     stores.set(definition.id, store);
+    emitDevToolsEvent({ type: 'store:lifecycle', storeId: definition.id, phase: 'create', listenerCount: 0 });
     applyPlugins(store);
     return store;
 }
@@ -3191,6 +3586,7 @@ function removeStore(id) {
     const store = stores.get(id);
     if (store) {
         storeSubscriptions.delete(store);
+        emitDevToolsEvent({ type: 'store:lifecycle', storeId: id, phase: 'remove', listenerCount: 0 });
         return stores.delete(id);
     }
     return false;
@@ -3829,14 +4225,20 @@ exports.del = del;
 exports.destroy = destroy;
 exports.devToolsSnapshot = devToolsSnapshot;
 exports.di = di;
+exports.disableScopeLeakWarnings = disableScopeLeakWarnings;
 exports.effect = effect;
+exports.effectScope = effectScope;
 exports.emitDevToolsEvent = emitDevToolsEvent;
 exports.enableDevTools = enableDevTools;
+exports.enableScopeLeakWarnings = enableScopeLeakWarnings;
 exports.errorHandler = errorHandler;
 exports.generateId = generateId;
 exports.get = get;
+exports.getActiveScopeDiagnostics = getActiveScopeDiagnostics;
 exports.getAllStores = getAllStores;
+exports.getCurrentScope = getCurrentScope;
 exports.getDevToolsEffectId = getDevToolsEffectId;
+exports.getDevToolsScopeId = getDevToolsScopeId;
 exports.getDevToolsTargetId = getDevToolsTargetId;
 exports.getInstance = getInstance;
 exports.h = h;
@@ -3859,6 +4261,7 @@ exports.onDestroyed = onDestroyed;
 exports.onDevToolsEvent = onDevToolsEvent;
 exports.onMounted = onMounted;
 exports.onPropsChanged = onPropsChanged;
+exports.onScopeDispose = onScopeDispose;
 exports.onUpdated = onUpdated;
 exports.patch = patch$1;
 exports.pluginManager = pluginManager;
@@ -3869,7 +4272,9 @@ exports.preloadStyle = preloadStyle;
 exports.put = put;
 exports.reactive = reactive;
 exports.register = register;
+exports.registerDevToolsInspector = registerDevToolsInspector;
 exports.registerDirective = registerDirective;
+exports.registerDisposable = registerDisposable;
 exports.registerWebComponent = registerWebComponent;
 exports.removeStore = removeStore;
 exports.render = render;
@@ -3895,4 +4300,5 @@ exports.validateAccessibility = validateAccessibility;
 exports.vdomPatch = patch$1;
 exports.watch = watch;
 exports.withCache = withCache;
+exports.withScope = withScope;
 //# sourceMappingURL=onekit.cjs.map

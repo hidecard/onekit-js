@@ -16,8 +16,11 @@ try {
   execFileSync(process.execPath, ['--input-type=module', '-e', `
     import * as OneKit from 'onekit-js';
     import * as SSR from 'onekit-js/ssr';
+    import * as Vite from 'onekit-js/vite';
     if (typeof OneKit.reactive !== 'function') throw new Error('root reactive export missing');
     if (typeof SSR.renderToString !== 'function') throw new Error('SSR export missing');
+    if (typeof Vite.oneKitVitePlugin !== 'function') throw new Error('Vite plugin export missing');
+    if (typeof Vite.preserveHMRState !== 'function') throw new Error('HMR state helper missing');
   `], { cwd: temp, stdio: 'inherit' });
 
   execFileSync(process.execPath, ['-e', `
