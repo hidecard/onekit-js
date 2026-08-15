@@ -5,6 +5,18 @@ All notable changes to OneKit will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.13] - 2026-08-15
+
+### Added
+- Add production-ready V3 disposable effect scopes, automatic component/store/router teardown, live DevTools inspectors, lifecycle events, and development leak diagnostics.
+- Add the restricted template expression AST evaluator and remove dynamic `new Function()` execution from template compilation.
+- Add the Vite HMR plugin, HMR state preservation helper, package subpath export, and repeatable V3 benchmark harness.
+
+### Fixed
+- Make Rollup builds portable across Node 18, Node 20, and Node 22 CI environments by handling Web Crypto availability and skipping incompatible terser minification only on Node 18.
+- Build generated Vite artifacts before clean package verification so `onekit-js/vite` is validated from the packed tarball.
+- Extend automated coverage for disposable scopes, DevTools inspectors, component/store lifecycle events, and package entrypoints.
+
 ## [3.1.12] - 2026-08-15
 
 ### Added

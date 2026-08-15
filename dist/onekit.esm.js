@@ -4180,7 +4180,7 @@ const jsxDEV = h;
 // Main entry point with tree-shaking friendly exports
 // Core systems
 // Version info
-const VERSION = '3.1.12';
+const VERSION = '3.1.13';
 
 export { API, DependencyInjector, Fragment, OneKit, OneKitWebComponent, Router, StreamingRenderer, VERSION, addScript, addStorePlugin, addStyle, addToBody, addToHead, animations, announce, patch as apiPatch, autorun, batch, bind, cache, compileTemplate, component, computed, create, createElement, createErrorBoundary, createLandmarks, createLoadingBoundary, createRouter, createSSRContext, createSkipLink, createStorage, createStore, debounce, deepClone, defineComponent, defineStore, del, destroy, devToolsSnapshot, di, disableScopeLeakWarnings, effect, effectScope, emitDevToolsEvent, enableDevTools, enableScopeLeakWarnings, errorHandler, generateId, get, getActiveScopeDiagnostics, getAllStores, getCurrentScope, getDevToolsEffectId, getDevToolsScopeId, getDevToolsTargetId, getInstance, h, hydrate, initTemplateEngine, isClient, isDevToolsEnabled, isServer, jsx, jsxDEV, localStorage, makeFocusable, makeUnfocusable, manageTabOrder, mount, nextTick, ok, okjs, onDestroyed, onDevToolsEvent, onMounted, onPropsChanged, onScopeDispose, onUpdated, patch$1 as patch, pluginManager, post, preloadModule, preloadScript, preloadStyle, put, reactive, register, registerDevToolsInspector, registerDirective, registerDisposable, registerWebComponent, removeStore, render, renderMeta, renderOpenGraph, renderTitle, renderToString, request, router, safeMethod, sessionStorage, setAriaAttributes, setMeta, setupComponent, skipToContent, snapshot, stop, throttle, trapFocus, unmount, useStore, validateAccessibility, patch$1 as vdomPatch, watch, withCache, withScope };
 //# sourceMappingURL=onekit.esm.js.map
