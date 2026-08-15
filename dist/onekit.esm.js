@@ -4222,9 +4222,9 @@ function scopeCss(css, scopeId) {
     });
 }
 function styleCode(style, id, scoped) {
-    if (!style)
-        return '';
     const styleId = `onekit-okjs-${id.replace(/[^a-z0-9_-]/gi, '-')}`;
+    if (!style)
+        return `\nconst __okjsStyleId = ${JSON.stringify(styleId)};\n`;
     const css = scoped ? scopeCss(style, styleId) : style;
     return `\nconst __okjsStyleId = ${JSON.stringify(styleId)};\nconst __okjsStyleText = ${JSON.stringify(css)};\nif (typeof document !== 'undefined' && !document.querySelector('[data-okjs-style="' + __okjsStyleId + '"]')) {\n  const __okjsStyle = document.createElement('style');\n  __okjsStyle.setAttribute('data-okjs-style', __okjsStyleId);\n  __okjsStyle.textContent = __okjsStyleText;\n  document.head.appendChild(__okjsStyle);\n}\n`;
 }

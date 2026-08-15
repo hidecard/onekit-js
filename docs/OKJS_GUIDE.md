@@ -60,6 +60,8 @@ const instance = create('Counter');
 if (instance) mount(instance, '#app');
 ```
 
+Files such as `App.okjs`, `Header.okjs`, `Counter.okjs`, `main.okjs`, and `index.okjs` all use the same component-file format. The filename does not change the compiler contract; the application entrypoint remains the normal `main.ts` or `main.js` file that imports and mounts a `.okjs` component.
+
 The CLI starter generator creates this structure automatically:
 
 ```bash
@@ -81,7 +83,8 @@ Top-level custom blocks are rejected to keep the format predictable and secure. 
 
 ## Public compiler API
 
-The parser and compiler are available for tooling integrations:
+The parser and compiler are available for tooling integrations. They treat every `.okjs` filename as a component file, including `main.okjs` and `index.okjs`:
+
 
 ```ts
 import { compileOkjs, parseOkjs } from 'onekit-js/okjs';

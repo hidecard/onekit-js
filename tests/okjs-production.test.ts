@@ -31,6 +31,15 @@ article { color: red; }
     expect(result.code).toContain('export default __okjsComponent;');
   });
 
+  it('treats main.okjs and index.okjs as ordinary importable component files', () => {
+    const main = compileOkjs(source, '/src/main.okjs');
+    const index = compileOkjs(source, '/src/index.okjs');
+    expect(parseOkjs(source, '/src/index.okjs').template).toContain('<article>');
+    expect(main.code).toContain('export default __okjsComponent;');
+    expect(index.code).toContain('export default __okjsComponent;');
+    expect(main.code).not.toContain('__okjsMount');
+  });
+
   it('rejects missing templates and unsupported top-level blocks', () => {
     expect(() => parseOkjs('<script>export default {};</script>', 'Empty.okjs')).toThrow(/must contain a <template>/);
     expect(() => parseOkjs('<custom></custom><template><p>Hi</p></template>', 'Invalid.okjs')).toThrow(/Unsupported/);
