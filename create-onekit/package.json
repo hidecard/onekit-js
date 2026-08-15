@@ -1,6 +1,6 @@
 {
   "name": "create-onekit",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Create a OneKit JS application with the official OneKit CLI.",
   "type": "module",
   "bin": {
