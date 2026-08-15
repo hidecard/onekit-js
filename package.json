@@ -1,6 +1,6 @@
 {
   "name": "onekit-js",
-  "version": "3.1.14",
+  "version": "3.1.15",
   "description": "A compact reactive JavaScript framework with components, stores, SSR, JSX, templates, and a practical CLI.",
   "type": "module",
   "main": "dist/onekit.cjs",
