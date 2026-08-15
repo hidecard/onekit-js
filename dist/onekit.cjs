@@ -117,6 +117,7 @@ const listeners = new Set();
 const history = [];
 const inspectors = new Map();
 const resources = new Map();
+const dependencies = new Map();
 const scopeIds = new WeakMap();
 let nextScopeId = 1;
 function isDevToolsEnabled() {
@@ -158,16 +159,21 @@ function enableDevTools(options = {}) {
                 }
             });
             result.resources = getResourceGraph();
+            result.dependencies = getDependencyGraph();
             return result;
         },
         getResourceGraph() {
             return Array.from(resources.values(), resource => devToolsSnapshot(resource));
+        },
+        getDependencyGraph() {
+            return getDependencyGraph();
         },
         dispose() {
             enabled = false;
             listeners.clear();
             history.length = 0;
             resources.clear();
+            dependencies.clear();
             if (installedGlobalName && typeof window !== 'undefined') {
                 delete window[installedGlobalName];
             }
@@ -220,6 +226,21 @@ function registerDevToolsResource(resource) {
 }
 function disposeDevToolsResource(resourceId) {
     resources.delete(resourceId);
+    dependencies.delete(resourceId);
+}
+function recordDevToolsDependency(effectId, targetId, key) {
+    if (!enabled)
+        return;
+    const effectDependencies = dependencies.get(effectId) ?? new Map();
+    const dependency = { effectId, targetId, key };
+    effectDependencies.set(`${targetId}:${key}`, dependency);
+    dependencies.set(effectId, effectDependencies);
+}
+function clearDevToolsDependencies(effectId) {
+    dependencies.delete(effectId);
+}
+function getDependencyGraph() {
+    return Array.from(dependencies.values()).flatMap(items => Array.from(items.values(), item => devToolsSnapshot(item)));
 }
 function getResourceGraph() {
     return Array.from(resources.values(), resource => devToolsSnapshot(resource));
@@ -1217,6 +1238,7 @@ function flushJobs() {
     isFlushing = false;
 }
 function cleanup(effectFn) {
+    clearDevToolsDependencies(getDevToolsEffectId(effectFn));
     effectFn.deps.forEach(dep => dep.delete(effectFn));
     effectFn.deps.length = 0;
 }
@@ -1236,6 +1258,7 @@ function track(target, key) {
     if (!dep.has(activeEffect)) {
         dep.add(activeEffect);
         activeEffect.deps.push(dep);
+        recordDevToolsDependency(getDevToolsEffectId(activeEffect), getDevToolsTargetId(target), String(key));
     }
 }
 function trigger(target, key, oldValue, newValue) {
@@ -3072,7 +3095,23 @@ class Router {
         const result = matched ?? { route, location: to };
         if (route.loader) {
             try {
-                result.data = await route.loader(context);
+                const load = () => route.loader(context);
+                if (this.options.errorBoundary) {
+                    result.data = await this.options.errorBoundary.renderAsync(async () => await load(), 'route-loader');
+                    if (this.options.errorBoundary.state.error) {
+                        emitDevToolsEvent({
+                            type: 'router:navigation',
+                            phase: 'error',
+                            to: to.fullPath,
+                            from: from?.fullPath ?? null,
+                            route: route.path,
+                            error: this.options.errorBoundary.state.error,
+                        });
+                    }
+                }
+                else {
+                    result.data = await load();
+                }
             }
             catch (error) {
                 emitDevToolsEvent({ type: 'router:navigation', phase: 'error', to: to.fullPath, from: from?.fullPath ?? null, route: route.path, error });
@@ -4306,6 +4345,7 @@ exports.autorun = autorun;
 exports.batch = batch;
 exports.bind = bind;
 exports.cache = cache;
+exports.clearDevToolsDependencies = clearDevToolsDependencies;
 exports.compileTemplate = compileTemplate;
 exports.component = component;
 exports.computed = computed;
@@ -4340,6 +4380,7 @@ exports.get = get;
 exports.getActiveScopeDiagnostics = getActiveScopeDiagnostics;
 exports.getAllStores = getAllStores;
 exports.getCurrentScope = getCurrentScope;
+exports.getDependencyGraph = getDependencyGraph;
 exports.getDevToolsEffectId = getDevToolsEffectId;
 exports.getDevToolsScopeId = getDevToolsScopeId;
 exports.getDevToolsTargetId = getDevToolsTargetId;
@@ -4375,6 +4416,7 @@ exports.preloadScript = preloadScript;
 exports.preloadStyle = preloadStyle;
 exports.put = put;
 exports.reactive = reactive;
+exports.recordDevToolsDependency = recordDevToolsDependency;
 exports.register = register;
 exports.registerDevToolsInspector = registerDevToolsInspector;
 exports.registerDevToolsResource = registerDevToolsResource;

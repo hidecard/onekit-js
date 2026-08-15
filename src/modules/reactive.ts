@@ -1,6 +1,6 @@
 // Reactive State Management Module (Vue 3-style)
 import { deepCloneSafe, validateStorageKey } from '../core/security';
-import { emitDevToolsEvent, getDevToolsEffectId, getDevToolsTargetId, getDevToolsScopeId, registerDevToolsResource, disposeDevToolsResource } from '../core/devtools';
+import { emitDevToolsEvent, getDevToolsEffectId, getDevToolsTargetId, getDevToolsScopeId, registerDevToolsResource, disposeDevToolsResource, recordDevToolsDependency, clearDevToolsDependencies } from '../core/devtools';
 import { getCurrentScope, onScopeDispose } from '../core/scope';
 
 interface ReactiveObject {
@@ -61,6 +61,7 @@ function flushJobs() {
 }
 
 function cleanup(effectFn: EffectFn) {
+  clearDevToolsDependencies(getDevToolsEffectId(effectFn));
   effectFn.deps.forEach(dep => dep.delete(effectFn));
   effectFn.deps.length = 0;
 }
@@ -83,6 +84,7 @@ function track(target: object, key: string | symbol) {
   if (!dep.has(activeEffect)) {
     dep.add(activeEffect);
     activeEffect.deps.push(dep);
+    recordDevToolsDependency(getDevToolsEffectId(activeEffect), getDevToolsTargetId(target), String(key));
   }
 }
 

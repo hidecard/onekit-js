@@ -2,6 +2,7 @@
 
 import { emitDevToolsEvent } from '../core/devtools';
 import { onScopeDispose } from '../core/scope';
+import type { ErrorBoundary } from '../core/error-handler';
 
 export type RouteParams = Record<string, string>;
 export type QueryParams = Record<string, string | string[]>;
@@ -46,6 +47,7 @@ export interface RouterOptions {
   notFound?: Route;
   beforeEach?: RouteGuard;
   afterEach?: (context: RouteContext & { matched: MatchedRoute | null }) => void;
+  errorBoundary?: ErrorBoundary<unknown>;
 }
 
 type Listener = (to: RouteLocation, from: RouteLocation | null) => void;
@@ -202,7 +204,22 @@ export class Router {
     const result: MatchedRoute = matched ?? { route, location: to };
     if (route.loader) {
       try {
-        result.data = await route.loader(context);
+        const load = () => route.loader!(context);
+        if (this.options.errorBoundary) {
+          result.data = await this.options.errorBoundary.renderAsync(async () => await load(), 'route-loader');
+          if (this.options.errorBoundary.state.error) {
+            emitDevToolsEvent({
+              type: 'router:navigation',
+              phase: 'error',
+              to: to.fullPath,
+              from: from?.fullPath ?? null,
+              route: route.path,
+              error: this.options.errorBoundary.state.error,
+            });
+          }
+        } else {
+          result.data = await load();
+        }
       } catch (error) {
         emitDevToolsEvent({ type: 'router:navigation', phase: 'error', to: to.fullPath, from: from?.fullPath ?? null, route: route.path, error });
         throw error;

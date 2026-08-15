@@ -1,3 +1,4 @@
+import type { ErrorBoundary } from '../core/error-handler';
 export type RouteParams = Record<string, string>;
 export type QueryParams = Record<string, string | string[]>;
 export interface RouteLocation {
@@ -37,6 +38,7 @@ export interface RouterOptions {
     afterEach?: (context: RouteContext & {
         matched: MatchedRoute | null;
     }) => void;
+    errorBoundary?: ErrorBoundary<unknown>;
 }
 type Listener = (to: RouteLocation, from: RouteLocation | null) => void;
 export declare class Router {

@@ -115,6 +115,7 @@ const listeners = new Set();
 const history = [];
 const inspectors = new Map();
 const resources = new Map();
+const dependencies = new Map();
 const scopeIds = new WeakMap();
 let nextScopeId = 1;
 function isDevToolsEnabled() {
@@ -156,16 +157,21 @@ function enableDevTools(options = {}) {
                 }
             });
             result.resources = getResourceGraph();
+            result.dependencies = getDependencyGraph();
             return result;
         },
         getResourceGraph() {
             return Array.from(resources.values(), resource => devToolsSnapshot(resource));
+        },
+        getDependencyGraph() {
+            return getDependencyGraph();
         },
         dispose() {
             enabled = false;
             listeners.clear();
             history.length = 0;
             resources.clear();
+            dependencies.clear();
             if (installedGlobalName && typeof window !== 'undefined') {
                 delete window[installedGlobalName];
             }
@@ -218,6 +224,21 @@ function registerDevToolsResource(resource) {
 }
 function disposeDevToolsResource(resourceId) {
     resources.delete(resourceId);
+    dependencies.delete(resourceId);
+}
+function recordDevToolsDependency(effectId, targetId, key) {
+    if (!enabled)
+        return;
+    const effectDependencies = dependencies.get(effectId) ?? new Map();
+    const dependency = { effectId, targetId, key };
+    effectDependencies.set(`${targetId}:${key}`, dependency);
+    dependencies.set(effectId, effectDependencies);
+}
+function clearDevToolsDependencies(effectId) {
+    dependencies.delete(effectId);
+}
+function getDependencyGraph() {
+    return Array.from(dependencies.values()).flatMap(items => Array.from(items.values(), item => devToolsSnapshot(item)));
 }
 function getResourceGraph() {
     return Array.from(resources.values(), resource => devToolsSnapshot(resource));
@@ -1215,6 +1236,7 @@ function flushJobs() {
     isFlushing = false;
 }
 function cleanup(effectFn) {
+    clearDevToolsDependencies(getDevToolsEffectId(effectFn));
     effectFn.deps.forEach(dep => dep.delete(effectFn));
     effectFn.deps.length = 0;
 }
@@ -1234,6 +1256,7 @@ function track(target, key) {
     if (!dep.has(activeEffect)) {
         dep.add(activeEffect);
         activeEffect.deps.push(dep);
+        recordDevToolsDependency(getDevToolsEffectId(activeEffect), getDevToolsTargetId(target), String(key));
     }
 }
 function trigger(target, key, oldValue, newValue) {
@@ -3070,7 +3093,23 @@ class Router {
         const result = matched ?? { route, location: to };
         if (route.loader) {
             try {
-                result.data = await route.loader(context);
+                const load = () => route.loader(context);
+                if (this.options.errorBoundary) {
+                    result.data = await this.options.errorBoundary.renderAsync(async () => await load(), 'route-loader');
+                    if (this.options.errorBoundary.state.error) {
+                        emitDevToolsEvent({
+                            type: 'router:navigation',
+                            phase: 'error',
+                            to: to.fullPath,
+                            from: from?.fullPath ?? null,
+                            route: route.path,
+                            error: this.options.errorBoundary.state.error,
+                        });
+                    }
+                }
+                else {
+                    result.data = await load();
+                }
             }
             catch (error) {
                 emitDevToolsEvent({ type: 'router:navigation', phase: 'error', to: to.fullPath, from: from?.fullPath ?? null, route: route.path, error });
@@ -4284,5 +4323,5 @@ const jsxDEV = h;
 // Version info
 const VERSION = '3.1.13';
 
-export { API, DependencyInjector, Fragment, OneKit, OneKitWebComponent, Router, StreamingRenderer, VERSION, addScript, addStorePlugin, addStyle, addToBody, addToHead, animations, announce, patch as apiPatch, autorun, batch, bind, cache, compileTemplate, component, computed, create, createElement, createErrorBoundary, createLandmarks, createLoadingBoundary, createRouter, createSSRContext, createSkipLink, createStorage, createStore, debounce, deepClone, defineComponent, defineStore, del, destroy, devToolsSnapshot, di, disableScopeLeakWarnings, disposeDevToolsResource, effect, effectScope, emitDevToolsEvent, enableDevTools, enableScopeLeakWarnings, errorHandler, generateId, get, getActiveScopeDiagnostics, getAllStores, getCurrentScope, getDevToolsEffectId, getDevToolsScopeId, getDevToolsTargetId, getInstance, getResourceGraph, h, hydrate, initTemplateEngine, isClient, isDevToolsEnabled, isServer, jsx, jsxDEV, localStorage, makeFocusable, makeUnfocusable, manageTabOrder, mount, nextTick, ok, okjs, onDestroyed, onDevToolsEvent, onMounted, onPropsChanged, onScopeDispose, onUpdated, patch$1 as patch, pluginManager, post, preloadModule, preloadScript, preloadStyle, put, reactive, register, registerDevToolsInspector, registerDevToolsResource, registerDirective, registerDisposable, registerWebComponent, removeStore, render, renderMeta, renderOpenGraph, renderTitle, renderToString, request, router, safeMethod, sessionStorage, setAriaAttributes, setMeta, setupComponent, skipToContent, snapshot, stop, throttle, trapFocus, unmount, useStore, validateAccessibility, patch$1 as vdomPatch, watch, withCache, withScope };
+export { API, DependencyInjector, Fragment, OneKit, OneKitWebComponent, Router, StreamingRenderer, VERSION, addScript, addStorePlugin, addStyle, addToBody, addToHead, animations, announce, patch as apiPatch, autorun, batch, bind, cache, clearDevToolsDependencies, compileTemplate, component, computed, create, createElement, createErrorBoundary, createLandmarks, createLoadingBoundary, createRouter, createSSRContext, createSkipLink, createStorage, createStore, debounce, deepClone, defineComponent, defineStore, del, destroy, devToolsSnapshot, di, disableScopeLeakWarnings, disposeDevToolsResource, effect, effectScope, emitDevToolsEvent, enableDevTools, enableScopeLeakWarnings, errorHandler, generateId, get, getActiveScopeDiagnostics, getAllStores, getCurrentScope, getDependencyGraph, getDevToolsEffectId, getDevToolsScopeId, getDevToolsTargetId, getInstance, getResourceGraph, h, hydrate, initTemplateEngine, isClient, isDevToolsEnabled, isServer, jsx, jsxDEV, localStorage, makeFocusable, makeUnfocusable, manageTabOrder, mount, nextTick, ok, okjs, onDestroyed, onDevToolsEvent, onMounted, onPropsChanged, onScopeDispose, onUpdated, patch$1 as patch, pluginManager, post, preloadModule, preloadScript, preloadStyle, put, reactive, recordDevToolsDependency, register, registerDevToolsInspector, registerDevToolsResource, registerDirective, registerDisposable, registerWebComponent, removeStore, render, renderMeta, renderOpenGraph, renderTitle, renderToString, request, router, safeMethod, sessionStorage, setAriaAttributes, setMeta, setupComponent, skipToContent, snapshot, stop, throttle, trapFocus, unmount, useStore, validateAccessibility, patch$1 as vdomPatch, watch, withCache, withScope };
 //# sourceMappingURL=onekit.esm.js.map

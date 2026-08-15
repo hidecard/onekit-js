@@ -1,4 +1,5 @@
 import { createRouter } from '../src/index';
+import { createErrorBoundary } from '../src/index';
 
 describe('M2 router production contract', () => {
   it('matches dynamic params and query values', async () => {
@@ -27,6 +28,20 @@ describe('M2 router production contract', () => {
 
     expect(result?.data).toEqual({ ready: true });
     expect(events).toEqual(['none>/dashboard']);
+  });
+
+  it('uses an error boundary fallback for failed route loaders', async () => {
+    const boundary = createErrorBoundary({
+      fallback: () => ({ fallback: true }),
+    });
+    const router = createRouter([{
+      path: '/unstable',
+      loader: async () => { throw new Error('loader failed'); },
+    }], { mode: 'memory', errorBoundary: boundary });
+
+    const result = await router.navigate('/unstable');
+    expect(result?.data).toEqual({ fallback: true });
+    expect(boundary.state.error?.message).toBe('loader failed');
   });
 
   it('supports redirects from guards', async () => {

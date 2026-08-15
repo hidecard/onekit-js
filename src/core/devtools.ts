@@ -68,6 +68,12 @@ export interface DevToolsResource {
   createdAt: number;
 }
 
+export interface DevToolsDependency {
+  effectId: number;
+  targetId: number;
+  key: string;
+}
+
 export interface DevToolsBridge {
   readonly enabled: boolean;
   subscribe(listener: DevToolsListener): () => void;
@@ -76,6 +82,7 @@ export interface DevToolsBridge {
   getMetadata(): DevToolsMetadata;
   getInspectors(): Record<string, unknown>;
   getResourceGraph(): readonly DevToolsResource[];
+  getDependencyGraph(): readonly DevToolsDependency[];
   dispose(): void;
 }
 
@@ -92,6 +99,7 @@ const listeners = new Set<DevToolsListener>();
 const history: DevToolsEvent[] = [];
 const inspectors = new Map<string, () => unknown>();
 const resources = new Map<number, DevToolsResource>();
+const dependencies = new Map<number, Map<string, DevToolsDependency>>();
 const scopeIds = new WeakMap<object, number>();
 let nextScopeId = 1;
 
@@ -130,16 +138,21 @@ export function enableDevTools(options: DevToolsOptions = {}): DevToolsBridge {
         try { result[name] = devToolsSnapshot(provider()); } catch { result[name] = { error: 'inspector failed' }; }
       });
       result.resources = getResourceGraph();
+      result.dependencies = getDependencyGraph();
       return result;
     },
     getResourceGraph() {
       return Array.from(resources.values(), resource => devToolsSnapshot(resource));
+    },
+    getDependencyGraph() {
+      return getDependencyGraph();
     },
     dispose() {
       enabled = false;
       listeners.clear();
       history.length = 0;
       resources.clear();
+      dependencies.clear();
       if (installedGlobalName && typeof window !== 'undefined') {
         delete (window as unknown as Record<string, unknown>)[installedGlobalName];
       }
@@ -197,6 +210,23 @@ export function registerDevToolsResource(resource: DevToolsResource): void {
 
 export function disposeDevToolsResource(resourceId: number): void {
   resources.delete(resourceId);
+  dependencies.delete(resourceId);
+}
+
+export function recordDevToolsDependency(effectId: number, targetId: number, key: string): void {
+  if (!enabled) return;
+  const effectDependencies = dependencies.get(effectId) ?? new Map<string, DevToolsDependency>();
+  const dependency = { effectId, targetId, key };
+  effectDependencies.set(`${targetId}:${key}`, dependency);
+  dependencies.set(effectId, effectDependencies);
+}
+
+export function clearDevToolsDependencies(effectId: number): void {
+  dependencies.delete(effectId);
+}
+
+export function getDependencyGraph(): readonly DevToolsDependency[] {
+  return Array.from(dependencies.values()).flatMap(items => Array.from(items.values(), item => devToolsSnapshot(item)));
 }
 
 export function getResourceGraph(): readonly DevToolsResource[] {

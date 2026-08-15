@@ -54,6 +54,11 @@ export interface DevToolsResource {
     resourceType: 'effect' | 'watch' | 'listener' | 'async';
     createdAt: number;
 }
+export interface DevToolsDependency {
+    effectId: number;
+    targetId: number;
+    key: string;
+}
 export interface DevToolsBridge {
     readonly enabled: boolean;
     subscribe(listener: DevToolsListener): () => void;
@@ -62,6 +67,7 @@ export interface DevToolsBridge {
     getMetadata(): DevToolsMetadata;
     getInspectors(): Record<string, unknown>;
     getResourceGraph(): readonly DevToolsResource[];
+    getDependencyGraph(): readonly DevToolsDependency[];
     dispose(): void;
 }
 export declare function isDevToolsEnabled(): boolean;
@@ -73,6 +79,9 @@ export declare function registerDevToolsInspector(name: string, provider: () => 
 export declare function getDevToolsEffectId(effect: Function): number;
 export declare function registerDevToolsResource(resource: DevToolsResource): void;
 export declare function disposeDevToolsResource(resourceId: number): void;
+export declare function recordDevToolsDependency(effectId: number, targetId: number, key: string): void;
+export declare function clearDevToolsDependencies(effectId: number): void;
+export declare function getDependencyGraph(): readonly DevToolsDependency[];
 export declare function getResourceGraph(): readonly DevToolsResource[];
 export declare function devToolsSnapshot<T>(value: T, seen?: WeakMap<object, unknown>): T;
 export declare function emitDevToolsEvent(event: DevToolsEvent): void;

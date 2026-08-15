@@ -287,7 +287,7 @@ Common V3 directive patterns are:
 </section>
 ```
 
-The template expression engine intentionally supports a restricted expression grammar. It does not execute arbitrary JavaScript statements or dynamic code. Keep untrusted HTML and untrusted expression strings out of application templates, and validate external data before placing it in a UI model.
+The template expression engine intentionally supports a restricted expression grammar. It does not execute arbitrary JavaScript statements or dynamic code. Interpolated text is connected to individual reactive text nodes, so changing one value does not require replacing the component root. Keep untrusted HTML and untrusted expression strings out of application templates, and validate external data before placing it in a UI model.
 
 ## JSX and VDOM
 
@@ -342,7 +342,19 @@ const unsubscribe = appRouter.subscribe((to, from) => {
 void unsubscribe;
 ```
 
-The router resolves navigation and data but does not automatically render route components. Subscribe to route changes and connect the match to your component or VDOM renderer. Call `router.stop()` when the router is no longer needed.
+The router resolves navigation and data but does not automatically render route components. Subscribe to route changes and connect the match to your component or VDOM renderer. Route loaders can use an error boundary so a failed loader returns controlled fallback data instead of crashing navigation:
+
+```ts
+const loaderBoundary = createErrorBoundary({
+  fallback: (error) => ({ error: error.message, items: [] }),
+});
+
+const router = createRouter([
+  { path: '/items', loader: () => fetchItems() },
+], { mode: 'history', errorBoundary: loaderBoundary });
+```
+
+Call `router.stop()` when the router is no longer needed.
 
 ## Stores
 
@@ -581,7 +593,7 @@ The plugin emits OneKit module update events and preserves an application HMR st
 ```ts
 import { preserveHMRState } from "onekit-js/vite";
 
-const state = preserveHMRState("counter", () => ({ count: 0 }));
+const state = preserveHMRState("counter", { count: 0 });
 state.count += 1;
 ```
 
@@ -612,7 +624,14 @@ unsubscribe();
 bridge.dispose();
 ```
 
-The current bridge provides reactive, router, component, store, and scope lifecycle events plus live component/store inspector snapshots. It is a foundation for browser extension panels; do not ship sensitive application state to a remote debugging service.
+The current bridge provides reactive, router, component, store, scope, and resource lifecycle events plus live component/store inspector snapshots. Effects expose an inspectable resource graph and target/key dependency graph:
+
+```ts
+console.table(bridge.getResourceGraph());
+console.table(bridge.getDependencyGraph());
+```
+
+This is a foundation for browser extension panels; do not ship sensitive application state to a remote debugging service.
 
 ## CLI commands
 
@@ -647,7 +666,7 @@ The package verification command creates a temporary project, packs the current 
 npm pack --dry-run
 ```
 
-The GitHub Actions workflow validates Node 18, 20, and 22, runs coverage thresholds, builds documentation, audits production dependencies, verifies the packed package, and creates a release artifact for version tags.
+The GitHub Actions workflow validates Node 18, 20, and 22, runs coverage thresholds, builds documentation, audits production dependencies, verifies the packed package, runs the repeatable benchmark, uploads its JSON report, and creates a release artifact for version tags.
 
 Never commit `node_modules`, benchmark reports, access tokens, or generated temporary directories. Actual npm publication requires an authenticated npm session:
 
@@ -664,7 +683,7 @@ Run the repeatable V3 baseline benchmark after building:
 npm run benchmark
 ```
 
-The benchmark writes a JSON report containing reactive updates, batched updates, deep snapshots, and scope teardown timings. Use the report to compare changes on the same Node version and machine. Do not compare results across different hardware or framework versions without recording the environment and methodology.
+The benchmark writes a JSON report containing reactive updates, batched updates, deep snapshots, and scope teardown timings. CI runs it on Node 22 and uploads `benchmark-results/v3.json` as an artifact. Use the report to compare changes on the same Node version and machine. Do not compare results across different hardware or framework versions without recording the environment and methodology.
 
 ## TypeScript and package imports
 

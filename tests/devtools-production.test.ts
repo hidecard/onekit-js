@@ -89,6 +89,9 @@ describe('DevTools live inspectors', () => {
     expect(bridge.getResourceGraph()).toEqual(expect.arrayContaining([
       expect.objectContaining({ resourceType: 'effect', ownerId: expect.any(Number) }),
     ]));
+    expect(bridge.getDependencyGraph()).toEqual(expect.arrayContaining([
+      expect.objectContaining({ effectId: expect.any(Number), targetId: expect.any(Number), key: 'ready' }),
+    ]));
 
     scope.dispose();
     expect(bridge.getResourceGraph()).toEqual([]);

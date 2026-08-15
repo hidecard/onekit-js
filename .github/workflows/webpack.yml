@@ -74,6 +74,33 @@ jobs:
       - name: Inspect package contents
         run: npm pack --dry-run
 
+  benchmark:
+    name: Run V3 benchmark
+    runs-on: ubuntu-latest
+    needs: package
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 22.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run benchmark suite
+        run: ONEKIT_BENCH_ITERATIONS=10000 ONEKIT_BENCH_SAMPLES=5 npm run benchmark
+
+      - name: Upload benchmark report
+        uses: actions/upload-artifact@v4
+        with:
+          name: onekit-v3-benchmark
+          path: benchmark-results/v3.json
+          if-no-files-found: error
+
   release-artifact:
     name: Build release artifact
     if: startsWith(github.ref, 'refs/tags/v')
