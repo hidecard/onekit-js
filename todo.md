@@ -70,6 +70,16 @@
 - [x] Validate `npx --package=onekit-js onekit create`, generated app install, dev, and production build.
 - [x] Update README, Getting Started, V3 usage, website CLI example, and changelog for the new workflow.
 
+## M4 and next M-series milestones
+
+- [ ] Audit SSR render contracts, escaping, request context isolation, head/body output, async rendering, and hydration API behavior.
+- [ ] Add hydration mismatch detection and diagnostics without mutating the server DOM incorrectly.
+- [ ] Add SSR/client parity tests for text, attributes, boolean props, events, keyed nodes, fragments, and nested components.
+- [ ] Add framework-level error boundaries and loading boundary contracts for render, effect, route, loader, and SSR failures.
+- [ ] Add M4 examples, regression tests, and documentation.
+- [ ] Define and implement the next CLI/release milestone after the scaffolder.
+- [ ] Run full validation, update changelog/docs, and publish-ready the next M-series release.
+
 ## Decisions
 
 - Documentation language: English for the public developer docs.

@@ -11,7 +11,17 @@ export interface RenderResult {
     context: SSRContext;
 }
 export declare function renderToString(vnode: VNode | string, context?: SSRContext): RenderResult;
-export declare function hydrate(rootElement: Element, vnode: VNode): void;
+export interface HydrationMismatch {
+    path: string;
+    kind: 'tag' | 'text' | 'missing' | 'unexpected';
+    expected: string;
+    actual: string;
+}
+export interface HydrationResult {
+    mismatches: HydrationMismatch[];
+    dispose: () => void;
+}
+export declare function hydrate(rootElement: Element, vnode: VNode): HydrationResult;
 export declare class StreamingRenderer {
     private context;
     private chunks;

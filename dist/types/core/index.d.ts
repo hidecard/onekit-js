@@ -1,3 +1,4 @@
+export { errorHandler, safeMethod, createErrorBoundary, createLoadingBoundary } from './error-handler';
 export interface OneKitConfig {
     enableSanitization?: boolean;
     enableValidation?: boolean;

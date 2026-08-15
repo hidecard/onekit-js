@@ -26,6 +26,74 @@ function safeMethod(method) {
         }
     };
 }
+function toError(error) {
+    return error instanceof Error ? error : new Error(String(error));
+}
+function createErrorBoundary(options) {
+    const state = { error: null, pending: false };
+    const reset = () => {
+        state.error = null;
+    };
+    const report = (error, context) => {
+        const normalized = toError(error);
+        state.error = normalized;
+        options.onError?.(normalized, context);
+        errorHandler(normalized, context);
+        return normalized;
+    };
+    const run = (work, context = 'boundary') => {
+        try {
+            state.error = null;
+            return work();
+        }
+        catch (error) {
+            throw report(error, context);
+        }
+    };
+    const runAsync = async (work, context = 'boundary') => {
+        state.pending = true;
+        state.error = null;
+        try {
+            return await work();
+        }
+        catch (error) {
+            throw report(error, context);
+        }
+        finally {
+            state.pending = false;
+        }
+    };
+    const render = (work, context = 'render') => {
+        try {
+            return run(work, context);
+        }
+        catch (error) {
+            return options.fallback(toError(error), reset);
+        }
+    };
+    return { state, run, runAsync, render, reset };
+}
+function createLoadingBoundary() {
+    const state = { error: null, pending: false };
+    let value;
+    const run = async (work) => {
+        state.pending = true;
+        state.error = null;
+        try {
+            value = await work();
+            return value;
+        }
+        catch (error) {
+            state.error = toError(error);
+            throw state.error;
+        }
+        finally {
+            state.pending = false;
+        }
+    };
+    const render = (loading, ready) => state.pending ? loading : (value ?? ready);
+    return { state, run, render };
+}
 
 const DEFAULT_SECURITY_CONFIG = {
     ALLOWED_TAGS: [
@@ -3036,7 +3104,7 @@ function renderHtmlTag(node, context) {
             bodyContent = renderBodyTag(child, context);
         }
         else {
-            bodyContent += renderVNode(child);
+            bodyContent += renderVNode(child, context);
         }
     });
     return `<!DOCTYPE html>
@@ -3045,30 +3113,30 @@ ${headContent}
 ${bodyContent}
 </html>`;
 }
-function renderVNode(node) {
+function renderVNode(node, context = createSSRContext()) {
     if (typeof node === 'string') {
         return escapeHtml(node);
     }
     const { tag, props, children } = node;
     // Handle special tags
     if (tag === 'html') {
-        return renderHtmlTag(node, { head: [], body: [], meta: {} });
+        return renderHtmlTag(node, context);
     }
     if (tag === 'head') {
-        return renderHeadTag(node, { head: [], meta: {} });
+        return renderHeadTag(node, context);
     }
     if (tag === 'body') {
-        return renderBodyTag(node, { body: []});
+        return renderBodyTag(node, context);
     }
     // Handle component rendering (simplified for SSR)
     if (typeof tag === 'function') {
         // For functional components, call them to get vnode
         const componentResult = tag(props);
-        return renderVNode(componentResult);
+        return renderVNode(componentResult, context);
     }
     // Regular HTML element
     const attrs = renderAttributes(props);
-    const childrenHtml = children.map(renderVNode).join('');
+    const childrenHtml = children.map(child => renderVNode(child, context)).join('');
     if (isSelfClosingTag(tag)) {
         return `<${tag}${attrs}>`;
     }
@@ -3083,7 +3151,7 @@ function renderHeadTag(node, context) {
             content += escapeHtml(child);
         }
         else {
-            content += renderVNode(child);
+            content += renderVNode(child, context);
         }
     });
     // Add context head content
@@ -3092,8 +3160,8 @@ function renderHeadTag(node, context) {
     }
     // Add meta tags from context
     if (context.meta) {
-        Object.entries(context.meta).forEach(([name, content]) => {
-            content += `<meta name="${name}" content="${escapeHtml(content)}">\n`;
+        Object.entries(context.meta).forEach(([name, value]) => {
+            content += `<meta name="${escapeHtml(name)}" content="${escapeHtml(value)}">\n`;
         });
     }
     return `<head${attrs}>${content}</head>`;
@@ -3107,7 +3175,7 @@ function renderBodyTag(node, context) {
             content += escapeHtml(child);
         }
         else {
-            content += renderVNode(child);
+            content += renderVNode(child, context);
         }
     });
     // Add context body content
@@ -3154,52 +3222,95 @@ function isSelfClosingTag(tag) {
 function escapeHtml(text) {
     const htmlEscapes = {
         '&': '&amp;',
-        '<': '<',
-        '>': '>',
-        '"': '"',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
         "'": '&#39;'
     };
     return text.replace(/[&<>"']/g, char => htmlEscapes[char]);
 }
-// Hydration for client-side activation
+// Hydration attaches client behavior without rewriting server-rendered DOM.
+// It reports parity problems so applications can fail loudly in development.
 function hydrate(rootElement, vnode) {
-    // Walk the DOM and attach event listeners
-    walkAndHydrate(rootElement, vnode);
+    const mismatches = [];
+    const cleanups = [];
+    walkAndHydrate(rootElement, vnode, 'root', mismatches, cleanups);
+    return {
+        mismatches,
+        dispose: () => {
+            while (cleanups.length > 0)
+                cleanups.pop()?.();
+        },
+    };
 }
-function walkAndHydrate(element, vnode) {
-    // Attach event listeners from vnode props
+function walkAndHydrate(element, vnode, path, mismatches, cleanups) {
+    if (typeof vnode.tag === 'function') {
+        const resolved = vnode.tag(vnode.props);
+        walkAndHydrate(element, resolved, path, mismatches, cleanups);
+        return;
+    }
+    if (vnode.tag !== 'fragment' && element.tagName.toLowerCase() !== vnode.tag.toLowerCase()) {
+        mismatches.push({
+            path,
+            kind: 'tag',
+            expected: vnode.tag,
+            actual: element.tagName.toLowerCase(),
+        });
+    }
     for (const [key, value] of Object.entries(vnode.props)) {
         if (key.startsWith('on') && typeof value === 'function') {
             const eventName = key.slice(2).toLowerCase();
-            element.addEventListener(eventName, value);
+            const listener = value;
+            element.addEventListener(eventName, listener);
+            cleanups.push(() => element.removeEventListener(eventName, listener));
         }
     }
-    // Store vnode reference for future patches
     element._vnode = vnode;
-    // Walk children
-    const childNodes = Array.from(element.childNodes);
-    let childIndex = 0;
-    vnode.children.forEach(child => {
+    const childNodes = Array.from(element.childNodes).filter(node => !(node.nodeType === Node.TEXT_NODE && node.textContent?.trim() === ''));
+    vnode.children.forEach((child, index) => {
+        const domChild = childNodes[index];
+        const childPath = `${path}.${index}`;
+        if (!domChild) {
+            mismatches.push({
+                path: childPath,
+                kind: 'missing',
+                expected: typeof child === 'string' ? child : String(child.tag),
+                actual: 'missing',
+            });
+            return;
+        }
         if (typeof child === 'string') {
-            // Skip text nodes for hydration
-            while (childIndex < childNodes.length && childNodes[childIndex].nodeType !== Node.TEXT_NODE) {
-                childIndex++;
+            if (domChild.nodeType !== Node.TEXT_NODE || domChild.textContent !== child) {
+                mismatches.push({
+                    path: childPath,
+                    kind: 'text',
+                    expected: child,
+                    actual: domChild.textContent || '',
+                });
             }
-            if (childIndex < childNodes.length) {
-                childIndex++;
-            }
+            return;
         }
-        else {
-            // Find corresponding element node
-            while (childIndex < childNodes.length && childNodes[childIndex].nodeType !== Node.ELEMENT_NODE) {
-                childIndex++;
-            }
-            if (childIndex < childNodes.length) {
-                walkAndHydrate(childNodes[childIndex], child);
-                childIndex++;
-            }
+        if (domChild.nodeType !== Node.ELEMENT_NODE) {
+            mismatches.push({
+                path: childPath,
+                kind: 'tag',
+                expected: String(child.tag),
+                actual: '#text',
+            });
+            return;
         }
+        walkAndHydrate(domChild, child, childPath, mismatches, cleanups);
     });
+    if (childNodes.length > vnode.children.length) {
+        for (let index = vnode.children.length; index < childNodes.length; index += 1) {
+            mismatches.push({
+                path: `${path}.${index}`,
+                kind: 'unexpected',
+                expected: 'none',
+                actual: childNodes[index].textContent || childNodes[index].nodeName.toLowerCase(),
+            });
+        }
+    }
 }
 // Streaming SSR utilities
 class StreamingRenderer {
@@ -3539,7 +3650,9 @@ exports.component = component;
 exports.computed = computed;
 exports.create = create;
 exports.createElement = createElement;
+exports.createErrorBoundary = createErrorBoundary;
 exports.createLandmarks = createLandmarks;
+exports.createLoadingBoundary = createLoadingBoundary;
 exports.createRouter = createRouter;
 exports.createSSRContext = createSSRContext;
 exports.createSkipLink = createSkipLink;
@@ -3553,6 +3666,7 @@ exports.del = del;
 exports.destroy = destroy;
 exports.di = di;
 exports.effect = effect;
+exports.errorHandler = errorHandler;
 exports.generateId = generateId;
 exports.get = get;
 exports.getAllStores = getAllStores;
@@ -3595,6 +3709,7 @@ exports.renderTitle = renderTitle;
 exports.renderToString = renderToString;
 exports.request = request;
 exports.router = router;
+exports.safeMethod = safeMethod;
 exports.sessionStorage = sessionStorage;
 exports.setAriaAttributes = setAriaAttributes;
 exports.setMeta = setMeta;
