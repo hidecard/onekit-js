@@ -139,6 +139,7 @@ The counter demonstrates `reactive` and `effect`. The todo project demonstrates 
 | [V3 Usage Guide](docs/V3_USAGE.md) | Complete install, CLI, API, SSR, accessibility, security, migration, troubleshooting, and release usage. |
 | [Getting Started](docs/GETTING_STARTED.md) | Quick setup and first application workflow. |
 | [Framework Guide](docs/FRAMEWORK_GUIDE.md) | Architecture, conventions, and framework design guidance. |
+| [Production Readiness](docs/PRODUCTION_READINESS.md) | Current framework gaps, production adoption guidance, milestones, and release checklist. |
 | [Changelog](CHANGELOG.md) | Release history and maintenance notes. |
 | [Counter example](examples/counter) | Minimal reactive application. |
 | [Todo example](examples/todo) | Store-backed application example. |
