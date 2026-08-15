@@ -1,5 +1,6 @@
 import { create, defineComponent, defineStore, nextTick, register, renderToString } from '../src/index';
 import { compileTemplate } from '../src/modules/template';
+import { reactive } from '../src/modules/reactive';
 
 describe('V3 regression coverage', () => {
   it('creates a component with validated props', () => {
@@ -63,9 +64,22 @@ describe('V3 regression coverage', () => {
     expect(state.user.name).toBe('After');
   });
 
-  it('rejects statement and global access expressions', () => {
-    const state = { value: 'safe' };
-    const element = compileTemplate('<p ok-if="window.alert(1)">Safe</p>', state);
-    expect((element as HTMLElement).style.display).toBe('none');
+  it('updates only the interpolated text node for reactive state changes', async () => {
+    const state = reactive({ count: 1 });
+    const element = compileTemplate('<section><span>{{count}}</span><b>stable</b></section>', state);
+    const span = element.querySelector('span') as HTMLSpanElement;
+    const sibling = element.querySelector('b');
+    expect(span.textContent).toBe('1');
+    state.count = 2;
+    await Promise.resolve();
+    expect(span.textContent).toBe('2');
+    expect(element.querySelector('b')).toBe(sibling);
+  });
+
+  it('rejects statement/global expressions and unsafe dynamic URLs', () => {
+    const state = { value: 'safe', url: 'javascript:alert(1)' };
+    const element = compileTemplate('<section><p ok-if="window.alert(1)">Safe</p><a ok-bind.href="url">Link</a></section>', state);
+    expect((element.querySelector('p') as HTMLElement).style.display).toBe('none');
+    expect(element.querySelector('a')?.getAttribute('href')).toBeNull();
   });
 });

@@ -6,6 +6,7 @@ import { compileTemplate } from './template';
 import { reactive, effect } from './reactive';
 import { DisposableScope, effectScope } from '../core/scope';
 import { emitDevToolsEvent, getDevToolsTargetId, registerDevToolsInspector } from '../core/devtools';
+import { createErrorBoundary } from '../core/error-handler';
 
 export interface ComponentProps {
   [key: string]: unknown;
@@ -191,11 +192,11 @@ export function create(name: string, props: ComponentProps = {}, slots: { [key: 
 
   const instance: ComponentInstance = {
     name,
-    props: validatedProps,
+    props: reactive(validatedProps),
     scope: effectScope(true),
     componentId: getDevToolsTargetId({}),
     slots,
-    state: definition.data ? deepCloneSafe(definition.data()) : {},
+    state: reactive(definition.data ? deepCloneSafe(definition.data()) : {}),
     element: null,
     mounted: false,
     listeners: [],
@@ -273,18 +274,40 @@ export function create(name: string, props: ComponentProps = {}, slots: { [key: 
     }
   };
 
-  // Create element
-  if (definition.template) {
-    // Use template engine with directives
-    const context = { ...instance.state, ...instance.props, $slots: instance.slots };
-    instance.element = compileTemplate(definition.template, context);
-  } else if (definition.render) {
-    const html = definition.render.call(instance);
-    const sanitized = sanitizeHTML(html);
-    const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = sanitized;
-    instance.element = tempDiv.firstElementChild as Element;
-  }
+  // Create element inside the component scope so template effects and directive
+  // listeners are disposed automatically when the component is destroyed.
+  const renderBoundary = createErrorBoundary<Element>({
+    fallback: (_error) => {
+      const fallback = document.createElement('div');
+      fallback.setAttribute('data-onekit-error-boundary', instance.name);
+      fallback.textContent = 'OneKit component failed to render';
+      return fallback;
+    },
+  });
+
+  instance.scope.run(() => renderBoundary.render(() => {
+    if (definition.template) {
+      const context = new Proxy({}, {
+        get(_target, key: string | symbol) {
+          if (key in instance.state) return instance.state[key as string];
+          if (key in instance.props) return instance.props[key as string];
+          if (key === '$slots') return instance.slots;
+          return undefined;
+        },
+        has(_target, key: string | symbol) {
+          return key in instance.state || key in instance.props || key === '$slots';
+        },
+      });
+      instance.element = compileTemplate(definition.template, context);
+    } else if (definition.render) {
+      const html = definition.render.call(instance);
+      const sanitized = sanitizeHTML(html);
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = sanitized;
+      instance.element = tempDiv.firstElementChild as Element;
+    }
+    return instance.element ?? document.createElement('div');
+  }));
 
   // Add lifecycle hooks
   definition.beforeCreate?.call(instance);

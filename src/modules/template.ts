@@ -1,6 +1,6 @@
 // Template Engine Module with Directives
 import { reactive, effect, stop } from './reactive';
-import { sanitizeHTML } from '../core/security';
+import { sanitizeHTML, sanitizeURL } from '../core/security';
 import { evaluateSafeExpression } from './expression';
 
 export interface DirectiveContext {
@@ -130,6 +130,29 @@ export function compileTemplate(template: string, context: any): Element {
     }
   });
 
+  // Compile text interpolations into fine-grained text-node effects.
+  // Each effect updates only its own text node instead of replacing the root DOM.
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+  const textNodes: Text[] = [];
+  let currentNode: Node | null = walker.nextNode();
+  while (currentNode) {
+    textNodes.push(currentNode as Text);
+    currentNode = walker.nextNode();
+  }
+
+  textNodes.forEach((textNode) => {
+    const source = textNode.nodeValue ?? '';
+    if (!/\{\{[^}]+\}\}/.test(source)) return;
+
+    effect(() => {
+      const rendered = source.replace(/\{\{([^}]+)\}\}/g, (_match, expression) => {
+        const value = evaluateExpression(String(expression).trim(), context);
+        return value === undefined || value === null ? '' : String(value);
+      });
+      textNode.nodeValue = rendered;
+    });
+  });
+
   // Return the first child (the actual template content)
   return container.firstElementChild as Element || container;
 }
@@ -242,11 +265,21 @@ function updateBind(ctx: DirectiveContext) {
   const attrName = ctx.modifiers[0] || 'value'; // Default to 'value' if no modifier
 
   if (attrName === 'class') {
-    element.className = ctx.value;
+    element.className = ctx.value == null ? '' : String(ctx.value);
   } else if (attrName === 'style') {
-    Object.assign(element.style, ctx.value);
+    if (ctx.value && typeof ctx.value === 'object') {
+      Object.assign(element.style, ctx.value);
+    } else {
+      element.removeAttribute('style');
+    }
+  } else if (attrName === 'href' || attrName === 'src') {
+    const safeURL = ctx.value == null ? '' : sanitizeURL(String(ctx.value));
+    if (safeURL) element.setAttribute(attrName, safeURL);
+    else element.removeAttribute(attrName);
+  } else if (ctx.value == null || ctx.value === false) {
+    element.removeAttribute(attrName);
   } else {
-    element.setAttribute(attrName, ctx.value);
+    element.setAttribute(attrName, String(ctx.value));
   }
 }
 

@@ -86,8 +86,13 @@ describe('DevTools live inspectors', () => {
       stores: expect.any(Array),
     }));
     expect(events).toContain('scope:lifecycle');
+    expect(bridge.getResourceGraph()).toEqual(expect.arrayContaining([
+      expect.objectContaining({ resourceType: 'effect', ownerId: expect.any(Number) }),
+    ]));
 
     scope.dispose();
+    expect(bridge.getResourceGraph()).toEqual([]);
+    expect(events).toContain('resource:lifecycle');
     unsubscribe();
     bridge.dispose();
   });

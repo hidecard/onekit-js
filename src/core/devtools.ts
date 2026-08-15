@@ -37,6 +37,13 @@ export type DevToolsEvent =
       type: 'scope:lifecycle';
       scopeId: number;
       phase: 'create' | 'dispose';
+    }
+  | {
+      type: 'resource:lifecycle';
+      resourceId: number;
+      ownerId: number | null;
+      resourceType: 'effect' | 'watch' | 'listener' | 'async';
+      phase: 'create' | 'dispose' | 'leak';
     };
 
 export type DevToolsListener = (event: DevToolsEvent) => void;
@@ -54,6 +61,13 @@ export interface DevToolsMetadata {
   listenerCount: number;
 }
 
+export interface DevToolsResource {
+  resourceId: number;
+  ownerId: number | null;
+  resourceType: 'effect' | 'watch' | 'listener' | 'async';
+  createdAt: number;
+}
+
 export interface DevToolsBridge {
   readonly enabled: boolean;
   subscribe(listener: DevToolsListener): () => void;
@@ -61,6 +75,7 @@ export interface DevToolsBridge {
   clearHistory(): void;
   getMetadata(): DevToolsMetadata;
   getInspectors(): Record<string, unknown>;
+  getResourceGraph(): readonly DevToolsResource[];
   dispose(): void;
 }
 
@@ -76,6 +91,7 @@ const effectIds = new WeakMap<Function, number>();
 const listeners = new Set<DevToolsListener>();
 const history: DevToolsEvent[] = [];
 const inspectors = new Map<string, () => unknown>();
+const resources = new Map<number, DevToolsResource>();
 const scopeIds = new WeakMap<object, number>();
 let nextScopeId = 1;
 
@@ -113,12 +129,17 @@ export function enableDevTools(options: DevToolsOptions = {}): DevToolsBridge {
       inspectors.forEach((provider, name) => {
         try { result[name] = devToolsSnapshot(provider()); } catch { result[name] = { error: 'inspector failed' }; }
       });
+      result.resources = getResourceGraph();
       return result;
+    },
+    getResourceGraph() {
+      return Array.from(resources.values(), resource => devToolsSnapshot(resource));
     },
     dispose() {
       enabled = false;
       listeners.clear();
       history.length = 0;
+      resources.clear();
       if (installedGlobalName && typeof window !== 'undefined') {
         delete (window as unknown as Record<string, unknown>)[installedGlobalName];
       }
@@ -167,6 +188,19 @@ export function getDevToolsEffectId(effect: Function): number {
   const id = nextEffectId++;
   effectIds.set(effect, id);
   return id;
+}
+
+export function registerDevToolsResource(resource: DevToolsResource): void {
+  if (!enabled) return;
+  resources.set(resource.resourceId, resource);
+}
+
+export function disposeDevToolsResource(resourceId: number): void {
+  resources.delete(resourceId);
+}
+
+export function getResourceGraph(): readonly DevToolsResource[] {
+  return Array.from(resources.values(), resource => devToolsSnapshot(resource));
 }
 
 export function devToolsSnapshot<T>(value: T, seen = new WeakMap<object, unknown>()): T {

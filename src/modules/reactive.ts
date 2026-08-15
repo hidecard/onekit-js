@@ -1,7 +1,7 @@
 // Reactive State Management Module (Vue 3-style)
 import { deepCloneSafe, validateStorageKey } from '../core/security';
-import { emitDevToolsEvent, getDevToolsEffectId, getDevToolsTargetId } from '../core/devtools';
-import { onScopeDispose } from '../core/scope';
+import { emitDevToolsEvent, getDevToolsEffectId, getDevToolsTargetId, getDevToolsScopeId, registerDevToolsResource, disposeDevToolsResource } from '../core/devtools';
+import { getCurrentScope, onScopeDispose } from '../core/scope';
 
 interface ReactiveObject {
   [key: string]: unknown;
@@ -199,11 +199,37 @@ export function effect(
   effectFn.deps = [];
   effectFn.options = options;
 
+  const effectId = getDevToolsEffectId(effectFn);
+  const ownerScope = getCurrentScope();
+  registerDevToolsResource({
+    resourceId: effectId,
+    ownerId: ownerScope ? getDevToolsScopeId(ownerScope) : null,
+    resourceType: 'effect',
+    createdAt: Date.now(),
+  });
+  emitDevToolsEvent({
+    type: 'resource:lifecycle',
+    resourceId: effectId,
+    ownerId: ownerScope ? getDevToolsScopeId(ownerScope) : null,
+    resourceType: 'effect',
+    phase: 'create',
+  });
+
   if (!options.lazy) {
     effectFn();
   }
 
-  onScopeDispose(() => stop(effectFn));
+  onScopeDispose(() => {
+    emitDevToolsEvent({
+      type: 'resource:lifecycle',
+      resourceId: effectId,
+      ownerId: ownerScope ? getDevToolsScopeId(ownerScope) : null,
+      resourceType: 'effect',
+      phase: 'dispose',
+    });
+    disposeDevToolsResource(effectId);
+    stop(effectFn);
+  });
   return effectFn;
 }
 

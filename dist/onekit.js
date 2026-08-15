@@ -120,6 +120,7 @@
     const listeners = new Set();
     const history = [];
     const inspectors = new Map();
+    const resources = new Map();
     const scopeIds = new WeakMap();
     let nextScopeId = 1;
     function isDevToolsEnabled() {
@@ -160,12 +161,17 @@
                         result[name] = { error: 'inspector failed' };
                     }
                 });
+                result.resources = getResourceGraph();
                 return result;
+            },
+            getResourceGraph() {
+                return Array.from(resources.values(), resource => devToolsSnapshot(resource));
             },
             dispose() {
                 enabled = false;
                 listeners.clear();
                 history.length = 0;
+                resources.clear();
                 if (installedGlobalName && typeof window !== 'undefined') {
                     delete window[installedGlobalName];
                 }
@@ -210,6 +216,17 @@
         const id = nextEffectId++;
         effectIds.set(effect, id);
         return id;
+    }
+    function registerDevToolsResource(resource) {
+        if (!enabled)
+            return;
+        resources.set(resource.resourceId, resource);
+    }
+    function disposeDevToolsResource(resourceId) {
+        resources.delete(resourceId);
+    }
+    function getResourceGraph() {
+        return Array.from(resources.values(), resource => devToolsSnapshot(resource));
     }
     function devToolsSnapshot(value, seen = new WeakMap()) {
         if (value === null || typeof value !== 'object')
@@ -1329,10 +1346,35 @@
         });
         effectFn.deps = [];
         effectFn.options = options;
+        const effectId = getDevToolsEffectId(effectFn);
+        const ownerScope = getCurrentScope();
+        registerDevToolsResource({
+            resourceId: effectId,
+            ownerId: ownerScope ? getDevToolsScopeId(ownerScope) : null,
+            resourceType: 'effect',
+            createdAt: Date.now(),
+        });
+        emitDevToolsEvent({
+            type: 'resource:lifecycle',
+            resourceId: effectId,
+            ownerId: ownerScope ? getDevToolsScopeId(ownerScope) : null,
+            resourceType: 'effect',
+            phase: 'create',
+        });
         if (!options.lazy) {
             effectFn();
         }
-        onScopeDispose(() => stop(effectFn));
+        onScopeDispose(() => {
+            emitDevToolsEvent({
+                type: 'resource:lifecycle',
+                resourceId: effectId,
+                ownerId: ownerScope ? getDevToolsScopeId(ownerScope) : null,
+                resourceType: 'effect',
+                phase: 'dispose',
+            });
+            disposeDevToolsResource(effectId);
+            stop(effectFn);
+        });
         return effectFn;
     }
     function stop(runner) {
@@ -1771,6 +1813,27 @@
                 binding.element.__onekitTemplateCleanup = binding.cleanup;
             }
         });
+        // Compile text interpolations into fine-grained text-node effects.
+        // Each effect updates only its own text node instead of replacing the root DOM.
+        const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+        const textNodes = [];
+        let currentNode = walker.nextNode();
+        while (currentNode) {
+            textNodes.push(currentNode);
+            currentNode = walker.nextNode();
+        }
+        textNodes.forEach((textNode) => {
+            const source = textNode.nodeValue ?? '';
+            if (!/\{\{[^}]+\}\}/.test(source))
+                return;
+            effect(() => {
+                const rendered = source.replace(/\{\{([^}]+)\}\}/g, (_match, expression) => {
+                    const value = evaluateExpression(String(expression).trim(), context);
+                    return value === undefined || value === null ? '' : String(value);
+                });
+                textNode.nodeValue = rendered;
+            });
+        });
         // Return the first child (the actual template content)
         return container.firstElementChild || container;
     }
@@ -1869,13 +1932,28 @@
         const element = ctx.element;
         const attrName = ctx.modifiers[0] || 'value'; // Default to 'value' if no modifier
         if (attrName === 'class') {
-            element.className = ctx.value;
+            element.className = ctx.value == null ? '' : String(ctx.value);
         }
         else if (attrName === 'style') {
-            Object.assign(element.style, ctx.value);
+            if (ctx.value && typeof ctx.value === 'object') {
+                Object.assign(element.style, ctx.value);
+            }
+            else {
+                element.removeAttribute('style');
+            }
+        }
+        else if (attrName === 'href' || attrName === 'src') {
+            const safeURL = ctx.value == null ? '' : sanitizeURL(String(ctx.value));
+            if (safeURL)
+                element.setAttribute(attrName, safeURL);
+            else
+                element.removeAttribute(attrName);
+        }
+        else if (ctx.value == null || ctx.value === false) {
+            element.removeAttribute(attrName);
         }
         else {
-            element.setAttribute(attrName, ctx.value);
+            element.setAttribute(attrName, String(ctx.value));
         }
     }
     // o-model directive
@@ -2104,11 +2182,11 @@
         const validatedProps = definition.props ? validateProps(props, definition.props, name) : props;
         const instance = {
             name,
-            props: validatedProps,
+            props: reactive(validatedProps),
             scope: effectScope(true),
             componentId: getDevToolsTargetId({}),
             slots,
-            state: definition.data ? deepCloneSafe(definition.data()) : {},
+            state: reactive(definition.data ? deepCloneSafe(definition.data()) : {}),
             element: null,
             mounted: false,
             listeners: [],
@@ -2181,19 +2259,43 @@
                 definition.updated?.call(this);
             }
         };
-        // Create element
-        if (definition.template) {
-            // Use template engine with directives
-            const context = { ...instance.state, ...instance.props, $slots: instance.slots };
-            instance.element = compileTemplate(definition.template, context);
-        }
-        else if (definition.render) {
-            const html = definition.render.call(instance);
-            const sanitized = sanitizeHTML(html);
-            const tempDiv = document.createElement('div');
-            tempDiv.innerHTML = sanitized;
-            instance.element = tempDiv.firstElementChild;
-        }
+        // Create element inside the component scope so template effects and directive
+        // listeners are disposed automatically when the component is destroyed.
+        const renderBoundary = createErrorBoundary({
+            fallback: (_error) => {
+                const fallback = document.createElement('div');
+                fallback.setAttribute('data-onekit-error-boundary', instance.name);
+                fallback.textContent = 'OneKit component failed to render';
+                return fallback;
+            },
+        });
+        instance.scope.run(() => renderBoundary.render(() => {
+            if (definition.template) {
+                const context = new Proxy({}, {
+                    get(_target, key) {
+                        if (key in instance.state)
+                            return instance.state[key];
+                        if (key in instance.props)
+                            return instance.props[key];
+                        if (key === '$slots')
+                            return instance.slots;
+                        return undefined;
+                    },
+                    has(_target, key) {
+                        return key in instance.state || key in instance.props || key === '$slots';
+                    },
+                });
+                instance.element = compileTemplate(definition.template, context);
+            }
+            else if (definition.render) {
+                const html = definition.render.call(instance);
+                const sanitized = sanitizeHTML(html);
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = sanitized;
+                instance.element = tempDiv.firstElementChild;
+            }
+            return instance.element ?? document.createElement('div');
+        }));
         // Add lifecycle hooks
         definition.beforeCreate?.call(instance);
         definition.created?.call(instance);
@@ -4230,6 +4332,7 @@ ${bodyContent}
     exports.devToolsSnapshot = devToolsSnapshot;
     exports.di = di;
     exports.disableScopeLeakWarnings = disableScopeLeakWarnings;
+    exports.disposeDevToolsResource = disposeDevToolsResource;
     exports.effect = effect;
     exports.effectScope = effectScope;
     exports.emitDevToolsEvent = emitDevToolsEvent;
@@ -4245,6 +4348,7 @@ ${bodyContent}
     exports.getDevToolsScopeId = getDevToolsScopeId;
     exports.getDevToolsTargetId = getDevToolsTargetId;
     exports.getInstance = getInstance;
+    exports.getResourceGraph = getResourceGraph;
     exports.h = h;
     exports.hydrate = hydrate;
     exports.initTemplateEngine = initTemplateEngine;
@@ -4277,6 +4381,7 @@ ${bodyContent}
     exports.reactive = reactive;
     exports.register = register;
     exports.registerDevToolsInspector = registerDevToolsInspector;
+    exports.registerDevToolsResource = registerDevToolsResource;
     exports.registerDirective = registerDirective;
     exports.registerDisposable = registerDisposable;
     exports.registerWebComponent = registerWebComponent;
