@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add bounded DevTools event history with detached snapshots, metadata inspection, clear, and dispose controls.
 - Add optional browser-global installation for development inspectors without mutating SSR globals.
 - Add isolated `verify:package` clean-install verification for root, ESM, CJS, SSR, and CLI entrypoints.
+- Add the complete V3 developer migration guide with before/after migrations, runnable application examples, router/store/SSR/hydration walkthroughs, testing guidance, troubleshooting, and release checklists.
 - Add GitHub Actions CI for Node 18, 20, and 22.
 - Add regression coverage for history overflow, browser/SSR lifecycle behavior, inspector cleanup, and router subscription disposal.
 
