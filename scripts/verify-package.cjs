@@ -6,6 +6,9 @@ const { execFileSync } = require('node:child_process');
 
 const repo = path.resolve(__dirname, '..');
 const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'onekit-package-'));
+// Build generated library and Vite subpath artifacts before packing. This keeps
+// clean CI checkouts equivalent to local release builds.
+execFileSync('npm', ['run', 'build'], { cwd: repo, stdio: 'inherit' });
 const tarball = execFileSync('npm', ['pack', '--silent'], { cwd: repo, encoding: 'utf8' }).trim().split(/\r?\n/).pop();
 const tarballPath = path.join(repo, tarball);
 

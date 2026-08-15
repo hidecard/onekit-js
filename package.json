@@ -80,7 +80,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "rollup -c && npm run build:vite-plugin",
+    "build": "node scripts/build-library.mjs && npm run build:vite-plugin",
     "build:vite-plugin": "node scripts/build-vite-plugin.mjs",
     "benchmark": "npm run build && node scripts/benchmark-v3.mjs",
     "dev": "rollup -c -w",
