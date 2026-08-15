@@ -46,6 +46,7 @@ The generated project uses Vite for development and production bundling. OneKit 
 | `defineStore` | Creates a state container with actions and plugins. | `const useCart = defineStore('cart', options)` |
 | `Router` | Provides route matching and navigation. | `const router = new Router({ routes })` |
 | `renderToString` | Renders a VNode or string for SSR. | `renderToString({ tag: 'main', props: {}, children: [] })` |
+| `enableDevTools` | Enables opt-in reactive/router inspection events for development tooling. | `const bridge = enableDevTools()` |
 
 ## Components
 
@@ -109,6 +110,9 @@ npm run type-check
 npm test -- --runInBand
 npm run build
 npm run cli -- help
+npm run cli -- dev --cwd ./examples/counter
 ```
+
+For the experimental DevTools bridge, import `enableDevTools` or `onDevToolsEvent` from the root package. The bridge is disabled by default, SSR-safe, and should be disposed during application teardown. See the [complete DevTools contract](V3_USAGE.md#16-experimental-devtools-foundation).
 
 The repository includes a counter and a store-backed todo example under `examples/`. They are intentionally small and suitable for regression checks, documentation snippets, and onboarding.

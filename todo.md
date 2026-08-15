@@ -51,6 +51,7 @@
 - [ ] Identify the next highest-priority production gap after M1-M3.
 - [ ] Implement the selected production improvement with regression tests.
 - [ ] Synchronize release documentation and validate the new package workflow.
+- [ ] Verify the 3.1.11 and 1.0.0 tarballs in an isolated clean-install project.
 
 ## npm CLI resolution incident
 
@@ -77,28 +78,44 @@
 - [ ] Add SSR/client parity tests for text, attributes, boolean props, events, keyed nodes, fragments, and nested components.
 - [ ] Add framework-level error boundaries and loading boundary contracts for render, effect, route, loader, and SSR failures.
 - [ ] Add M4 examples, regression tests, and documentation.
-- [ ] Define and implement the next CLI/release milestone after the scaffolder.
-- [ ] Run full validation, update changelog/docs, and publish-ready the next M-series release.
+- [x] Define and implement the next CLI/release milestone after the scaffolder.
+- [x] Run full validation, update changelog/docs, and publish-ready the next M-series release.
 
 ## M5 CLI workflow
 
-- [ ] Define `dev`, `preview`, and `test` command flags, exit codes, and project-root detection behavior.
-- [ ] Implement `onekit dev` with passthrough Vite arguments and cross-platform process signals.
-- [ ] Implement `onekit preview` with build/output validation and passthrough preview arguments.
-- [ ] Implement `onekit test` with project test-runner delegation and consistent exit codes.
-- [ ] Add CLI tests for command parsing, missing scripts, invalid projects, passthrough args, and child-process failures.
-- [ ] Validate the commands from a clean generated TypeScript and JavaScript starter project.
-- [ ] Update CLI documentation, changelog, package metadata, and publish-ready versioning.
+- [x] Define `dev`, `preview`, and `test` command flags, exit codes, and project-root detection behavior.
+- [x] Implement `onekit dev` with passthrough Vite arguments and cross-platform process signals.
+- [x] Implement `onekit preview` with build/output validation and passthrough preview arguments.
+- [x] Implement `onekit test` with project test-runner delegation and consistent exit codes.
+- [x] Add CLI tests for command parsing, missing scripts, invalid projects, passthrough args, and child-process failures.
+- [x] Validate the commands from a clean generated TypeScript and JavaScript starter project.
+- [x] Update CLI documentation, changelog, package metadata, and publish-ready versioning.
+
+## M6 clean-install release verification
+
+- [x] Pack `onekit-js@3.1.11` and `create-onekit@1.0.0` into temporary tarballs.
+- [x] Install both tarballs into a clean temporary project without repository source paths.
+- [x] Verify root, ESM, CommonJS, SSR, store, and CLI entrypoints from the installed package.
+- [x] Run `npm create onekit@latest` or equivalent tarball scaffolding, then install, test, build, dev, and preview.
+- [ ] Record registry/publish state separately from local tarball validation; never claim publication without registry confirmation.
+
+## M7 DevTools foundation
+
+- [x] Define an opt-in DevTools bridge contract that is safe in browser and SSR environments.
+- [x] Add reactive inspection snapshots and effect invalidation events without exposing private proxy internals.
+- [x] Add router navigation events with route, params, query, guard, loader, success, and failure metadata.
+- [x] Add tests for disabled-by-default behavior, event ordering, and listener disposal.
+- [x] Document the experimental DevTools API and stability limitations.
 
 ## Decisions
 
 - Documentation language: English for the public developer docs.
-- Target release: OneKit JS V3 / 3.1.9.
+- Target release: OneKit JS V3 / 3.1.11.
 - Do not claim npm publication until registry authentication and publish verification succeed.
 
 ## Status
 
-- Current phase: API and documentation audit.
-- Last completed: website checkpoint fbcfdc73 and npm publish dry-run for 3.1.9.
+- Current phase: M6 clean-install verification and M7 DevTools foundation.
+- Last completed: M5 CLI workflow, website checkpoint bdff1775, and GitHub commit ee42d01.
 - Blocker: npm authentication is still required for actual publish.
 

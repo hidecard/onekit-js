@@ -1,5 +1,6 @@
 // Reactive State Management Module (Vue 3-style)
 import { deepCloneSafe, validateStorageKey } from '../core/security';
+import { emitDevToolsEvent, getDevToolsEffectId, getDevToolsTargetId } from '../core/devtools';
 
 interface ReactiveObject {
   [key: string]: unknown;
@@ -84,7 +85,14 @@ function track(target: object, key: string | symbol) {
   }
 }
 
-function trigger(target: object, key: string | symbol) {
+function trigger(target: object, key: string | symbol, oldValue?: unknown, newValue?: unknown) {
+  emitDevToolsEvent({
+    type: 'reactive:trigger',
+    targetId: getDevToolsTargetId(target),
+    key: String(key),
+    oldValue,
+    newValue
+  });
   const depsMap = targetMap.get(target);
   if (!depsMap) return;
 
@@ -122,7 +130,7 @@ export function reactive<T extends object>(obj: T): T {
       const oldValue = Reflect.get(target, key, receiver);
       const result = Reflect.set(target, key, value, receiver);
       if (oldValue !== value) {
-        trigger(target, key);
+        trigger(target, key, oldValue, value);
         // Also trigger watchers for backward compatibility
         if (watchers[key as string]) {
           watchers[key as string].forEach(watcher => {
@@ -175,6 +183,7 @@ export function effect(
       return; // Prevent infinite recursion
     }
 
+    emitDevToolsEvent({ type: 'reactive:effect', effectId: getDevToolsEffectId(effectFn), phase: 'run' });
     cleanup(effectFn);
     try {
       effectStack.push(effectFn);
@@ -199,6 +208,7 @@ export function effect(
 export function stop(runner: () => void): void {
   const effectFn = runner as EffectFn;
   effectFn.stopped = true;
+  emitDevToolsEvent({ type: 'reactive:effect', effectId: getDevToolsEffectId(effectFn), phase: 'stop' });
   cleanup(effectFn);
 }
 

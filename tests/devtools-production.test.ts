@@ -1,0 +1,42 @@
+import { createRouter, effect, enableDevTools, reactive, stop } from '../src/index';
+
+describe('DevTools foundation', () => {
+  it('is opt-in and reports reactive triggers, effect runs, and stop events', async () => {
+    const state = reactive({ count: 0 });
+    const before = [] as string[];
+    state.count = 1;
+    const bridge = enableDevTools();
+    const unsubscribe = bridge.subscribe(event => before.push(event.type));
+    let seen = 0;
+    const runner = effect(() => { seen = state.count; });
+    state.count = 2;
+    await Promise.resolve();
+    stop(runner);
+    expect(seen).toBe(2);
+    expect(before).toEqual(expect.arrayContaining(['reactive:effect', 'reactive:trigger']));
+    expect(before.filter(type => type === 'reactive:effect').length).toBeGreaterThanOrEqual(2);
+    unsubscribe();
+    bridge.dispose();
+    state.count = 3;
+    expect(before.filter(type => type === 'reactive:trigger').length).toBe(1);
+  });
+
+  it('reports router navigation lifecycle and can be disposed', async () => {
+    const events: string[] = [];
+    const bridge = enableDevTools();
+    const unsubscribe = bridge.subscribe(event => {
+      if (event.type === 'router:navigation') events.push(event.phase);
+    });
+    const router = createRouter([
+      { path: '/', handler: () => undefined },
+      { path: '/about', handler: () => undefined }
+    ], { mode: 'memory', initialPath: '/' });
+    await router.start();
+    await router.navigate('/about');
+    expect(events).toEqual(['start', 'success', 'start', 'success']);
+    unsubscribe();
+    bridge.dispose();
+    await router.navigate('/');
+    expect(events).toEqual(['start', 'success', 'start', 'success']);
+  });
+});

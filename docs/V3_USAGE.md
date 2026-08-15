@@ -467,7 +467,33 @@ registerWebComponent("user-badge", {
 
 Custom element names must contain a hyphen. Use the `options` argument to configure the Web Component behavior supported by the current release.
 
-## 16. Versioning and migration
+## 16. Experimental DevTools foundation
+
+OneKit includes an **opt-in DevTools bridge** for framework inspection. It is disabled by default, safe to import during SSR, and must never be required for application execution. Enable it only in development or controlled diagnostics builds:
+
+```ts
+import { enableDevTools, onDevToolsEvent } from 'onekit-js';
+
+const bridge = enableDevTools();
+const unsubscribe = onDevToolsEvent(event => {
+  if (event.type === 'reactive:trigger') {
+    console.debug('state changed', event.key, event.oldValue, event.newValue);
+  }
+  if (event.type === 'router:navigation') {
+    console.debug('navigation', event.phase, event.to);
+  }
+});
+
+// On application teardown:
+unsubscribe();
+bridge.dispose();
+```
+
+The current experimental events are `reactive:trigger`, `reactive:effect`, and `router:navigation`. Reactive events expose stable numeric target/effect identifiers rather than private proxy objects. Router events report `start`, `success`, `cancel`, or `error` phases with destination, origin, route, and loader error metadata where available. Event listeners are isolated: an exception inside a DevTools listener is ignored and cannot break the application.
+
+This API is **experimental**. Event names and payload fields may change before a stable DevTools release. Do not use it as an application data bus, and do not enable it in production unless the diagnostic overhead and information exposure have been reviewed.
+
+## 17. Versioning and migration
 
 V3 is the framework-grade API line. The most important V3 additions are `defineComponent`, `unmount`, `nextTick`, expanded public exports, CLI project generation/building, SSR helpers, stores, templates, JSX, and Web Components.
 
@@ -475,7 +501,7 @@ When migrating an older project, first replace internal module imports with publ
 
 Keep the package version, `VERSION` constant, README, CHANGELOG, examples, and website banner synchronized before publishing.
 
-## 17. Troubleshooting
+## 18. Troubleshooting
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
@@ -487,7 +513,7 @@ Keep the package version, `VERSION` constant, README, CHANGELOG, examples, and w
 | User HTML appears unsafe | External markup was rendered directly | Sanitize it and keep untrusted content out of executable attributes. |
 | Focus escapes a modal | Focus trap was not released or the container is not mounted | Call `trapFocus` after mount and invoke the returned cleanup function on teardown. |
 
-## 18. Release verification
+## 19. Release verification
 
 Run the complete release checks from the repository root:
 
@@ -518,4 +544,5 @@ Never place an npm access token in source files, commit history, chat messages, 
 [7]: ../bin/onekit.js "OneKit CLI entry point"  
 [8]: ../lib/cli/create.js "OneKit create command"  
 [9]: ../lib/cli/build.js "OneKit build command"  
-[10]: ../lib/cli/run.js "OneKit project workflow command runner"
+[10]: ../lib/cli/run.js "OneKit project workflow command runner"  
+[11]: ../src/core/devtools.ts "OneKit experimental DevTools bridge"

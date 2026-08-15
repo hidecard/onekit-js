@@ -11,9 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Complete the M5 project workflow with `onekit dev`, `onekit preview`, and `onekit test` in addition to `create` and `build`.
 - Add `--cwd` support and argument passthrough for delegated project commands.
 - Synchronize V3 usage, framework, getting-started, and production-readiness documentation with the 3.1.11 release.
+- Add the experimental opt-in DevTools bridge for reactive effect/trigger and router navigation inspection.
 
 ### Fixed
 - Validate preview prerequisites and preserve delegated child-process exit codes so CI failures are not hidden.
+- Synchronize the exported `VERSION` constant with package version 3.1.11.
 
 ## [3.1.10] - 2026-08-15
 

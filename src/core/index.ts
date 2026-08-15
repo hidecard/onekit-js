@@ -2,6 +2,7 @@
 import { errorHandler, safeMethod, createErrorBoundary, createLoadingBoundary } from './error-handler';
 
 export { errorHandler, safeMethod, createErrorBoundary, createLoadingBoundary } from './error-handler';
+export * from './devtools';
 import { sanitizeHTML, validateSelector, sanitizeURL, deepCloneSafe, validateStorageKey } from './security';
 import { reactive, computed, effect, autorun, watch, batch, snapshot, bind } from '../modules/reactive';
 import { compileTemplate, registerDirective, initTemplateEngine } from '../modules/template';

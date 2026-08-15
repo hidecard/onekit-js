@@ -1,5 +1,7 @@
 /* OneKit style: explicit, browser-first navigation with small composable contracts and no hidden global state in application routers. */
 
+import { emitDevToolsEvent } from '../core/devtools';
+
 export type RouteParams = Record<string, string>;
 export type QueryParams = Record<string, string | string[]>;
 
@@ -169,9 +171,16 @@ export class Router {
     const matched = this.match(to);
     const from = this.current;
     const context: RouteContext = { to, from };
+    emitDevToolsEvent({ type: 'router:navigation', phase: 'start', to: to.fullPath, from: from?.fullPath ?? null });
     const guardResult = await this.runGuard(this.options.beforeEach, context);
-    if (guardResult === false) return null;
-    if (typeof guardResult === 'string' && guardResult !== to.fullPath) return this.resolve(guardResult, true);
+    if (guardResult === false) {
+      emitDevToolsEvent({ type: 'router:navigation', phase: 'cancel', to: to.fullPath, from: from?.fullPath ?? null });
+      return null;
+    }
+    if (typeof guardResult === 'string' && guardResult !== to.fullPath) {
+      emitDevToolsEvent({ type: 'router:navigation', phase: 'cancel', to: to.fullPath, from: from?.fullPath ?? null });
+      return this.resolve(guardResult, true);
+    }
     const route = matched?.route ?? this.options.notFound;
     if (!route) {
       this.current = to;
@@ -179,15 +188,29 @@ export class Router {
       return null;
     }
     const routeGuard = await this.runGuard(route.beforeEnter, context);
-    if (routeGuard === false) return null;
-    if (typeof routeGuard === 'string' && routeGuard !== to.fullPath) return this.resolve(routeGuard, true);
+    if (routeGuard === false) {
+      emitDevToolsEvent({ type: 'router:navigation', phase: 'cancel', to: to.fullPath, from: from?.fullPath ?? null, route: route.path });
+      return null;
+    }
+    if (typeof routeGuard === 'string' && routeGuard !== to.fullPath) {
+      emitDevToolsEvent({ type: 'router:navigation', phase: 'cancel', to: to.fullPath, from: from?.fullPath ?? null, route: route.path });
+      return this.resolve(routeGuard, true);
+    }
     const result: MatchedRoute = matched ?? { route, location: to };
-    if (route.loader) result.data = await route.loader(context);
+    if (route.loader) {
+      try {
+        result.data = await route.loader(context);
+      } catch (error) {
+        emitDevToolsEvent({ type: 'router:navigation', phase: 'error', to: to.fullPath, from: from?.fullPath ?? null, route: route.path, error });
+        throw error;
+      }
+    }
     if (push) this.commit(to);
     this.current = to;
     if (route.handler) await route.handler({ ...context, to });
     this.notify(to, from);
     this.options.afterEach?.({ ...context, matched: result });
+    emitDevToolsEvent({ type: 'router:navigation', phase: 'success', to: to.fullPath, from: from?.fullPath ?? null, route: route.path });
     return result;
   }
 
