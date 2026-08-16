@@ -1,5 +1,16 @@
 # OneKit JS V3 Documentation Update
 
+## CLI Starter Credit and UX Polish
+
+- [x] Inspect the `onekit create` generated templates, metadata, and CLI regression tests.
+- [x] Add `Developed By Arkar Yan ( H!D3_C4rD )` to the generated starter project in a polished, non-intrusive way.
+  - [x] Credit appears in the generated `.okjs` starter footer and generated README; it is visible without competing with the starter content.
+- [x] Improve starter project branding and developer-facing README/metadata without adding framework lock-in.
+  - [x] Added V3 meta description, theme color, OneKit title suffix, responsive credit styling, and clearer generated README guidance.
+- [x] Add regression coverage and validate generated TypeScript and JavaScript starters.
+  - [x] CLI tests passed (9/9); TypeScript and JavaScript generated-starter smoke checks passed; full suite passed (23 suites / 114 tests); build, declarations, package, HMR, and diff checks passed.
+- [ ] Commit and push the CLI starter improvement to `origin/V3`.
+
 ## README Complete User Guide and Contributor Onboarding
 
 - [x] Audit current README and source documentation against the full developer journey.

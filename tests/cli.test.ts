@@ -23,6 +23,9 @@ describe('OneKit CLI', () => {
       expect(packageJson.scripts.test).toBe('node --test');
       expect(await readFile(path.join(appPath, 'src', 'main.ts'), 'utf8')).toContain("./App.okjs");
       expect(await readFile(path.join(appPath, 'src', 'App.okjs'), 'utf8')).toContain('<template>');
+      expect(await readFile(path.join(appPath, 'src', 'App.okjs'), 'utf8')).toContain('Developed By Arkar Yan ( H!D3_C4rD )');
+      expect(await readFile(path.join(appPath, 'index.html'), 'utf8')).toContain('OneKit JS V3 starter project');
+      expect(await readFile(path.join(appPath, 'README.md'), 'utf8')).toContain('Developed By Arkar Yan ( H!D3_C4rD )');
       expect(await readFile(path.join(appPath, 'vite.config.ts'), 'utf8')).toContain('oneKitVitePlugin');
     } finally {
       await rm(root, { recursive: true, force: true });
@@ -38,6 +41,8 @@ describe('OneKit CLI', () => {
       expect(packageJson.scripts['type-check']).toBeUndefined();
       expect(await readFile(path.join(appPath, 'src', 'main.js'), 'utf8')).toContain("./App.okjs");
       expect(await readFile(path.join(appPath, 'src', 'App.okjs'), 'utf8')).toContain('lang="js"');
+      expect(await readFile(path.join(appPath, 'src', 'App.okjs'), 'utf8')).toContain('Developed By Arkar Yan ( H!D3_C4rD )');
+      expect(await readFile(path.join(appPath, 'README.md'), 'utf8')).toContain('Developed By Arkar Yan ( H!D3_C4rD )');
     } finally {
       await rm(root, { recursive: true, force: true });
     }
