@@ -172,5 +172,6 @@
   - [x] Type-check, 17 Jest suites/76 tests, production build, package verification, and `git diff --check` passed.
 - [x] Review changes for backwards compatibility and release notes.
   - [x] Ergonomic APIs are additive; existing V3 APIs remain exported and release documentation now describes the compatibility boundary.
-- [ ] Commit and push the completed V3 DX improvements to GitHub.
+- [x] Commit and push the completed V3 DX improvements to GitHub.
+  - [x] Pushed commit `8de7c22` to `origin/V3`.
 
