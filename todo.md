@@ -386,3 +386,16 @@
 - [x] Add regression coverage for nested params/query, layouts, loaders, guards, lazy components, prefetch, redirects, and teardown.
 - [x] Update V3 docs/changelog, run the full validation matrix, and push the verified implementation to `origin/V3`.
   - [x] Type-check, strict unused check, 23 Jest suites / 114 tests, production build, clean package verification, and `git diff --check` passed.
+
+## Fresh Error Audit After Nested Layouts
+
+- [x] Check repository status, latest commit, source/test changes, and generated artifacts.
+  - [x] HEAD `8d45522` matches `origin/V3`; source=30 TypeScript files, tests=23 suites, dist=43 files; only this audit checklist is pending locally.
+- [x] Run type-check, strict unused TypeScript, full Jest, production build, package verification, CLI/HMR checks, dependency audit, and diff checks.
+  - [x] Type-check, strict unused check, 23 suites / 114 tests, production build, package verification, `HMR_SMOKE=PASS`, `npm audit` with 0 vulnerabilities, and `git diff --check` passed.
+- [x] Inspect failures, console errors, build warnings, flaky tests, duplicate/dead code, and residual runtime risks.
+  - [x] No test/build/package/HMR blocker found. Expected boundary tests intentionally log handled errors to `console.error`; Rollup reports non-fatal externalization warnings for `node:fs`, `node:path`, and `typescript` in the Vite plugin bundle.
+- [x] Fix confirmed errors with focused regression tests and re-run the affected validation.
+  - [x] No new confirmed runtime error was found in this pass; no source fix was required. Existing nested-layout regression coverage remains green.
+- [x] Record passed checks, non-blocking warnings, remaining risks, and push verified fixes to `origin/V3`.
+  - [x] Audit result recorded; no code fix was needed, and the checklist-only commit will be synchronized to `origin/V3`. Remaining risks are cross-platform browser CI, npm publication verification, and application-level security/configuration.
