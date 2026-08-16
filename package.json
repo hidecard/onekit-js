@@ -37,6 +37,16 @@
       "import": "./dist/onekit.esm.js",
       "require": "./dist/onekit.cjs"
     },
+    "./query": {
+      "types": "./dist/types/modules/query.d.ts",
+      "import": "./dist/onekit.esm.js",
+      "require": "./dist/onekit.cjs"
+    },
+    "./forms": {
+      "types": "./dist/types/modules/forms.d.ts",
+      "import": "./dist/onekit.esm.js",
+      "require": "./dist/onekit.cjs"
+    },
     "./ssr": {
       "types": "./dist/types/modules/ssr.d.ts",
       "import": "./dist/onekit.esm.js",
@@ -44,6 +54,11 @@
     },
     "./template": {
       "types": "./dist/types/modules/template.d.ts",
+      "import": "./dist/onekit.esm.js",
+      "require": "./dist/onekit.cjs"
+    },
+    "./testing": {
+      "types": "./dist/types/testing.d.ts",
       "import": "./dist/onekit.esm.js",
       "require": "./dist/onekit.cjs"
     },

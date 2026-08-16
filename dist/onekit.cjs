@@ -1291,7 +1291,7 @@ function runCleanups(effectFn) {
         }
     });
 }
-function cleanup(effectFn) {
+function cleanup$1(effectFn) {
     clearDevToolsDependencies(getDevToolsEffectId(effectFn));
     effectFn.deps.forEach(dep => dep.delete(effectFn));
     effectFn.deps.length = 0;
@@ -1425,7 +1425,7 @@ function effect(fn, options = {}) {
         }
         emitDevToolsEvent({ type: 'reactive:effect', effectId: getDevToolsEffectId(effectFn), phase: 'run' });
         runCleanups(effectFn);
-        cleanup(effectFn);
+        cleanup$1(effectFn);
         try {
             effectStack.push(effectFn);
             activeEffect = effectFn;
@@ -1479,7 +1479,7 @@ function stop(runner) {
     effectFn.stopped = true;
     runCleanups(effectFn);
     emitDevToolsEvent({ type: 'reactive:effect', effectId: getDevToolsEffectId(effectFn), phase: 'stop' });
-    cleanup(effectFn);
+    cleanup$1(effectFn);
 }
 // Alias for effect
 const autorun = effect;
@@ -4068,6 +4068,150 @@ function createStore(id, setup) {
     return defineStore(id, setup);
 }
 
+function normalizeKey(key) {
+    return typeof key === 'string' ? key : JSON.stringify(key);
+}
+class QueryClient {
+    records = new Map();
+    record(key, options = {}) {
+        const normalized = normalizeKey(key);
+        let record = this.records.get(normalized);
+        if (!record) {
+            record = {
+                state: {
+                    status: options.initialData === undefined ? 'idle' : 'success',
+                    data: options.initialData,
+                    updatedAt: options.initialData === undefined ? 0 : Date.now(),
+                },
+                listeners: new Set(),
+            };
+            this.records.set(normalized, record);
+        }
+        return record;
+    }
+    getState(key) {
+        return this.record(key).state;
+    }
+    subscribe(key, listener) {
+        const record = this.record(key);
+        record.listeners.add(listener);
+        return () => record.listeners.delete(listener);
+    }
+    async fetch(key, loader, options = {}) {
+        const record = this.record(key, options);
+        if (record.promise)
+            return record.promise;
+        const isFresh = record.state.status === 'success' && options.staleTime !== undefined
+            && Date.now() - record.state.updatedAt < options.staleTime;
+        if (isFresh)
+            return record.state.data;
+        record.state = { ...record.state, status: 'pending', error: undefined };
+        this.notify(record);
+        record.promise = Promise.resolve().then(loader).then(data => {
+            record.state = { status: 'success', data, updatedAt: Date.now() };
+            this.notify(record);
+            return data;
+        }).catch(error => {
+            record.state = { ...record.state, status: 'error', error, updatedAt: Date.now() };
+            this.notify(record);
+            throw error;
+        }).finally(() => {
+            record.promise = undefined;
+        });
+        return record.promise;
+    }
+    setData(key, data) {
+        const record = this.record(key);
+        record.state = { status: 'success', data, updatedAt: Date.now() };
+        this.notify(record);
+    }
+    invalidate(key) {
+        if (key === undefined) {
+            for (const record of this.records.values())
+                record.state = { ...record.state, updatedAt: 0 };
+            return;
+        }
+        const record = this.records.get(normalizeKey(key));
+        if (record)
+            record.state = { ...record.state, updatedAt: 0 };
+    }
+    remove(key) {
+        this.records.delete(normalizeKey(key));
+    }
+    clear() {
+        this.records.clear();
+    }
+    notify(record) {
+        for (const listener of record.listeners)
+            listener(record.state);
+    }
+}
+function createQueryClient() {
+    return new QueryClient();
+}
+
+function createForm(initialValues, validator) {
+    let initial = { ...initialValues };
+    const listeners = new Set();
+    const state = {
+        values: { ...initialValues },
+        errors: {},
+        touched: {},
+        submitting: false,
+        valid: true,
+    };
+    const notify = () => {
+        for (const listener of listeners)
+            listener(state);
+    };
+    const validate = async () => {
+        const errors = validator ? await validator(state.values) : {};
+        state.errors = errors;
+        state.valid = Object.keys(errors).length === 0;
+        notify();
+        return state.valid;
+    };
+    return {
+        state,
+        setField(field, value) {
+            state.values = { ...state.values, [field]: value };
+            notify();
+        },
+        touch(field) {
+            state.touched = { ...state.touched, [field]: true };
+            notify();
+        },
+        validate,
+        async submit(handler) {
+            if (!(await validate()))
+                return false;
+            state.submitting = true;
+            notify();
+            try {
+                await handler(state.values);
+                return true;
+            }
+            finally {
+                state.submitting = false;
+                notify();
+            }
+        },
+        reset(values = initial) {
+            initial = { ...values };
+            state.values = { ...values };
+            state.errors = {};
+            state.touched = {};
+            state.submitting = false;
+            state.valid = true;
+            notify();
+        },
+        subscribe(listener) {
+            listeners.add(listener);
+            return () => listeners.delete(listener);
+        },
+    };
+}
+
 // Server-side rendering function
 function renderToString(vnode, context = {}) {
     const ctx = { ...context };
@@ -4256,6 +4400,36 @@ function escapeHtml(text) {
     };
     return text.replace(/[&<>"']/g, char => htmlEscapes[char]);
 }
+const hydrationBooleanProps = new Set([
+    'allowfullscreen', 'async', 'autofocus', 'autoplay', 'checked', 'controls',
+    'default', 'defer', 'disabled', 'formnovalidate', 'hidden', 'inert',
+    'ismap', 'itemscope', 'loop', 'multiple', 'muted', 'nomodule',
+    'novalidate', 'open', 'playsinline', 'readonly', 'required', 'reversed',
+    'selected',
+]);
+function hydrationAttributeName(key) {
+    if (key === 'className')
+        return 'class';
+    if (key === 'htmlFor')
+        return 'for';
+    return key.toLowerCase();
+}
+function hydrationStyleValue(value) {
+    if (!value || typeof value !== 'object')
+        return String(value ?? '');
+    return Object.entries(value)
+        .map(([name, styleValue]) => `${name}:${String(styleValue)}`)
+        .join(';');
+}
+function hydrationExpectedAttribute(key, value) {
+    if (value == null || value === false)
+        return null;
+    if (value === true && hydrationBooleanProps.has(hydrationAttributeName(key)))
+        return '';
+    if (key === 'style' && typeof value === 'object')
+        return hydrationStyleValue(value);
+    return String(value);
+}
 // Hydration attaches client behavior without rewriting server-rendered DOM.
 // It reports parity problems so applications can fail loudly in development.
 function hydrate(rootElement, vnode) {
@@ -4285,16 +4459,10 @@ function walkAndHydrate(element, vnode, path, mismatches, cleanups) {
         });
     }
     for (const [key, value] of Object.entries(vnode.props)) {
-        if (key === 'key' || key === 'children' || key.startsWith('on'))
+        if (key === 'key' || key === 'children' || /^on/i.test(key))
             continue;
-        const attributeName = key === 'className' ? 'class' : key === 'htmlFor' ? 'for' : key;
-        const expected = typeof value === 'boolean'
-            ? (value ? '' : null)
-            : value == null
-                ? null
-                : attributeName === 'style' && typeof value === 'object'
-                    ? Object.entries(value).map(([name, styleValue]) => `${name}:${styleValue}`).join(';')
-                    : String(value);
+        const attributeName = hydrationAttributeName(key);
+        const expected = hydrationExpectedAttribute(key, value);
         const actual = element.getAttribute(attributeName);
         if (expected !== actual) {
             mismatches.push({
@@ -4314,7 +4482,7 @@ function walkAndHydrate(element, vnode, path, mismatches, cleanups) {
         }
     }
     element._vnode = vnode;
-    const childNodes = Array.from(element.childNodes).filter(node => !(node.nodeType === Node.TEXT_NODE && node.textContent?.trim() === ''));
+    const childNodes = Array.from(element.childNodes);
     vnode.children.forEach((child, index) => {
         const domChild = childNodes[index];
         const childPath = `${path}.${index}`;
@@ -4535,6 +4703,65 @@ function withCache(key, renderFn, ttl = 300000 // 5 minutes
     renderResult._timestamp = Date.now();
     ssrCache.set(key, renderResult);
     return result;
+}
+
+/**
+ * OneKit testing helpers.
+ *
+ * These small DOM-first utilities provide a stable foundation for component
+ * tests without coupling applications to the internal renderer bookkeeping.
+ */
+const mountedContainers = new Set();
+function renderTest(node, container = document.createElement('div')) {
+    let mounted = null;
+    container.replaceChildren();
+    mountedContainers.add(container);
+    const mount = (next) => {
+        container.replaceChildren();
+        const created = render(next);
+        container.appendChild(created);
+        mounted = created;
+    };
+    mount(node);
+    return {
+        container,
+        get node() { return mounted; },
+        rerender(next) { mount(next); },
+        unmount() {
+            container.replaceChildren();
+            mounted = null;
+            mountedContainers.delete(container);
+        },
+    };
+}
+function cleanup() {
+    for (const container of mountedContainers)
+        container.replaceChildren();
+    mountedContainers.clear();
+}
+function fireEvent(target, type, init = {}) {
+    return target.dispatchEvent(new Event(type, { bubbles: true, cancelable: true, ...init }));
+}
+function flush() {
+    return new Promise(resolve => queueMicrotask(resolve));
+}
+async function waitFor(callback, options = {}) {
+    const timeout = options.timeout ?? 1000;
+    const interval = options.interval ?? 10;
+    const started = Date.now();
+    let lastError;
+    while (Date.now() - started <= timeout) {
+        try {
+            return callback();
+        }
+        catch (error) {
+            lastError = error;
+            await new Promise(resolve => setTimeout(resolve, interval));
+        }
+    }
+    throw lastError instanceof Error
+        ? lastError
+        : new Error(`waitFor timed out after ${timeout}ms`);
 }
 
 function readBlock(source, tag) {
@@ -4773,6 +5000,7 @@ exports.DependencyInjector = DependencyInjector;
 exports.Fragment = Fragment;
 exports.OneKit = OneKit;
 exports.OneKitWebComponent = OneKitWebComponent;
+exports.QueryClient = QueryClient;
 exports.Router = Router;
 exports.StreamingRenderer = StreamingRenderer;
 exports.VERSION = VERSION;
@@ -4788,6 +5016,7 @@ exports.autorun = autorun;
 exports.batch = batch;
 exports.bind = bind;
 exports.cache = cache;
+exports.cleanup = cleanup;
 exports.clearDevToolsDependencies = clearDevToolsDependencies;
 exports.compileOkjs = compileOkjs;
 exports.compileTemplate = compileTemplate;
@@ -4797,8 +5026,10 @@ exports.create = create;
 exports.createApp = createApp;
 exports.createElement = createElement;
 exports.createErrorBoundary = createErrorBoundary;
+exports.createForm = createForm;
 exports.createLandmarks = createLandmarks;
 exports.createLoadingBoundary = createLoadingBoundary;
+exports.createQueryClient = createQueryClient;
 exports.createRouter = createRouter;
 exports.createSSRContext = createSSRContext;
 exports.createSkipLink = createSkipLink;
@@ -4821,6 +5052,8 @@ exports.emitDevToolsEvent = emitDevToolsEvent;
 exports.enableDevTools = enableDevTools;
 exports.enableScopeLeakWarnings = enableScopeLeakWarnings;
 exports.errorHandler = errorHandler;
+exports.fireEvent = fireEvent;
+exports.flush = flush;
 exports.generateId = generateId;
 exports.get = get;
 exports.getActiveScopeDiagnostics = getActiveScopeDiagnostics;
@@ -4875,6 +5108,7 @@ exports.removeStore = removeStore;
 exports.render = render;
 exports.renderMeta = renderMeta;
 exports.renderOpenGraph = renderOpenGraph;
+exports.renderTest = renderTest;
 exports.renderTitle = renderTitle;
 exports.renderToString = renderToString;
 exports.request = request;
@@ -4894,6 +5128,7 @@ exports.unmount = unmount;
 exports.useStore = useStore;
 exports.validateAccessibility = validateAccessibility;
 exports.vdomPatch = patch$1;
+exports.waitFor = waitFor;
 exports.watch = watch;
 exports.watchEffect = watchEffect;
 exports.withCache = withCache;

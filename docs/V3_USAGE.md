@@ -652,3 +652,37 @@ export default {
 ```
 
 The existing `reactive`, `effect`, `watch`, `register`, `create`, and `mount` APIs remain supported for advanced applications and migration compatibility.
+
+## Testing, query, and forms foundations
+
+OneKit 3.1.16 includes a small DOM-first testing foundation from `onekit-js/testing`. `renderTest()` mounts a VNode into an isolated container and provides `rerender()` and `unmount()`; `cleanup()` removes containers registered by the helper; `fireEvent()`, `flush()`, and `waitFor()` support common synchronous and asynchronous component tests.
+
+```ts
+import { cleanup, fireEvent, renderTest, waitFor } from "onekit-js/testing";
+
+const view = renderTest(h("button", { onClick: save }, "Save"));
+fireEvent(view.container.querySelector("button")!, "click");
+await waitFor(() => expect(view.container.textContent).toContain("Saved"));
+view.unmount();
+cleanup();
+```
+
+The `onekit-js/query` entry point provides a framework-neutral `QueryClient` with request deduplication, stale-time reads, subscribers, manual `setData()`, invalidation, removal, and cache clearing. It is intentionally a small primitive rather than a replacement for a server-state ecosystem.
+
+```ts
+const queries = createQueryClient();
+const todos = await queries.fetch(["todos", userId], () => api.listTodos(userId), { staleTime: 30_000 });
+queries.invalidate(["todos", userId]);
+```
+
+The `onekit-js/forms` entry point provides typed values, touched state, synchronous or asynchronous validation, guarded submit, reset, and subscriptions. Application-specific schema adapters can be layered on top without coupling the framework to a validation library.
+
+```ts
+const form = createForm({ email: "" }, values =>
+  values.email.includes("@") ? {} : { email: "Enter a valid email" },
+);
+form.setField("email", "user@example.com");
+await form.submit(values => saveUser(values));
+```
+
+Hydration compares meaningful whitespace, case-insensitive attribute names, boolean properties, object styles, fragments, and nested component output without mutating server DOM. Mismatches remain observable through the returned `mismatches` array, and event listeners are removed by `dispose()`.

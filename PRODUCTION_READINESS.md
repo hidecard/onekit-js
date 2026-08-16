@@ -54,3 +54,11 @@ The runtime now applies a shared URL and CSS-value policy at both the client VDO
 Storage-key validation and safe cloning avoid prototype-pollution key paths and do not rely on an attacker-controlled `hasOwnProperty` method. The dependency audit for the production dependency set reported no known vulnerabilities at the time of this audit, and the packed-package verification passed in a clean temporary consumer project.
 
 These controls reduce framework-level XSS and prototype-pollution risk but do not make arbitrary application input safe by default. `addScript`, `addToHead`, and `addToBody` accept trusted raw markup by design; applications must not pass untrusted strings to them. Applications should also deploy a restrictive CSP, validate authorization on the server, avoid exposing secrets in browser bundles, and keep dependencies and the runtime updated.
+
+## V3 React/Vue Parity Foundations
+
+Hydration now compares case-insensitive attribute names, boolean properties, meaningful whitespace, object-style values, fragments, and nested component output while preserving server DOM. Hydration listeners remain disposable through `HydrationResult.dispose()` and parity issues remain observable through `mismatches`.
+
+The package now provides `onekit-js/testing` with DOM-first `renderTest`, `cleanup`, `fireEvent`, `flush`, and `waitFor` helpers. It also provides `onekit-js/query` with request deduplication, stale-time reads, subscriptions, invalidation, manual updates, and cache removal, plus `onekit-js/forms` with typed values, touched state, synchronous/asynchronous validation, guarded submission, reset, and subscriptions. These are deliberately small framework primitives and do not claim to replace a complete server-state, schema-validation, or browser-E2E ecosystem.
+
+The parity milestone was validated with type-checking, 22 Jest suites and 106 tests, production build, clean package verification, and diff checks. Build warnings for the Vite integration's intentionally external `node:fs`, `node:path`, and `typescript` imports remain non-blocking and are documented as integration-boundary warnings.

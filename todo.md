@@ -343,3 +343,24 @@
   - [x] Confirmed fixes were limited to dead-code cleanup, OKJS interpolation behavior, package hygiene, version drift, and security-policy consistency. Remaining risks are documented roadmap items such as full SSR/client parity and npm publication verification.
 - [x] Re-run all validation and push the complete audit result to origin/V3.
   - [x] Final audit validation passed and was pushed in commit `605dc3a` to `origin/V3`.
+
+## React/Vue Ecosystem Parity Assessment
+
+- [ ] Compare OneKit V3 against React/Vue across runtime, SSR, hydration, router, data fetching, forms, testing, DevTools, accessibility, compiler, mobile, ecosystem, and release infrastructure.
+- [ ] Separate existing capabilities, partial implementations, and confirmed gaps.
+- [ ] Prioritize remaining gaps by production impact and implementation cost.
+- [ ] Prepare a roadmap for the next parity milestones without changing code until the user selects the scope.
+
+## React/Vue Parity Implementation Roadmap
+
+- [x] Implement a complete SSR/client hydration parity matrix for text, attributes, boolean props, events, keyed nodes, fragments, and nested components.
+  - [x] Added case-insensitive attribute, boolean property, meaningful whitespace, object style, fragment, and nested component parity coverage.
+- [x] Add hydration mismatch diagnostics with safe recovery behavior and regression coverage.
+- [x] Add a reusable `@onekit/testing` foundation with DOM render, cleanup, event, async flush, and wait helpers.
+  - [x] Published as `onekit-js/testing` with 2 focused tests.
+- [x] Add application productivity primitives for query caching/invalidation and validated forms.
+  - [x] Published as `onekit-js/query` and `onekit-js/forms` with deduplication, stale-time, invalidation, validation, submit, reset, and subscription coverage.
+- [ ] Add typed nested router layouts, lazy routes, prefetching, and scroll restoration where compatible with the current router contract.
+- [ ] Improve template/JSX TypeScript ergonomics, accessibility helpers, and DevTools inspection/profiling APIs.
+- [x] Update official examples, documentation, release notes, validation matrix, and push the verified parity milestone to `origin/V3`.
+  - [x] Updated V3 usage and production-readiness docs, CHANGELOG 3.1.16, package exports, and focused/full validation records.

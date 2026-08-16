@@ -243,6 +243,34 @@ export interface HydrationResult {
   dispose: () => void;
 }
 
+const hydrationBooleanProps = new Set([
+  'allowfullscreen', 'async', 'autofocus', 'autoplay', 'checked', 'controls',
+  'default', 'defer', 'disabled', 'formnovalidate', 'hidden', 'inert',
+  'ismap', 'itemscope', 'loop', 'multiple', 'muted', 'nomodule',
+  'novalidate', 'open', 'playsinline', 'readonly', 'required', 'reversed',
+  'selected',
+]);
+
+function hydrationAttributeName(key: string): string {
+  if (key === 'className') return 'class';
+  if (key === 'htmlFor') return 'for';
+  return key.toLowerCase();
+}
+
+function hydrationStyleValue(value: unknown): string {
+  if (!value || typeof value !== 'object') return String(value ?? '');
+  return Object.entries(value as Record<string, unknown>)
+    .map(([name, styleValue]) => `${name}:${String(styleValue)}`)
+    .join(';');
+}
+
+function hydrationExpectedAttribute(key: string, value: unknown): string | null {
+  if (value == null || value === false) return null;
+  if (value === true && hydrationBooleanProps.has(hydrationAttributeName(key))) return '';
+  if (key === 'style' && typeof value === 'object') return hydrationStyleValue(value);
+  return String(value);
+}
+
 // Hydration attaches client behavior without rewriting server-rendered DOM.
 // It reports parity problems so applications can fail loudly in development.
 export function hydrate(rootElement: Element, vnode: VNode): HydrationResult {
@@ -281,15 +309,9 @@ function walkAndHydrate(
   }
 
   for (const [key, value] of Object.entries(vnode.props)) {
-    if (key === 'key' || key === 'children' || key.startsWith('on')) continue;
-    const attributeName = key === 'className' ? 'class' : key === 'htmlFor' ? 'for' : key;
-    const expected = typeof value === 'boolean'
-      ? (value ? '' : null)
-      : value == null
-        ? null
-        : attributeName === 'style' && typeof value === 'object'
-          ? Object.entries(value as Record<string, unknown>).map(([name, styleValue]) => `${name}:${styleValue}`).join(';')
-          : String(value);
+    if (key === 'key' || key === 'children' || /^on/i.test(key)) continue;
+    const attributeName = hydrationAttributeName(key);
+    const expected = hydrationExpectedAttribute(key, value);
     const actual = element.getAttribute(attributeName);
     if (expected !== actual) {
       mismatches.push({
@@ -312,9 +334,7 @@ function walkAndHydrate(
 
   (element as Element & { _vnode?: VNode })._vnode = vnode;
 
-  const childNodes = Array.from(element.childNodes).filter(node =>
-    !(node.nodeType === Node.TEXT_NODE && node.textContent?.trim() === ''),
-  );
+  const childNodes = Array.from(element.childNodes);
   vnode.children.forEach((child, index) => {
     const domChild = childNodes[index];
     const childPath = `${path}.${index}`;

@@ -9,7 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [3.1.16] - 2026-08-16
 
 ### Added
-- Add production feature subpath exports for `api`, `storage`, `a11y`, `animation`, `ergonomics`, and `web-components`.
+- Add production feature subpath exports for `api`, `storage`, `a11y`, `animation`, `ergonomics`, `web-components`, `testing`, `query`, and `forms`.
+- Add hydration parity checks for case-insensitive attributes, boolean properties, meaningful whitespace, object styles, fragments, and nested component output.
+- Add DOM-first testing helpers (`renderTest`, `cleanup`, `fireEvent`, `flush`, and `waitFor`), a deduplicating `QueryClient`, and typed form state with validation, submit, reset, and subscriptions.
 - Add effect cleanup callbacks, nested-batch scheduling guarantees, last-write-wins router navigation, and stale-promise protection for async boundaries.
 - Extend packed-package verification to cover ESM and CommonJS feature entry points.
 - Add regression coverage for API timeout retries and storage key enumeration with corrupted records.
