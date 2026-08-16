@@ -395,7 +395,8 @@
   - [x] Added `scripts/verify-declarations.mjs`, wired it into `prepublishOnly`, and preserved the generated `query`, `forms`, and `testing` declaration artifacts.
 - [x] Re-run type-check, tests, production build, package verification, and declaration artifact checks.
   - [x] Type-check and strict unused checks passed; 23 Jest suites / 114 tests passed; build, declaration verification, package verification, HMR, audit, and diff checks passed.
-- [ ] Commit and push the verified declaration fix to `origin/V3`.
+- [x] Commit and push the verified declaration fix to `origin/V3`.
+  - [x] Pushed commit `ec5799d` to `origin/V3`; local branch and remote are synchronized with a clean working tree.
 
 ## Fresh Error Audit After Nested Layouts
 
