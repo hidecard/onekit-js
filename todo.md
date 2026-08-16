@@ -387,6 +387,16 @@
 - [x] Update V3 docs/changelog, run the full validation matrix, and push the verified implementation to `origin/V3`.
   - [x] Type-check, strict unused check, 23 Jest suites / 114 tests, production build, clean package verification, and `git diff --check` passed.
 
+## Declaration Export Error Follow-up
+
+- [x] Reproduce and inspect the three unresolved `dist/types/index.d.ts` module-resolution errors for `query`, `forms`, and `testing`.
+  - [x] Root cause confirmed: the three generated `.d.ts` files were ignored/untracked in the repository, so the tracked declaration entrypoint referenced paths missing from a checkout before a local build.
+- [x] Fix declaration/build output generation and add a regression check ensuring every public declaration export resolves.
+  - [x] Added `scripts/verify-declarations.mjs`, wired it into `prepublishOnly`, and preserved the generated `query`, `forms`, and `testing` declaration artifacts.
+- [x] Re-run type-check, tests, production build, package verification, and declaration artifact checks.
+  - [x] Type-check and strict unused checks passed; 23 Jest suites / 114 tests passed; build, declaration verification, package verification, HMR, audit, and diff checks passed.
+- [ ] Commit and push the verified declaration fix to `origin/V3`.
+
 ## Fresh Error Audit After Nested Layouts
 
 - [x] Check repository status, latest commit, source/test changes, and generated artifacts.

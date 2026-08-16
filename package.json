@@ -140,9 +140,10 @@
     "cli": "node ./bin/onekit.js",
     "test": "jest --config jest.config.cjs",
     "verify:package": "node scripts/verify-package.cjs",
+    "verify:declarations": "node scripts/verify-declarations.mjs",
     "verify:hmr": "npm run build && node scripts/verify-hmr.mjs",
     "type-check": "tsc --noEmit",
-    "prepublishOnly": "npm run type-check && npm test -- --runInBand && npm run build && npm run verify:package"
+    "prepublishOnly": "npm run type-check && npm test -- --runInBand && npm run build && npm run verify:declarations && npm run verify:package"
   },
   "repository": {
     "type": "git",
