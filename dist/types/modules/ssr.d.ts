@@ -10,6 +10,7 @@ export interface RenderResult {
     html: string;
     context: SSRContext;
 }
+type AsyncVNode = VNode | string | PromiseLike<VNode | string>;
 export declare function renderToString(vnode: VNode | string, context?: SSRContext): RenderResult;
 export interface HydrationMismatch {
     path: string;
@@ -27,7 +28,7 @@ export declare class StreamingRenderer {
     private chunks;
     private isComplete;
     constructor(context?: SSRContext);
-    renderToStream(vnode: VNode | string, options?: {
+    renderToStream(vnode: AsyncVNode, options?: {
         signal?: AbortSignal;
     }): Promise<ReadableStream<string>>;
     private renderAsync;
@@ -49,3 +50,4 @@ export declare function renderOpenGraph(property: string, content: string): stri
 export declare function isServer(): boolean;
 export declare function isClient(): boolean;
 export declare function withCache<T extends VNode | string>(key: string, renderFn: () => T, ttl?: number): T;
+export {};

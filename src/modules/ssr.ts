@@ -14,6 +14,8 @@ export interface RenderResult {
   context: SSRContext;
 }
 
+type AsyncVNode = VNode | string | PromiseLike<VNode | string>;
+
 // Server-side rendering function
 export function renderToString(vnode: VNode | string, context: SSRContext = {}): RenderResult {
   const ctx = { ...context };
@@ -352,7 +354,7 @@ export class StreamingRenderer {
     this.context = context;
   }
 
-  async renderToStream(vnode: VNode | string, options: { signal?: AbortSignal } = {}): Promise<ReadableStream<string>> {
+  async renderToStream(vnode: AsyncVNode, options: { signal?: AbortSignal } = {}): Promise<ReadableStream<string>> {
     const { readable, writable } = new TransformStream<string, string>();
     const writer = writable.getWriter();
     let terminated = false;
@@ -374,7 +376,7 @@ export class StreamingRenderer {
 
     this.renderAsync(vnode, writer, options.signal, abortStream, () => { terminated = true; })
       .catch(error => {
-        console.error('SSR streaming error:', error);
+        if (!(error instanceof Error && error.name === 'AbortError')) console.error('SSR streaming error:', error);
         return abortStream(error);
       })
       .finally(() => options.signal?.removeEventListener('abort', onAbort));
@@ -383,7 +385,7 @@ export class StreamingRenderer {
   }
 
   private async renderAsync(
-    vnode: VNode | string,
+    vnode: AsyncVNode,
     writer: WritableStreamDefaultWriter<string>,
     signal: AbortSignal | undefined,
     abortStream: (error: unknown) => Promise<void>,
@@ -406,9 +408,14 @@ export class StreamingRenderer {
     }
   }
 
-  private async renderVNodeAsync(vnode: VNode, writer: WritableStreamDefaultWriter<string>, signal?: AbortSignal): Promise<void> {
+  private async renderVNodeAsync(vnode: AsyncVNode, writer: WritableStreamDefaultWriter<string>, signal?: AbortSignal): Promise<void> {
     if (signal?.aborted) throw createSSRAbortError();
-    const { tag, props, children } = vnode;
+    const resolved = await vnode;
+    if (typeof resolved === 'string') {
+      await writer.write(escapeHtml(resolved));
+      return;
+    }
+    const { tag, props, children } = resolved;
 
     // Handle async components
     if (typeof tag === 'function') {

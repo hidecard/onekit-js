@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { createApp } from '../lib/cli/create.js';
+import { CliError, formatCliError, optionError } from '../lib/cli/errors.js';
 
 const [command = 'help', ...args] = process.argv.slice(2);
 
@@ -14,7 +15,11 @@ function parseCreateArgs(values) {
 
 function readOption(values, name) {
   const index = values.indexOf(name);
-  if (index >= 0) return values[index + 1];
+  if (index >= 0) {
+    const value = values[index + 1];
+    if (!value || value === '--' || value.startsWith('--')) throw optionError(name, `Use ${name} <value> or ${name}=<value>.`);
+    return value;
+  }
   const prefix = `${name}=`;
   const inline = values.find(value => value.startsWith(prefix));
   return inline ? inline.slice(prefix.length) : undefined;
@@ -68,9 +73,12 @@ try {
   } else if (command === 'help' || command === '--help' || command === '-h') {
     printHelp();
   } else {
-    throw new Error(`Unknown command: ${command}`);
+    throw new CliError(`Unknown command: ${command}.`, {
+      code: 'UNKNOWN_COMMAND',
+      hint: 'Run "onekit help" to see available commands.',
+    });
   }
 } catch (error) {
-  console.error(`OneKit CLI error: ${error instanceof Error ? error.message : String(error)}`);
-  process.exitCode = 1;
+  console.error(`OneKit CLI error: ${formatCliError(error)}`);
+  process.exitCode = typeof error?.exitCode === 'number' ? error.exitCode : 1;
 }

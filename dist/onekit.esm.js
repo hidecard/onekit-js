@@ -4165,7 +4165,8 @@ class StreamingRenderer {
         }
         this.renderAsync(vnode, writer, options.signal, abortStream, () => { terminated = true; })
             .catch(error => {
-            console.error('SSR streaming error:', error);
+            if (!(error instanceof Error && error.name === 'AbortError'))
+                console.error('SSR streaming error:', error);
             return abortStream(error);
         })
             .finally(() => options.signal?.removeEventListener('abort', onAbort));
@@ -4194,7 +4195,12 @@ class StreamingRenderer {
     async renderVNodeAsync(vnode, writer, signal) {
         if (signal?.aborted)
             throw createSSRAbortError();
-        const { tag, props, children } = vnode;
+        const resolved = await vnode;
+        if (typeof resolved === 'string') {
+            await writer.write(escapeHtml(resolved));
+            return;
+        }
+        const { tag, props, children } = resolved;
         // Handle async components
         if (typeof tag === 'function') {
             const componentResult = await tag(props);

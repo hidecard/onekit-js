@@ -101,6 +101,23 @@ describe('OneKit CLI', () => {
     }
   });
 
+  it('prints an actionable diagnostic for unknown commands', async () => {
+    await expect(run(process.execPath, [path.resolve('bin/onekit.js'), 'wat'])).rejects.toMatchObject({
+      code: 1,
+      stderr: expect.stringContaining('[UNKNOWN_COMMAND]'),
+    });
+    await expect(run(process.execPath, [path.resolve('bin/onekit.js'), 'wat'])).rejects.toMatchObject({
+      stderr: expect.stringContaining('onekit help'),
+    });
+  });
+
+  it('rejects missing option values with a diagnostic code', async () => {
+    await expect(run(process.execPath, [path.resolve('bin/onekit.js'), 'dev', '--cwd'])).rejects.toMatchObject({
+      code: 1,
+      stderr: expect.stringContaining('[INVALID_OPTION]'),
+    });
+  });
+
   it('rejects an existing target directory', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'onekit-cli-existing-'));
     try {

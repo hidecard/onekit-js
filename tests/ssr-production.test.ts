@@ -41,6 +41,36 @@ describe('SSR production contracts', () => {
     expect(chunks.join('')).toContain('<main><p>before</p>');
   });
 
+  it('schedules promise children in source order without losing async values', async () => {
+    const renderer = new StreamingRenderer();
+    const stream = await renderer.renderToStream(h('main', {}, [
+      Promise.resolve(h('span', {}, 'first')),
+      new Promise(resolve => setTimeout(() => resolve(h('span', {}, 'second')), 5)),
+    ]));
+    const reader = stream.getReader();
+    let html = '';
+    while (true) {
+      const result = await reader.read();
+      if (result.done) break;
+      html += result.value;
+    }
+
+    expect(html).toContain('<main><span>first</span><span>second</span></main>');
+  });
+
+  it('supports a promise as the streamed root vnode', async () => {
+    const renderer = new StreamingRenderer();
+    const stream = await renderer.renderToStream(Promise.resolve(h('div', {}, 'async root')));
+    const reader = stream.getReader();
+    let html = '';
+    while (true) {
+      const result = await reader.read();
+      if (result.done) break;
+      html += result.value;
+    }
+    expect(html).toContain('<div>async root</div>');
+  });
+
   it('aborts a stream with AbortError without masking the cancellation', async () => {
     const controller = new AbortController();
     const renderer = new StreamingRenderer();

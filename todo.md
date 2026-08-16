@@ -47,10 +47,11 @@
 - [ ] Exercise renderer edge cases including keyed reordering, fragments, event replacement, props removal, refs, and empty children.
 - [x] Exercise SSR, CLI, and representative examples for runtime or packaging failures.
   - [x] Verified streaming propagation of original async render errors and AbortSignal cancellation.
-  - [x] Verified CLI inline options, absolute output paths, cwd handling, passthrough arguments, and child exit codes.
+  - [x] Verified Promise root/child scheduling in source order without losing async values.
+  - [x] Verified CLI inline options, absolute output paths, cwd handling, passthrough arguments, child exit codes, structured error codes, and actionable hints.
 - [x] Fix confirmed defects and add regression coverage for the confirmed OKJS duplicate-root, Vite TypeScript-transpile, root-resolution, and reactive-array defects.
 - [x] Re-run all validation and record remaining non-blocking risks.
-  - [x] Targeted SSR/CLI suites and type-check pass; remaining risks are async SSR scheduling, richer CLI diagnostics, and broader native Windows/macOS CI.
+  - [x] Targeted SSR/CLI suites and type-check pass; remaining risks are advanced async SSR concurrency, richer CLI diagnostics, and broader native Windows/macOS CI.
 
 ## Published package verification and next milestone
 
@@ -81,7 +82,7 @@
 ## M4 and next M-series milestones
 
 - [ ] Audit SSR render contracts, escaping, request context isolation, head/body output, async rendering, and hydration API behavior.
-  - [x] Streaming error ownership, original error propagation, and AbortSignal cancellation are now covered by regression tests.
+  - [x] Streaming error ownership, original error propagation, AbortSignal cancellation, and deterministic Promise root/child scheduling are covered by regression tests.
 - [ ] Add hydration mismatch detection and diagnostics without mutating the server DOM incorrectly.
 - [ ] Add SSR/client parity tests for text, attributes, boolean props, events, keyed nodes, fragments, and nested components.
 - [ ] Add framework-level error boundaries and loading boundary contracts for render, effect, route, loader, and SSR failures.
@@ -98,6 +99,7 @@
 - [x] Implement `onekit test` with project test-runner delegation and consistent exit codes.
 - [x] Add CLI tests for command parsing, missing scripts, invalid projects, passthrough args, and child-process failures.
   - [x] Added inline `--cwd=`/`--out-dir=` and absolute-path acceptance coverage for Windows shell conventions.
+  - [x] Added stable CLI diagnostic codes and actionable hints for unknown commands and missing option values.
 - [x] Validate the commands from a clean generated TypeScript and JavaScript starter project.
 - [x] Update CLI documentation, changelog, package metadata, and publish-ready versioning.
 
