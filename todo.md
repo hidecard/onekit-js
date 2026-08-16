@@ -291,11 +291,14 @@
 
 ## Todo Continuation Pass 2
 
-- [ ] Re-read and prioritize every remaining unchecked item after the router/hydration increment.
-- [ ] Implement the next highest-impact unfinished platform or adoption improvement.
+- [x] Re-read and prioritize every remaining unchecked item after the router/hydration increment.
+  - [x] Remaining high-impact gaps were prioritized as M3 renderer reconciliation before lower-risk docs and optional integration work.
+- [x] Implement the next highest-impact unfinished platform or adoption improvement.
+  - [x] Hardened root and nested fragment reconciliation in the VDOM renderer.
 - [x] Add focused regression/integration tests and preserve V3 compatibility.
   - [x] Added two fragment regression tests; TypeScript and the targeted renderer suite pass with 6/6 tests.
 - [x] Run full validation and update production documentation/checklist.
   - [x] Type-check, coverage, 19 suites/89 tests, production build, package verification, HMR (`HMR_SMOKE=PASS`), docs build, and `git diff --check` passed; renderer fragment contract was added to `PRODUCTION_READINESS.md`.
-- [ ] Commit and push the completed increment to `origin/V3`.
-  - [ ] Source, tests, generated artifacts, docs, and checklist are ready for the next maintenance commit.
+- [x] Commit and push the completed increment to `origin/V3`.
+  - [x] Pushed implementation, tests, generated artifacts, docs, and checklist in commit `33e9fdd`.
+  - [x] Source, tests, generated artifacts, docs, and checklist were included in the maintenance commit.
