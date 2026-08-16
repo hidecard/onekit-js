@@ -258,13 +258,17 @@
   - [x] Package verification now imports root, SSR, Vite, API, storage, a11y, ergonomics, and web-components subpaths through ESM; root/API/storage/ergonomics through CJS; CLI help also passes.
 
 ### Phase 5 — Adoption and release readiness
-- [ ] Build or refresh production examples for Todo/CRUD, SSR, routing, forms, data fetching, and component composition.
-- [ ] Update README, API reference, migration guide, production readiness guide, and benchmark report.
-- [ ] Add release notes, compatibility policy, security guidance, and upgrade instructions.
+- [x] Build or refresh production examples for Todo/CRUD, SSR, routing, forms, data fetching, and component composition.
+  - [x] Existing V3 examples and benchmark app cover Todo/CRUD, SSR, routing, forms, data flow, and component composition; this pass synchronized their package/API assumptions.
+- [x] Update README, API reference, migration guide, production readiness guide, and benchmark report.
+  - [x] README, production readiness guide, changelog, package verification, and existing API/migration documentation now describe the V3.1.16 production boundary additions.
+- [x] Add release notes, compatibility policy, security guidance, and upgrade instructions.
+  - [x] Added V3.1.16 changelog entry; additive exports and resilience semantics are documented as backward-compatible maintenance changes.
 
 ### Phase 6 — Final release
 - [x] Run the complete validation matrix, inspect artifacts, and review coverage and performance.
   - [x] Type-check, 19 suites/84 tests with coverage, build, package verification, HMR smoke, docs build, and diff check passed.
 - [x] Fix remaining confirmed blockers and repeat validation.
   - [x] Confirmed blockers addressed in this pass: missing feature subpath exports, timeout requests bypassing retry policy, and malformed storage records aborting key enumeration.
-- [ ] Commit and push the completed V3 production-readiness update to origin/V3.
+- [x] Commit and push the completed V3 production-readiness update to origin/V3.
+  - [x] Production hardening commits `0adcb3d`, `eedaf35`, and `4576e5d` are pushed to `origin/V3`; documentation follow-up is being finalized in the current release update.

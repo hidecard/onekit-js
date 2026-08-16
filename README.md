@@ -2,7 +2,7 @@
 
 **OneKit JS V3** is a compact, TypeScript-first reactive JavaScript framework for browser applications. It provides explicit APIs for reactive state, components, templates, JSX/VDOM, routing, stores, SSR/hydration, HTTP, browser storage, accessibility, security, plugins, dependency injection, animations, Web Components, DevTools inspection, disposable scopes, and Vite HMR tooling.
 
-> **Current release:** `3.1.13`
+> **Current release:** `3.1.16`
 > **License:** MIT
 > **Runtime:** Browser-first JavaScript and TypeScript
 > **Repository:** [github.com/hidecard/onekit-js](https://github.com/hidecard/onekit-js)
@@ -887,3 +887,16 @@ app.mount('#app');
 ```
 
 The ergonomic layer provides `state`, `derive`, `watchEffect`, and `createApp`. Existing `reactive`, `computed`, `effect`, `watch`, `register`, `create`, and `mount` APIs remain supported. Primitive state uses an explicit `.value` ref; object and array state use the normal reactive proxy. See the [V3 DX audit](docs/V3_DX_AUDIT.md) and [beginner-first V3 guide](docs/V3_USAGE.md#0-beginner-first-application-api) for the design rationale and migration examples.
+
+
+## Production feature subpaths
+
+Production consumers may import only the capabilities they need:
+
+```ts
+import { state, createApp } from "onekit-js/ergonomics";
+import { request } from "onekit-js/api";
+import { createStorage } from "onekit-js/storage";
+```
+
+The `api` request helper applies `timeout`, `retries`, and `retryDelay` consistently to timeout, network, and HTTP failures. Storage key enumeration ignores malformed records without hiding healthy entries. These contracts are covered by the release package verification and regression test matrix.
