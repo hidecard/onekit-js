@@ -4135,6 +4135,11 @@ ${bodyContent}
         }
     }
     // Streaming SSR utilities
+    function createSSRAbortError() {
+        const error = new Error('SSR stream aborted');
+        error.name = 'AbortError';
+        return error;
+    }
     class StreamingRenderer {
         context;
         chunks = [];
@@ -4142,38 +4147,64 @@ ${bodyContent}
         constructor(context = {}) {
             this.context = context;
         }
-        async renderToStream(vnode) {
+        async renderToStream(vnode, options = {}) {
             const { readable, writable } = new TransformStream();
-            this.renderAsync(vnode, writable.getWriter()).catch(error => {
+            const writer = writable.getWriter();
+            let terminated = false;
+            const abortStream = async (error) => {
+                if (terminated)
+                    return;
+                terminated = true;
+                try {
+                    await writer.abort(error);
+                }
+                catch {
+                    // A consumer may cancel the readable side first; preserve the original error.
+                }
+            };
+            const onAbort = () => { void abortStream(createSSRAbortError()); };
+            if (options.signal) {
+                if (options.signal.aborted)
+                    onAbort();
+                else
+                    options.signal.addEventListener('abort', onAbort, { once: true });
+            }
+            this.renderAsync(vnode, writer, options.signal, abortStream, () => { terminated = true; })
+                .catch(error => {
                 console.error('SSR streaming error:', error);
-                writable.abort(error);
-            });
+                return abortStream(error);
+            })
+                .finally(() => options.signal?.removeEventListener('abort', onAbort));
             return readable;
         }
-        async renderAsync(vnode, writer) {
+        async renderAsync(vnode, writer, signal, abortStream, markComplete) {
             try {
-                // Start HTML document
+                if (signal?.aborted)
+                    throw createSSRAbortError();
                 await writer.write('<!DOCTYPE html>\n');
                 if (typeof vnode === 'string') {
                     await writer.write(escapeHtml(vnode));
                 }
                 else {
-                    await this.renderVNodeAsync(vnode, writer);
+                    await this.renderVNodeAsync(vnode, writer, signal);
                 }
                 await writer.close();
+                markComplete();
                 this.isComplete = true;
             }
             catch (error) {
-                await writer.abort(error);
+                await abortStream(error);
                 throw error;
             }
         }
-        async renderVNodeAsync(vnode, writer) {
+        async renderVNodeAsync(vnode, writer, signal) {
+            if (signal?.aborted)
+                throw createSSRAbortError();
             const { tag, props, children } = vnode;
             // Handle async components
             if (typeof tag === 'function') {
                 const componentResult = await tag(props);
-                return this.renderVNodeAsync(componentResult, writer);
+                return this.renderVNodeAsync(componentResult, writer, signal);
             }
             const attrs = renderAttributes(props);
             const tagHtml = `<${tag}${attrs}>`;
@@ -4184,7 +4215,7 @@ ${bodyContent}
                     await writer.write(escapeHtml(child));
                 }
                 else {
-                    await this.renderVNodeAsync(child, writer);
+                    await this.renderVNodeAsync(child, writer, signal);
                 }
             }
             if (!isSelfClosingTag(tag)) {

@@ -27,7 +27,9 @@ export declare class StreamingRenderer {
     private chunks;
     private isComplete;
     constructor(context?: SSRContext);
-    renderToStream(vnode: VNode | string): Promise<ReadableStream<string>>;
+    renderToStream(vnode: VNode | string, options?: {
+        signal?: AbortSignal;
+    }): Promise<ReadableStream<string>>;
     private renderAsync;
     private renderVNodeAsync;
     getContext(): SSRContext;
