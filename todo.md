@@ -7,7 +7,8 @@
 - [x] Update README and release documentation to OneKit JS `3.1.17` and CLI/create-onekit `1.0.7`.
 - [x] Validate version consistency and documentation examples.
   - [x] Type-check, 23 Jest suites / 114 tests, production build, docs build, declaration verification, package verification, and diff checks passed after removing one Markdown trailing-whitespace issue.
-- [ ] Commit and push the documentation update to `origin/V3`.
+- [x] Commit and push the documentation update to `origin/V3`.
+  - [x] Pushed commit `91abd72` to `origin/V3`; local branch and remote are synchronized with a clean working tree.
 
 - [ ] Audit all public V3 exports and source module signatures.
 - [ ] Audit README, getting started, framework guide, migration guide, changelog, and examples for stale or missing usage.
