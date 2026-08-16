@@ -1,5 +1,15 @@
 # OneKit JS V3 Documentation Update
 
+## README Complete User Guide and Contributor Onboarding
+
+- [x] Audit current README and source documentation against the full developer journey.
+  - [x] Cross-checked the public exports, V3 usage guide, framework guide, getting-started guide, CLI diagnostics, testing contracts, and repository scripts.
+- [x] Rewrite README from installation through production usage with runnable examples and API orientation.
+- [x] Add security, testing, troubleshooting, project structure, and contribution guidance for new developers.
+- [x] Validate README examples, links, versions, formatting, and project checks.
+  - [x] README audit passed; `git diff --check` passed; all referenced local documentation paths exist; version and command checks passed; added the missing MIT `LICENSE` file for the README link.
+- [ ] Commit and push the README user-guide update to `origin/V3`.
+
 ## Version 3.1.17 / CLI 1.0.7 README Update
 
 - [x] Inventory README, package metadata, changelog, and examples for stale version references.

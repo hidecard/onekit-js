@@ -1,68 +1,33 @@
 # OneKit JS
 
-**OneKit JS V3** is a compact, TypeScript-first reactive JavaScript framework for browser applications. It provides explicit APIs for reactive state, components, templates, JSX/VDOM, routing, stores, SSR/hydration, HTTP, browser storage, accessibility, security, plugins, dependency injection, animations, Web Components, DevTools inspection, disposable scopes, and Vite HMR tooling.
+**OneKit JS V3** is a compact, TypeScript-first reactive framework for browser applications. It gives developers explicit building blocks for state, components, templates, JSX/VDOM, routing, stores, forms, data fetching, SSR/hydration, security, testing, and production tooling without forcing a large application architecture.
 
 > **Current release:** `3.1.17`
-> **Starter CLI:** `1.0.7`
+> **Starter CLI:** `create-onekit@1.0.7`
 > **License:** MIT
 > **Runtime:** Browser-first JavaScript and TypeScript
-> **Repository:** [github.com/hidecard/onekit-js](https://github.com/hidecard/onekit-js)
 
-This README is a practical user guide. It starts with the smallest possible application and progresses to production architecture. For the complete API walkthrough and migration examples, read the [V3 Usage Guide](docs/V3_USAGE.md) and [V3 Migration Guide](MIGRATION_GUIDE.md).
+OneKit is designed for developers who want a framework that is easy to learn but does not become restrictive as an application grows. You can begin with one reactive object and progressively adopt components, routes, stores, SSR, and typed tooling when the project needs them.
 
-## Table of Contents
+[![TypeScript-first](https://img.shields.io/badge/TypeScript-first-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) [![Version](https://img.shields.io/badge/version-3.1.17-0f766e)](CHANGELOG.md)
 
-1. [Installation](#installation)
-2. [Create a project](#create-a-project)
-3. [Your first reactive application](#your-first-reactive-application)
-4. [Reactive state](#reactive-state)
-5. [Components](#components)
-6. [Templates and directives](#templates-and-directives)
-7. [JSX and VDOM](#jsx-and-vdom)
-8. [Routing](#routing)
-9. [Stores](#stores)
-10. [Disposable scopes and teardown](#disposable-scopes-and-teardown)
-11. [SSR and hydration](#ssr-and-hydration)
-12. [Error and loading boundaries](#error-and-loading-boundaries)
-13. [HTTP, storage, and accessibility](#http-storage-and-accessibility)
-14. [Security](#security)
-15. [Web Components and animations](#web-components-and-animations)
-16. [Plugins and dependency injection](#plugins-and-dependency-injection)
-17. [Vite and HMR](#vite-and-hmr)
-18. [`.okjs` Single-File Components](#okjs-single-file-components)
-19. [DevTools](#devtools)
-20. [CLI commands](#cli-commands)
-21. [Testing and production verification](#testing-and-production-verification)
-22. [Performance and benchmarking](#performance-and-benchmarking)
-23. [TypeScript and package imports](#typescript-and-package-imports)
-24. [Troubleshooting](#troubleshooting)
-25. [Documentation and release resources](#documentation-and-release-resources)
+## Why developers choose OneKit
 
-## Installation
+| Need | OneKit approach |
+|---|---|
+| Learn quickly | Small, explicit APIs with copy-ready examples and a built-in starter CLI. |
+| Keep applications understandable | State, lifecycle, routing, data loading, and teardown have visible contracts. |
+| Scale without a rewrite | Components, stores, typed routes, SSR, testing helpers, and Vite tooling are available when needed. |
+| Ship safely | TypeScript declarations, security filtering, package verification, HMR checks, and regression tests are part of the repository workflow. |
+| Contribute confidently | The source is modular, the validation commands are documented, and focused tests make changes reviewable. |
 
-Install OneKit in an existing application:
+OneKit does not try to hide the browser. DOM elements, events, selectors, request lifecycles, and cleanup remain understandable. That makes the framework suitable for small products, internal tools, documentation sites, and larger component-based applications.
 
-```bash
-npm install onekit-js
-```
+## Quick start in five minutes
 
-OneKit ships its own TypeScript declarations. Import public APIs from the package root rather than reaching into `src/` files:
+### Option A: create a new project
 
-```ts
-import { reactive, effect, defineComponent, mount } from "onekit-js";
-```
-
-The package also exposes the Vite tooling subpath:
-
-```ts
-import { oneKitVitePlugin, preserveHMRState } from "onekit-js/vite";
-```
-
-Use the root import for runtime APIs. Use `onekit-js/vite` only from Vite configuration or development tooling code.
-
-## Create a project
-
-The fastest path is the built-in starter generator:
+The current starter generator is version `1.0.7`:
 
 ```bash
 npm create onekit@1.0.7 my-app
@@ -71,72 +36,34 @@ npm install
 npm run dev
 ```
 
-Equivalent commands are available when the package is already installed or when using the package without a global installation:
+You can also use the standalone package name:
 
 ```bash
-npx --yes --package=onekit-js onekit create my-app
 npx create-onekit@1.0.7 my-app
 ```
 
-The generated project contains a Vite-compatible entrypoint, TypeScript source, a Vite configuration, and a starter component. Build and preview it with:
-
-```bash
-onekit build
-onekit preview
-```
-
-For JavaScript instead of TypeScript, use one of the following supported forms:
+Create a JavaScript starter instead of TypeScript with either form:
 
 ```bash
 onekit create my-app --javascript
+# or
 onekit create my-app --template js
 ```
 
-Use `--cwd` when a command must run in another project, and pass additional arguments after `--`:
+### Option B: add OneKit to an existing Vite project
 
 ```bash
-onekit dev --cwd ./my-app -- --host 0.0.0.0
-onekit preview --cwd ./my-app -- --port 4173
-onekit test --cwd ./my-app -- --watch
+npm install onekit-js
 ```
 
-### CLI diagnostics and error codes
-
-CLI failures are written to stderr in a stable, searchable format:
-
-```text
-OneKit CLI error: [ERROR_CODE] Message explaining the failure.
-Hint: An actionable next step.
-```
-
-The current diagnostic codes are:
-
-| Code | Meaning | Typical resolution |
-|---|---|---|
-| `UNKNOWN_COMMAND` | The requested command is not supported. | Run `onekit help` and use one of the listed commands. |
-| `INVALID_OPTION` | An option such as `--cwd` or `--out-dir` is missing its value. | Use `--cwd <directory>` or the inline form `--cwd=<directory>`. |
-| `INVALID_PROJECT` | The target directory is not a valid project, its `package.json` is malformed, or the requested script is missing. | Check the target path, repair `package.json`, or add the required `dev`, `preview`, or `test` script. |
-| `COMMAND_FAILED` | OneKit could not start the delegated package-manager command. | Verify that npm is installed and available on `PATH`. |
-| `CLI_ERROR` | A fallback CLI error without a more specific classification. | Read the message and hint, then rerun with corrected project or command arguments. |
-
-Child project commands retain their original non-zero exit code. A missing preview output is reported before the project preview script starts. For Windows shells and scripts, both separated and inline forms are supported:
-
-```bash
-onekit preview --cwd C:\\work\\my-app --out-dir C:\\work\\my-app\\dist
-onekit preview --cwd=C:\\work\\my-app --out-dir=C:\\work\\my-app\\dist
-```
-
-## Your first reactive application
-
-The following example works in a browser page containing `#count` and `#increment` elements:
+A TypeScript declaration package is not required; OneKit ships its own declarations.
 
 ```ts
 import { reactive, effect } from "onekit-js";
 
 const state = reactive({ count: 0 });
-
 const stop = effect(() => {
-  const output = document.querySelector("#count");
+  const output = document.querySelector<HTMLSpanElement>("#count");
   if (output) output.textContent = String(state.count);
 });
 
@@ -144,44 +71,53 @@ document.querySelector("#increment")?.addEventListener("click", () => {
   state.count += 1;
 });
 
-// Call stop() when the application root is permanently removed.
+// Keep and call stop() when this feature is no longer needed.
 void stop;
 ```
 
+Example markup:
+
 ```html
-<main>
-  <output id="count">0</output>
-  <button id="increment" type="button">Increment</button>
-</main>
+<button id="increment" type="button">Increment</button>
+<span id="count">0</span>
 ```
 
-For most applications, prefer a component or disposable scope so the effect is cleaned up automatically rather than keeping a global disposer.
+## The OneKit mental model
+
+OneKit applications are built from four simple layers:
+
+1. **State** contains reactive objects, derived values, stores, query state, and form state.
+2. **View** is rendered with components, templates, JSX, or the low-level VDOM helpers.
+3. **Composition** connects features with routes, plugins, dependency injection, SSR, and Web Components.
+4. **Delivery** is handled through the CLI, Vite plugin, tests, package verification, and security checks.
+
+A feature should own the resources it creates. Effects, watchers, subscriptions, timers, route loaders, and event listeners should be stopped or disposed when their component, scope, or route is no longer active.
+
+## Project structure
+
+A practical application can start with this layout:
+
+```text
+my-app/
+├── index.html
+├── package.json
+├── vite.config.ts
+├── src/
+│   ├── main.ts
+│   ├── app.ts
+│   ├── components/
+│   ├── routes/
+│   ├── stores/
+│   ├── services/
+│   └── styles.css
+└── tests/
+```
+
+Keep feature state close to the feature that owns it. Put reusable primitives in `components/`, application-wide state in `stores/`, network and persistence code in `services/`, and route-specific loading in `routes/`.
 
 ## Reactive state
 
-### `reactive`, `effect`, and `stop`
-
-`reactive` wraps an object in a Proxy and tracks property reads made by effects. Nested objects are made reactive when accessed. `effect` returns a stop function, while `stop(runner)` is available when the runner itself must be stopped explicitly.
-
-```ts
-import { reactive, effect, stop } from "onekit-js";
-
-const state = reactive({
-  count: 0,
-  label: "Clicks",
-});
-
-const runner = effect(() => {
-  console.log(`${state.label}: ${state.count}`);
-});
-
-state.count += 1;
-stop(runner);
-```
-
-### `computed` and `watch`
-
-Use `computed` for a lazy derived value and `watch` for side effects that need old and new values:
+### `reactive`, `effect`, `computed`, and `watch`
 
 ```ts
 import { reactive, computed, effect, watch } from "onekit-js";
@@ -189,40 +125,44 @@ import { reactive, computed, effect, watch } from "onekit-js";
 const cart = reactive({ price: 20, quantity: 2 });
 const total = computed(() => cart.price * cart.quantity);
 
-effect(() => console.log("Total:", total.value));
+const stopEffect = effect(() => {
+  console.log("total:", total.value);
+});
 
-const stopWatching = watch(
+const stopWatch = watch(
   () => cart.quantity,
   (next, previous) => console.log({ next, previous }),
   { immediate: true },
 );
 
 cart.quantity = 3;
-stopWatching();
+
+// Call these when the owning feature is destroyed.
+stopEffect();
+stopWatch();
 ```
 
-### Batching, ticks, snapshots, and binding
+Effects clean up stale conditional dependencies before rerunning. Effects can also register per-run cleanup callbacks when an asynchronous operation or external resource belongs to that run.
 
-Use `batch` when multiple mutations should flush together. Use `nextTick` after mutations when work must run after the reactive microtask. `snapshot` returns a safe deep clone, and `bind` connects a DOM property to reactive state.
+### Batching and snapshots
 
 ```ts
-import { reactive, batch, nextTick, snapshot, bind } from "onekit-js";
-
-const state = reactive({ firstName: "Ada", lastName: "Lovelace" });
+import { batch, nextTick, snapshot } from "onekit-js";
 
 batch(() => {
-  state.firstName = "Grace";
-  state.lastName = "Hopper";
+  cart.price = 25;
+  cart.quantity = 4;
 });
 
 await nextTick();
-console.log(snapshot(state));
-bind("#name", state, "firstName", "value");
+const plainCart = snapshot(cart);
 ```
+
+Use `batch` when several mutations should produce one flush. Use `nextTick` when work must run after the reactive microtask. Use `snapshot` before serializing or sending reactive data to code that should not retain proxy references.
 
 ## Components
 
-A component definition can declare props, local data, a template or render function, methods, and lifecycle hooks.
+A component may define props, local state, methods, a template or render function, and lifecycle hooks.
 
 ```ts
 import {
@@ -230,19 +170,16 @@ import {
   register,
   create,
   mount,
-  unmount,
 } from "onekit-js";
 
 const Counter = defineComponent({
   name: "Counter",
-  props: {
-    step: { type: "number", default: 1 },
-  },
+  props: { step: { type: "number", default: 1 } },
   data: () => ({ count: 0 }),
   template: `
     <section>
       <strong>{{count}}</strong>
-      <button ok-on.click="increment()" type="button">Increment</button>
+      <button data-on-increment type="button">Increment</button>
     </section>
   `,
   methods: {
@@ -251,654 +188,277 @@ const Counter = defineComponent({
       this.update();
     },
   },
-  mounted() {
-    console.log("Counter mounted");
-  },
 });
 
 register("Counter", Counter);
 const instance = create("Counter", { step: 2 });
-if (instance) {
-  mount(instance, "#app");
-  // Later, when the root is removed:
-  // unmount(instance);
-}
+if (instance) mount(instance, "#app");
 ```
 
-Supported component lifecycle hooks include `beforeCreate`, `created`, `beforeMount`, `mounted`, `beforeUpdate`, `updated`, `beforeUnmount`, and `unmounted`. Composition-style helpers include `setupComponent`, `onMounted`, `onUpdated`, `onDestroyed`, and `onPropsChanged`.
+The public component lifecycle includes creation, mounting, updating, and destruction. Prefer explicit teardown for subscriptions and resources. `unmount`/`destroy` should be called when an instance is no longer needed.
 
-Props may be declared using a type name or a definition object:
+## Templates, JSX, and VDOM
 
-```ts
-const UserCard = defineComponent({
-  name: "UserCard",
-  props: {
-    name: { type: "string", required: true },
-    active: { type: "boolean", default: false },
-    score: {
-      type: "number",
-      validator: (value) => Number(value) >= 0,
-    },
-  },
-  render() {
-    return `<article>${this.props.name}</article>`;
-  },
-});
-```
-
-## Templates and directives
-
-Compile a standalone template with `compileTemplate`, or place the template on a component definition:
+Use templates when you want concise HTML-like markup and directives. Use JSX or render functions when you want JavaScript composition and stronger expression-level control.
 
 ```ts
-import { compileTemplate } from "onekit-js";
+import { h, render } from "onekit-js";
 
-const element = compileTemplate(
-  `<button @click="increment">{{label}}</button>`,
-  {
-    label: "Add",
-    increment: () => console.log("clicked"),
-  },
+const view = h("main", { class: "panel" },
+  h("h1", null, "Dashboard"),
+  h("p", null, "Rendered with OneKit VDOM"),
 );
 
-document.querySelector("#app")?.appendChild(element);
+render(view, document.querySelector("#app")!);
 ```
 
-Common V3 directive patterns are:
+The JSX entrypoint is available through `onekit-js/jsx`, and `.okjs` single-file components are supported through the OneKit Vite plugin. Do not insert untrusted strings as HTML. Prefer text nodes, escaped interpolation, and validated data.
 
-```html
-<section ok-if="visible">
-  <input ok-model="user.name" />
-  <button ok-on:click="save($event)" type="button">Save</button>
-  <ul>
-    <li ok-for="item in items">{{item.name}}</li>
-  </ul>
-</section>
-```
+## Routing and nested layouts
 
-The template expression engine intentionally supports a restricted expression grammar. It does not execute arbitrary JavaScript statements or dynamic code. Interpolated text is connected to individual reactive text nodes, so changing one value does not require replacing the component root. Keyed `ok-for` lists use an item `id` or `key` when available; duplicate keys produce a development warning and receive a positional fallback so one DOM node is never reused twice. Keep untrusted HTML and untrusted expression strings out of application templates, and validate external data before placing it in a UI model.
-
-## JSX and VDOM
-
-Use the JSX-compatible helpers or the lower-level VDOM helpers when explicit rendering and keyed updates are preferable:
-
-```ts
-import { h, render, Fragment } from "onekit-js";
-
-const view = h(
-  "main",
-  { class: "shell" },
-  h("h1", null, "OneKit"),
-  h("p", null, "Small runtime, direct control."),
-  h(Fragment, null, "More content"),
-);
-
-const root = document.querySelector("#app");
-if (root) root.appendChild(render(view));
-```
-
-Public JSX/VDOM helpers include `h`, `jsx`, `jsxDEV`, `okjs`, `component`, `Fragment`, `createElement`, `render`, `patch`, and `vdomPatch`. Renderer updates support keyed children, prop removal, event replacement, style diffing, and refs.
-
-## Routing
-
-Create a router with static and dynamic paths, loaders, guards, redirects, and a selected navigation mode:
+The router supports memory, browser, and hash-oriented navigation patterns, dynamic parameters, query parsing, guards, async loaders, redirects, lazy components, prefetching, and nested typed route records.
 
 ```ts
 import { createRouter } from "onekit-js";
 
-const appRouter = createRouter(
-  [
-    { path: "/", handler: () => { document.title = "Home"; } },
+const router = createRouter({
+  mode: "history",
+  routes: [
     {
-      path: "/users/:id",
-      loader: ({ to }) =>
-        fetch(`/api/users/${to.params.id}`).then((response) => response.json()),
+      path: "/",
+      component: HomePage,
     },
-    { path: "/login", beforeEnter: () => "/" },
+    {
+      path: "/projects/:projectId",
+      component: ProjectLayout,
+      children: [
+        { path: "", component: ProjectOverview },
+        { path: "/settings", component: ProjectSettings },
+      ],
+    },
   ],
-  { mode: "history" },
+});
+
+router.start();
+await router.navigate("/projects/onekit/settings");
+```
+
+Keep route loaders and guards abortable. OneKit protects the application from stale asynchronous navigation committing after a newer navigation wins. Use `prefetch()` to warm route data without changing the current URL or committed route state.
+
+## Stores, query data, and forms
+
+### Stores
+
+Use stores for shared application state with explicit actions and subscriptions. Keep server data separate from local UI state when that separation makes invalidation and loading behavior clearer.
+
+### Query client
+
+`onekit-js/query` provides a small query foundation with deduplication and stale-time behavior:
+
+```ts
+import { QueryClient } from "onekit-js/query";
+
+const queries = new QueryClient({ staleTime: 30_000 });
+const result = await queries.fetch(["projects"], () =>
+  fetch("/api/projects").then((response) => response.json()),
+);
+```
+
+Use stable query keys. Do not create a fresh object or array as a query input on every render unless the client intentionally treats it as a new request.
+
+### Typed forms
+
+```ts
+import { createForm } from "onekit-js/forms";
+
+const form = createForm(
+  { email: "", password: "" },
+  async (values) => ({
+    email: values.email.includes("@") ? undefined : "Enter a valid email",
+    password: values.password.length >= 8 ? undefined : "Use at least 8 characters",
+  }),
 );
 
-await appRouter.start();
-const match = await appRouter.navigate("/users/42?tab=posts");
-console.log(match?.location.params.id, appRouter.getCurrentPath());
-
-const unsubscribe = appRouter.subscribe((to, from) => {
-  console.log("navigated", from?.fullPath, to.fullPath);
-});
-
-// Call unsubscribe() when the application scope is destroyed.
-void unsubscribe;
+form.setValue("email", "developer@example.com");
+const submitted = await form.submit();
 ```
 
-The router resolves navigation and data but does not automatically render route components. Subscribe to route changes and connect the match to your component or VDOM renderer. Route loaders can use an error boundary so a failed loader returns controlled fallback data instead of crashing navigation:
+Validate at the boundary, show field-level errors, and do not treat client-side validation as a replacement for server-side validation.
 
-```ts
-const loaderBoundary = createErrorBoundary({
-  fallback: (error) => ({ error: error.message, items: [] }),
-});
+## HTTP, storage, accessibility, and animation
 
-const router = createRouter([
-  { path: '/items', loader: () => fetchItems() },
-], { mode: 'history', errorBoundary: loaderBoundary });
-```
+The root package exposes HTTP helpers such as `request`, `get`, `post`, `put`, and `del`, storage helpers, accessibility utilities, and animation primitives. Network code should handle timeout, cancellation, retry policy, non-2xx responses, and user-visible error states explicitly.
 
-Call `router.stop()` when the router is no longer needed.
-
-## Stores
-
-Define a named store with state, actions, and optional getters. Retrieve it with `useStore`, inspect all stores with `getAllStores`, and remove it with `removeStore`.
-
-```ts
-import { defineStore, useStore } from "onekit-js";
-
-const counter = defineStore("counter", () => ({
-  state: { count: 0 },
-  actions: {
-    increment() {
-      this.state.count += 1;
-    },
-  },
-}));
-
-const sameCounter = useStore<typeof counter>("counter");
-sameCounter.increment();
-```
-
-Store subscriptions can be attached to a disposable scope. Store plugins can be registered with `addStorePlugin`. Do not put secrets in a client-side store; browser state is observable and mutable by the user.
-
-## Disposable scopes and teardown
-
-V3 provides an explicit disposable scope for effects, watchers, subscriptions, and other cleanup callbacks. This reduces teardown mistakes in components, route views, and feature modules.
-
-```ts
-import {
-  effectScope,
-  onScopeDispose,
-  reactive,
-  effect,
-} from "onekit-js";
-
-const scope = effectScope(true);
-
-scope.run(() => {
-  const state = reactive({ connected: false });
-  const stop = effect(() => console.log(state.connected));
-  const timer = setInterval(() => { state.connected = !state.connected; }, 1000);
-
-  onScopeDispose(() => clearInterval(timer));
-  onScopeDispose(stop);
-});
-
-// Stops the effect and clears the timer in reverse registration order.
-scope.dispose();
-```
-
-Use `withScope` when a function should return both its value and its scope, or `registerDisposable` for resources exposing `dispose`, `stop`, or `unsubscribe`:
-
-```ts
-import { withScope, registerDisposable } from "onekit-js";
-
-const result = withScope(() => {
-  const subscription = registerDisposable(createSubscription());
-  return subscription;
-});
-
-result.scope.dispose();
-```
-
-Component setup and mounted work are automatically associated with the component scope. Enable leak diagnostics only in development:
-
-```ts
-import { enableScopeLeakWarnings } from "onekit-js";
-
-const disableWarnings = enableScopeLeakWarnings({
-  thresholdMs: 60_000,
-  onWarning: (scope) => console.warn("Long-lived scope", scope),
-});
-
-// Call when the development session ends.
-disableWarnings();
-```
+For persistent data, handle corrupted records defensively and avoid storing secrets in browser storage. For accessibility, provide labels, keyboard paths, visible focus, meaningful headings, and appropriate button types. For animation, respect `prefers-reduced-motion` and never make essential information available only through motion.
 
 ## SSR and hydration
 
-Render a VNode or string on the server with a request-scoped `SSRContext`:
+OneKit supports server rendering, streaming, async rendering, hydration, and request-scoped rendering contracts. Keep request data isolated per request, escape untrusted text, and ensure the server and client produce the same meaningful attributes, boolean properties, styles, fragments, and component structure.
 
-```ts
-import {
-  createSSRContext,
-  renderToString,
-  addToHead,
-  setMeta,
-  renderTitle,
-  hydrate,
-  h,
-} from "onekit-js";
+A production SSR checklist should include:
 
-const context = createSSRContext();
-addToHead(context, renderTitle("OneKit page"));
-setMeta(context, "description", "A OneKit page");
+- No request-specific state stored in module-level mutable variables.
+- Abort and timeout handling for async loaders.
+- Consistent serialization of data passed to the client.
+- Hydration tests for attributes, events, booleans, styles, fragments, and nested components.
+- Error boundaries that preserve the original error and do not allow stale async work to overwrite a newer result.
 
-const result = renderToString(
-  h("main", null, "Rendered on the server"),
-  context,
-);
+See the [V3 Usage Guide](docs/V3_USAGE.md) for streaming examples and advanced SSR contracts.
 
-console.log(result.html);
-```
+## Security rules for application developers
 
-On the client, hydrate the server DOM instead of rendering it a second time:
+OneKit includes filtering and regression coverage for common renderer and SSR attack surfaces, but application code must still treat external data as untrusted.
 
-```ts
-const hydration = hydrate(root, App());
-
-if (hydration.mismatches.length > 0) {
-  console.warn("OneKit hydration mismatch", hydration.mismatches);
-}
-
-// Call when the root is removed.
-hydration.dispose();
-```
-
-Hydration reports tag, text, missing-node, and unexpected-node mismatches without silently hiding them. Use `isServer` and `isClient` to guard environment-specific code. Use request-scoped contexts for concurrent server requests; never store request data in a module-level singleton.
-
-## Error and loading boundaries
-
-Use error boundaries around component rendering, route loaders, or async data work:
-
-```ts
-import { createErrorBoundary, createLoadingBoundary, h } from "onekit-js";
-
-const errors = createErrorBoundary({
-  fallback: (error, reset) =>
-    h("section", { class: "error" },
-      h("p", null, `Could not render: ${error.message}`),
-      h("button", { onclick: reset }, "Try again"),
-    ),
-});
-
-const loading = createLoadingBoundary<string>();
-const view = errors.render(() => renderPage(), "route-render");
-await loading.run(() => fetchPage());
-```
-
-`createErrorBoundary` supports `run`, `runAsync`, `render`, `renderAsync`, `state.error`, and `reset`. `createLoadingBoundary` exposes `state.pending`, `run`, and `render(loading, ready)`. These are primitives; they do not replace an application router or renderer automatically.
-
-## HTTP, storage, and accessibility
-
-Use the fetch-based HTTP helpers at the application boundary:
-
-```ts
-import { get, post } from "onekit-js";
-
-const response = await get("/api/items");
-const created = await post("/api/items", { name: "Notebook" });
-console.log(response.data, created.data);
-```
-
-Use namespaced storage wrappers for browser persistence:
-
-```ts
-import { localStorage, createStorage } from "onekit-js";
-
-localStorage.set("theme", "light");
-const theme = localStorage.get("theme");
-
-const preferences = createStorage(window.localStorage, { prefix: "prefs_" });
-preferences.set("density", "compact");
-```
-
-Use semantic HTML first and add accessibility helpers where they communicate behavior that HTML alone cannot express:
-
-```ts
-import {
-  setAriaAttributes,
-  announce,
-  trapFocus,
-  createSkipLink,
-} from "onekit-js";
-
-const dialog = document.querySelector("#dialog");
-if (dialog) {
-  setAriaAttributes(dialog, { role: "dialog", "aria-modal": "true" });
-  const releaseFocus = trapFocus(dialog);
-  announce("Dialog opened", "polite");
-  void releaseFocus;
-}
-
-document.body.prepend(createSkipLink("#main"));
-```
-
-## Security
-
-The security API includes `sanitizeHTML`, `sanitizeInput`, `sanitizeURL`, `validateJSON`, and `generateCSPHeader`:
-
-```ts
-import { sanitizeHTML, sanitizeURL, validateJSON } from "onekit-js";
-
-const safeMarkup = sanitizeHTML(externalMarkup);
-const safeURL = sanitizeURL(externalURL);
-const parsed = validateJSON(externalJSON);
-```
-
-Treat external HTML, URLs, JSON, route parameters, storage values, and API responses as untrusted. Never interpolate secrets into browser bundles. The template evaluator is intentionally restricted, but untrusted template source should still be rejected at the application boundary. Use a Content Security Policy in production and keep dependency audits in CI.
-
-## Web Components and animations
-
-Wrap a OneKit component as a standards-based custom element when it must be consumed by non-OneKit applications. The element uses a Shadow DOM and disposes its component instance when disconnected.
-
-```ts
-import { defineComponent, registerWebComponent } from "onekit-js";
-
-const StatusBadge = defineComponent({
-  name: "StatusBadge",
-  props: { status: { type: "string", default: "ready" } },
-  template: `<span>{{status}}</span>`,
-});
-
-registerWebComponent("ok-status-badge", StatusBadge, {
-  observedAttributes: ["status"],
-});
-```
-
-```html
-<ok-status-badge status="ready"></ok-status-badge>
-```
-
-Animation helpers extend the `OneKit` collection API and return the collection for chaining:
-
-```ts
-import { OneKit } from "onekit-js";
-
-const card = new OneKit("#card");
-card.scaleIn(240).glow(500, "#55d6ff");
-```
-
-Available helpers include `scaleIn`, `scaleOut`, `rotateIn`, `rotateOut`, `bounce`, `shake`, `slideInLeft`, `slideInRight`, `slideInUp`, `slideInDown`, `flip`, `pulse`, and `glow`. Respect `prefers-reduced-motion` in application CSS and avoid animation timers for elements that are about to be destroyed.
-
-## Plugins and dependency injection
-
-Use the plugin manager for application-wide extensions and `DependencyInjector` or the singleton `di` for services:
-
-```ts
-import { pluginManager, di } from "onekit-js";
-
-pluginManager.use({
-  name: "logger",
-  install() {
-    console.log("logger installed");
-  },
-});
-
-di.provide("apiBase", "https://api.example.com");
-const apiBase = di.get("apiBase");
-```
-
-Define a clear ownership and teardown policy for services that open timers, sockets, event listeners, or subscriptions. Prefer registering those resources in the active disposable scope.
-
-## Vite and HMR
-
-Add the OneKit plugin to a Vite configuration:
-
-```ts
-// vite.config.ts
-import { defineConfig } from "vite";
-import { oneKitVitePlugin } from "onekit-js/vite";
-
-export default defineConfig({
-  plugins: [oneKitVitePlugin()],
-});
-```
-
-The plugin emits OneKit module update events and preserves an application HMR state container when the module accepts an update:
-
-```ts
-import { effectScope } from "onekit-js";
-import { preserveHMRState, registerHMRDisposable } from "onekit-js/vite";
-
-const state = preserveHMRState("counter", { count: 0 });
-const scope = registerHMRDisposable(effectScope(true));
-state.count += 1;
-
-// The scope is disposed automatically before the module is replaced.
-void scope;
-```
-
-HMR is a development feature. Always verify a clean production build and a fresh browser load; do not depend on HMR state preservation for application correctness.
-
-## `.okjs` Single-File Components
-
-OneKit V3 supports Vue-like `.okjs` Single-File Components with `<script>`, `<template>`, and `<style>` blocks. Add `oneKitVitePlugin()` to Vite and import the component normally:
-
-```okjs
-<script lang="ts">
-export default {
-  name: 'Greeting',
-  data: () => ({ message: 'Hello OneKit' }),
-};
-</script>
-<template><h1>{{message}}</h1></template>
-<style scoped>h1 { color: #5757d5; }</style>
-```
-
-```ts
-import { create, mount, register } from "onekit-js";
-import Greeting from "./Greeting.okjs";
-
-register("Greeting", Greeting);
-const instance = create("Greeting");
-if (instance) mount(instance, "#app");
-```
-
-The full syntax and security notes are in [`docs/OKJS_GUIDE.md`](docs/OKJS_GUIDE.md). The CLI starter now generates `src/App.okjs` automatically.
-
-### VS Code syntax highlighting
-
-The repository includes a declarative VS Code extension under [`extensions/vscode-okjs`](extensions/vscode-okjs). It associates `.okjs` files with the OneKit OKJS language, embeds TypeScript/JavaScript/CSS/HTML grammars, highlights OneKit directives, provides `ok-component`, `ok-template`, `ok-interpolation`, and `ok-for` snippets, and includes the 128×128 OneKit JS icon at [`extensions/vscode-okjs/icon.png`](extensions/vscode-okjs/icon.png). To create a local VSIX:
-
-```bash
-cd extensions/vscode-okjs
-npm install
-npm run package
-code --install-extension onekit-okjs-0.1.0.vsix
-```
-
-The runtime compiler and HMR behavior still come from `oneKitVitePlugin()`; the VS Code extension supplies editor language support only.
-
-For a complete Vite compilation, template/script HMR, and Signal-style reactivity walkthrough, see [`docs/OKJS_VITE_HMR_GUIDE.md`](docs/OKJS_VITE_HMR_GUIDE.md). A runnable example is available in [`examples/okjs-counter`](examples/okjs-counter).
-
-For PAT-free Visual Studio Marketplace publishing with Microsoft Entra workload identity federation, see [`docs/ENTRA_MARKETPLACE_PUBLISHING.md`](docs/ENTRA_MARKETPLACE_PUBLISHING.md) and the [`azure-pipelines/okjs-marketplace.yml`](azure-pipelines/okjs-marketplace.yml) template.
-
-## DevTools
-
-DevTools are opt-in and safe for SSR when not installed as a browser global:
-
-```ts
-import { enableDevTools } from "onekit-js";
-
-const bridge = enableDevTools({
-  historySize: 200,
-  installGlobal: true,
-  globalName: "__ONEKIT_DEVTOOLS__",
-});
-
-const unsubscribe = bridge.subscribe((event) => {
-  console.log(event.type, event);
-});
-
-console.table(bridge.getInspectors());
-console.table(bridge.getHistory());
-
-// On teardown:
-unsubscribe();
-bridge.dispose();
-```
-
-The current bridge provides reactive, router, component, store, scope, and resource lifecycle events plus live component/store inspector snapshots. Effects expose an inspectable resource graph and target/key dependency graph:
-
-```ts
-console.table(bridge.getResourceGraph());
-console.table(bridge.getDependencyGraph());
-```
-
-This is a foundation for browser extension panels; do not ship sensitive application state to a remote debugging service.
-
-## CLI commands
-
-| Command | Purpose |
+| Risk | Safe practice |
 |---|---|
-| `onekit create <name>` | Generate a Vite-compatible starter. |
-| `onekit create <name> --javascript` | Generate a JavaScript starter. |
-| `onekit dev` | Delegate to the project development script. |
-| `onekit build` | Build the application and library output. |
-| `onekit preview` | Preview an existing `dist` directory. |
-| `onekit test` | Delegate to the project test script. |
-| `onekit --help` | Display available commands. |
+| XSS | Render untrusted values as text; sanitize HTML with a trusted policy before using an HTML sink. |
+| Unsafe URLs | Allow only the protocols and origins your application needs; reject dangerous schemes. |
+| Event injection | Never turn user-provided strings into event handler code. |
+| CSS injection | Validate style values and avoid interpolating untrusted CSS declarations. |
+| Prototype pollution | Use guarded object merges and reject attacker-controlled prototype keys. |
+| SSR leakage | Keep secrets and request-specific values on the server; serialize only safe data. |
+| Supply-chain risk | Pin and audit dependencies, review lockfile changes, and run package verification before release. |
 
-Use `--cwd <directory>` with delegated commands and place extra arguments after `--`.
+Security hardening in the framework reduces risk; it does not make unsafe application input safe automatically.
 
 ## Testing and production verification
 
-Run the application and library checks locally:
+Run the repository validation matrix before opening a pull request:
 
 ```bash
+npm install
 npm run type-check
+npx tsc --noEmit --noUnusedLocals --noUnusedParameters
 npm test -- --runInBand
 npm run build
-npm run docs:build
+npm run verify:declarations
 npm run verify:package
-npm audit --omit=dev
+npm run verify:hmr
+git diff --check
+npm audit --audit-level=moderate
 ```
 
-The package verification command creates a temporary project, packs the current package, installs the tarball, and verifies root, ESM, CJS, SSR, CLI, and `onekit-js/vite` entrypoints. Inspect package contents before publication:
+The test suite covers reactivity, components, VDOM, SSR/hydration, router behavior, query/forms, security boundaries, CLI behavior, HMR, and developer ergonomics. Add a focused regression test whenever a change fixes a bug or changes a public contract.
+
+For application tests, `onekit-js/testing` provides DOM-first helpers such as `renderTest`, `cleanup`, `fireEvent`, `flush`, and `waitFor`.
+
+## CLI reference
+
+The `onekit` CLI supports the following workflow:
 
 ```bash
-npm pack --dry-run
+onekit create my-app --typescript
+onekit dev
+onekit build
+onekit preview
+onekit test
+onekit help
 ```
 
-The GitHub Actions workflow validates Node 18, 20, and 22, runs coverage thresholds, builds documentation, audits production dependencies, verifies the packed package, verifies the Vite HMR lifecycle, runs the repeatable benchmark, uploads its JSON report, and creates a release artifact for version tags. Run the local HMR smoke check with `npm run verify:hmr`.
-
-Never commit `node_modules`, benchmark reports, access tokens, or generated temporary directories. Actual npm publication requires an authenticated npm session:
+Use a different project directory or forward tool arguments with:
 
 ```bash
-npm login
-npm publish --access public
+onekit dev --cwd ./my-app -- --host 0.0.0.0
+onekit preview --cwd ./my-app -- --port 4173
+onekit test --cwd ./my-app -- --watch
 ```
 
-## Performance and benchmarking
+CLI diagnostics include stable categories such as `UNKNOWN_COMMAND`, `INVALID_OPTION`, `INVALID_PROJECT`, `COMMAND_FAILED`, and `CLI_ERROR`. The error message includes a next-step hint so CI and local development can identify whether the problem is argument parsing, project configuration, or a delegated command.
 
-Run the repeatable V3 baseline benchmark after building:
+## Public package entrypoints
 
-```bash
-npm run benchmark
-```
-
-The benchmark writes a JSON report containing reactive updates, batched updates, deep snapshots, scope teardown timings, mean heap deltas, and the Node/CPU environment. CI runs it on Node 22 and uploads `benchmark-results/v3.json` as an artifact. Use the report to compare changes on the same Node version and machine. Do not compare results across different hardware or framework versions without recording the environment and methodology.
-
-## TypeScript and package imports
-
-OneKit exports declarations and supports tree-shakeable ESM usage. Prefer named imports:
+Prefer the root entrypoint for the stable public API. Feature subpaths are available when an application or tool needs them directly:
 
 ```ts
-import {
-  reactive,
-  computed,
-  createRouter,
-  defineStore,
-} from "onekit-js";
+import { reactive } from "onekit-js";
+import { createRouter } from "onekit-js/router";
+import { QueryClient } from "onekit-js/query";
+import { createForm } from "onekit-js/forms";
+import { renderTest, waitFor } from "onekit-js/testing";
+import { oneKitVitePlugin } from "onekit-js/vite";
 ```
 
-The package provides CommonJS, ESM, UMD, declarations, the SSR subpath, and the Vite tooling subpath. Keep application code on public exports. If an API is not exported from `onekit-js`, treat it as internal rather than importing it from a source path.
+The package also exposes `ssr`, `template`, `jsx`, `animation`, `api`, `a11y`, `storage`, `ergonomics`, `web-components`, and `okjs` feature paths. Use only documented public exports; do not import internal files from `src/`.
 
 ## Troubleshooting
 
-### Reading CLI diagnostics
+| Symptom | First checks |
+|---|---|
+| TypeScript cannot find a declaration | Run `npm run build`, then `npm run verify:declarations`; restart the editor TypeScript server. |
+| CLI says `INVALID_PROJECT` | Confirm the target directory and required `package.json` scripts. |
+| Preview does not start | Run a production build first and confirm that `dist/` exists. |
+| State appears not to update | Confirm the read occurs inside an effect/computed/watch and that the reactive object was not replaced with a plain clone. |
+| A route shows stale data | Abort or invalidate loaders and ensure the latest navigation owns the result. |
+| Hydration differs | Compare server/client attributes, whitespace, boolean values, styles, fragments, and conditional output. |
+| A test hangs | Dispose effects, watchers, timers, event listeners, and query subscriptions in teardown. |
 
-Start with the bracketed code rather than the prose. For example, this indicates an option parsing error, not a project failure:
+When reporting a bug, include the smallest reproduction, Node version, package version, command used, expected behavior, actual behavior, and the first relevant stack trace.
 
-```text
-OneKit CLI error: [INVALID_OPTION] Missing value for --cwd.
-Hint: Use --cwd <value> or --cwd=<value>.
+## Contributing to OneKit
+
+OneKit is open to developers who want to improve the framework, documentation, examples, tests, tooling, or developer experience. A small documentation correction is a valuable contribution, and a focused issue reproduction is often more useful than a large speculative change.
+
+### 1. Find or create an issue
+
+Before implementing a substantial change, search the [GitHub issues](https://github.com/hidecard/onekit-js/issues). For a new bug, include a minimal reproduction. For a feature, explain the user problem, proposed API, compatibility impact, and why the behavior belongs in the framework rather than in application code.
+
+### 2. Set up the repository
+
+```bash
+git clone https://github.com/hidecard/onekit-js.git
+cd onekit-js
+git checkout -b fix/short-description
+npm install
+npm run type-check
+npm test -- --runInBand
 ```
 
-If the code is `INVALID_PROJECT`, confirm that the directory contains a readable `package.json` and that the command-specific script exists. If the code is `COMMAND_FAILED`, check the local npm installation and `PATH`. If a delegated `test` command exits with a non-zero status, OneKit preserves that status so CI can fail reliably.
+The active development line for this work is `V3`. Keep changes focused and do not commit generated `node_modules` content.
 
+### 3. Make a focused change
 
-### The effect does not rerun
+Follow the existing TypeScript style and preserve public API compatibility unless the change is explicitly a breaking release. Add or update tests beside the behavior you changed. Keep security-sensitive changes narrow, explain the threat model, and avoid weakening existing sanitization or prototype-pollution guards.
 
-Make sure the effect actually reads the reactive property it should track. If a conditional branch changes, allow the effect to rerun so stale dependencies can be cleaned up. For DOM work that must occur after a batch, await `nextTick()`.
+When adding a public API, update the implementation, declarations/build output, tests, README or V3 guide, changelog, and package verification coverage together. Do not rely on a local build artifact that is absent from a clean checkout.
 
-### A route changes but the page does not update
+### 4. Run the checks
 
-The router resolves navigation; it does not render components automatically. Subscribe to route changes and render the selected match through your component or VDOM layer. Dispose the subscription and stop the router when the route scope is removed.
+```bash
+npm run type-check
+npx tsc --noEmit --noUnusedLocals --noUnusedParameters
+npm test -- --runInBand
+npm run build
+npm run verify:declarations
+npm run verify:package
+npm run verify:hmr
+git diff --check
+```
 
-### Hydration reports mismatches
+If a check fails, fix the underlying issue rather than hiding the failure or weakening the test. Build warnings should be understood and documented, even when they are non-blocking.
 
-Ensure server and client use the same initial data, stable keys, text content, and conditional branches. Do not access `window` or `document` during server rendering. Treat mismatch diagnostics as a bug to investigate rather than hiding them with a full client rerender.
+### 5. Open a pull request
 
-### The Vite subpath cannot be imported
+Push the branch and open a pull request against `V3`. A useful pull request description contains the problem, the design decision, files changed, tests run, security considerations, compatibility notes, and any follow-up work. Reviewers should be able to understand the change without reconstructing the entire conversation.
 
-Run `npm run build` before packing or publishing. `npm run verify:package` performs this build automatically and validates `onekit-js/vite` from the packed tarball.
+## Documentation map
 
-### A scope warning appears
-
-A scope remains active with pending cleanup callbacks beyond the configured threshold. Ensure the owning component, route, socket, timer, watcher, or subscription calls `dispose`, `stop`, or `unsubscribe`, or register the resource with `registerDisposable` inside the active scope.
-
-### Node 18 behaves differently during minification
-
-OneKit's CI build keeps Node 18 portable by skipping incompatible terser minification only for that runtime. Release builds on Node 20+ generate optimized minified artifacts. Always use the full production build on the release environment.
-
-## Documentation and release resources
-
-| Resource | Contents |
+| Resource | Use it for |
 |---|---|
-| [V3 Usage Guide](docs/V3_USAGE.md) | Complete API signatures and runnable feature examples. |
-| [V3 Migration Guide](MIGRATION_GUIDE.md) | Before/after migration manual with complete application examples. |
-| [Getting Started](docs/GETTING_STARTED.md) | First project workflow. |
-| [Framework Guide](docs/FRAMEWORK_GUIDE.md) | Architecture and framework conventions. |
-| [Production Readiness](docs/PRODUCTION_READINESS.md) | Adoption guidance and release checklist. |
-| [Changelog](CHANGELOG.md) | Release history and maintenance notes. |
-| [Counter example](examples/counter) | Minimal reactive application. |
-| [Todo example](examples/todo) | Store-backed application. |
-| [V3.1.17 Release](https://github.com/hidecard/onekit-js/releases/tag/v3.1.17) | Current OneKit JS GitHub release. |
-| `create-onekit@1.0.7` | Current starter CLI release. |
+| [V3 Usage Guide](docs/V3_USAGE.md) | Full API signatures and advanced examples. |
+| [Getting Started](docs/GETTING_STARTED.md) | A short first-project walkthrough. |
+| [Framework Guide](docs/FRAMEWORK_GUIDE.md) | Architecture and application conventions. |
+| [Migration Guide](MIGRATION_GUIDE.md) | Moving from older OneKit versions and comparing patterns. |
+| [Production Readiness](docs/PRODUCTION_READINESS.md) | Runtime contracts, security guarantees, and release guidance. |
+| [Changelog](CHANGELOG.md) | Version history and release notes. |
+| [Issue tracker](https://github.com/hidecard/onekit-js/issues) | Bugs, feature proposals, and questions. |
+| [GitHub repository](https://github.com/hidecard/onekit-js) | Source, tests, examples, and pull requests. |
+
+## Versioning and release notes
+
+The current framework release is **OneKit JS `3.1.17`**. The current starter CLI release documented here is **`create-onekit@1.0.7`**. The framework package and starter CLI may release independently; always check the command and package name when pinning versions.
+
+OneKit follows semantic versioning. Additive APIs and fixes should remain compatible within a major version. Breaking changes require migration notes, updated examples, regression coverage, and an explicit changelog entry.
 
 ## License
 
-MIT © OneKit contributors
-
-
-## Beginner-first V3 API
-
-New applications can start with the smaller ergonomic layer while retaining the complete V3 API for advanced use cases:
-
-```ts
-import { createApp, state, derive, watchEffect } from 'onekit-js';
-
-const model = state({ count: 0 });
-const doubled = derive(() => model.count * 2);
-const stop = watchEffect(() => console.log(doubled.value));
-
-const app = createApp({
-  setup: () => ({ model, doubled }),
-  template: '<button ok-on.click="model.count += 1">{{model.count}}</button>',
-});
-
-app.mount('#app');
-```
-
-The ergonomic layer provides `state`, `derive`, `watchEffect`, and `createApp`. Existing `reactive`, `computed`, `effect`, `watch`, `register`, `create`, and `mount` APIs remain supported. Primitive state uses an explicit `.value` ref; object and array state use the normal reactive proxy. See the [V3 DX audit](docs/V3_DX_AUDIT.md) and [beginner-first V3 guide](docs/V3_USAGE.md#0-beginner-first-application-api) for the design rationale and migration examples.
-
-
-## Production feature subpaths
-
-Production consumers may import only the capabilities they need:
-
-```ts
-import { state, createApp } from "onekit-js/ergonomics";
-import { request } from "onekit-js/api";
-import { createStorage } from "onekit-js/storage";
-```
-
-The `api` request helper applies `timeout`, `retries`, and `retryDelay` consistently to timeout, network, and HTTP failures. Storage key enumeration ignores malformed records without hiding healthy entries. These contracts are covered by the release package verification and regression test matrix.
+OneKit JS is released under the [MIT License](LICENSE). Contributions are welcome under the same terms.
