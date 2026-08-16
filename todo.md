@@ -272,3 +272,16 @@
   - [x] Confirmed blockers addressed in this pass: missing feature subpath exports, timeout requests bypassing retry policy, and malformed storage records aborting key enumeration.
 - [x] Commit and push the completed V3 production-readiness update to origin/V3.
   - [x] Production hardening commits `0adcb3d`, `eedaf35`, and `4576e5d` are pushed to `origin/V3`; documentation follow-up is being finalized in the current release update.
+
+## Todo Continuation Pass
+
+- [x] Read and prioritize every remaining unchecked item across the production-readiness sections.
+  - [x] Highest-impact remaining work is the incomplete Phase 3 integration pass: SSR/hydration parity and mismatch handling, router navigation/failure paths, and browser/async cancellation integration coverage. Older documentation/package publication items are lower priority or require external registry access.
+- [x] Implement the highest-impact remaining runtime/compiler/SSR/router/tooling improvement that is safe for V3 compatibility.
+  - [x] Router now handles empty/configured base paths safely, commits browser URLs with the base, matches nested child routes using the full path, and inherits parent/child params.
+- [x] Add focused regression or integration tests for each completed improvement.
+  - [x] Added router regressions for nested params and configured base paths; router suite passes 9/9 tests.
+- [x] Re-run the full validation matrix and update the corresponding todo items and docs.
+  - [x] Type-check, 19 suites/87 tests with coverage, production build, package verification, HMR (`HMR_SMOKE=PASS`), docs build, and `git diff --check` passed. Router and hydration contracts are documented in `PRODUCTION_READINESS.md`.
+- [ ] Commit and push all completed continuation work to `origin/V3`.
+  - [ ] Source, tests, generated artifacts, and checklist are ready for the maintenance commit after final status review.

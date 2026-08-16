@@ -108,6 +108,14 @@ function matchRoute(route: Route, location: RouteLocation): RouteParams | null {
   }, {});
 }
 
+function matchRoutePrefix(route: Route, location: RouteLocation): RouteParams | null {
+  const patternSegments = normalizePath(route.path).split('/').filter(Boolean);
+  const locationSegments = normalizePath(location.path).split('/').filter(Boolean);
+  if (locationSegments.length < patternSegments.length) return null;
+  const prefixLocation = { ...location, path: `/${locationSegments.slice(0, patternSegments.length).join('/')}` };
+  return matchRoute(route, prefixLocation);
+}
+
 function sameLocation(a: RouteLocation | null, b: RouteLocation): boolean {
   return !!a && a.fullPath === b.fullPath;
 }
@@ -172,7 +180,7 @@ export class Router {
   forward(): void { if (typeof window !== 'undefined' && this.options.mode !== 'memory') window.history.forward(); }
 
   async resolve(input: string, push = false): Promise<MatchedRoute | null> {
-    const to = parseLocation(this.applyBase(input));
+    const to = parseLocation(this.removeBase(input));
     const matched = this.match(to);
     const from = this.current;
     const context: RouteContext = { to, from };
@@ -235,12 +243,24 @@ export class Router {
   }
 
   private match(location: RouteLocation): MatchedRoute | null {
-    const search = (routes: Route[]): MatchedRoute | null => {
+    const search = (routes: Route[], parentPath = ''): MatchedRoute | null => {
       for (const route of routes) {
-        const params = matchRoute(route, location);
+        const fullPattern = parentPath
+          ? `${parentPath.replace(/\/$/, '')}/${route.path.replace(/^\//, '')}`
+          : route.path;
+        const routeWithFullPath = { ...route, path: fullPattern };
+        const exactParams = matchRoute(routeWithFullPath, location);
+        const prefixParams = route.children ? matchRoutePrefix(routeWithFullPath, location) : null;
+        const childMatch = prefixParams && route.children ? search(route.children, normalizePath(fullPattern)) : null;
+        if (childMatch) {
+          return {
+            route: childMatch.route,
+            location: { ...childMatch.location, params: { ...prefixParams, ...childMatch.location.params } },
+          };
+        }
+        const params = exactParams;
         if (!params) continue;
-        const childMatch = route.children ? search(route.children) : null;
-        return childMatch ?? { route, location: { ...location, params } };
+        return { route, location: { ...location, params } };
       }
       return null;
     };
@@ -256,21 +276,32 @@ export class Router {
   }
 
   private applyBase(path: string): string {
-    const base = this.options.base ?? '';
-    if (!base || path.startsWith(base)) return path;
-    return `${base.replace(/\/$/, '')}/${path.replace(/^\//, '')}`;
+    const rawBase = this.options.base?.trim() ?? '';
+    const base = rawBase ? normalizePath(rawBase) : '';
+    if (base === '/' || path === base || path.startsWith(`${base}/`)) return path;
+    return `${base}/${path.replace(/^\//, '')}`;
+  }
+
+  private removeBase(path: string): string {
+    const rawBase = this.options.base?.trim() ?? '';
+    const base = rawBase ? normalizePath(rawBase) : '';
+    if (!base || base === '/' ) return path;
+    if (path === base) return '/';
+    if (path.startsWith(`${base}/`)) return path.slice(base.length) || '/';
+    return path;
   }
 
   private readBrowserPath(): string {
     if (typeof window === 'undefined') return this.options.initialPath ?? '/';
-    if (this.options.mode === 'hash') return window.location.hash.slice(1) || '/';
-    return `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    if (this.options.mode === 'hash') return this.removeBase(window.location.hash.slice(1) || '/');
+    return this.removeBase(`${window.location.pathname}${window.location.search}${window.location.hash}`);
   }
 
   private commit(location: RouteLocation): void {
     if (typeof window === 'undefined' || this.options.mode === 'memory') return;
-    if (this.options.mode === 'hash') window.history.pushState({}, '', `#${location.fullPath}`);
-    else window.history.pushState({}, '', location.fullPath);
+    const target = this.applyBase(location.fullPath);
+    if (this.options.mode === 'hash') window.history.pushState({}, '', `#${target}`);
+    else window.history.pushState({}, '', target);
   }
 }
 

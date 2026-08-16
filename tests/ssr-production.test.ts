@@ -1,5 +1,5 @@
 import { TransformStream } from 'node:stream/web';
-import { h, renderToString, createSSRContext, setMeta, addToHead, StreamingRenderer } from '../src/index';
+import { h, hydrate, renderToString, createSSRContext, setMeta, addToHead, StreamingRenderer } from '../src/index';
 
 (globalThis as typeof globalThis & { TransformStream?: typeof TransformStream }).TransformStream = TransformStream;
 
@@ -91,6 +91,25 @@ describe('SSR production contracts', () => {
     controller.abort();
 
     await expect(consume).rejects.toMatchObject({ name: 'AbortError' });
+  });
+
+  it('reports hydration attribute mismatches while attaching events', () => {
+    document.body.innerHTML = '<button class="server">Count: 0</button>';
+    const root = document.body.firstElementChild!;
+    const clicks: number[] = [];
+    const result = hydrate(root, h('button', {
+      className: 'client',
+      onClick: () => clicks.push(1),
+    }, 'Count: 0'));
+
+    expect(result.mismatches).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: 'attribute', path: 'root[class]', expected: 'client', actual: 'server' }),
+    ]));
+    root.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(clicks).toEqual([1]);
+    result.dispose();
+    root.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(clicks).toEqual([1]);
   });
 
   it('propagates context into nested document nodes', () => {

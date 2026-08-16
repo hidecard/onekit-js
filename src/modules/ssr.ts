@@ -226,7 +226,7 @@ function escapeHtml(text: string): string {
 
 export interface HydrationMismatch {
   path: string;
-  kind: 'tag' | 'text' | 'missing' | 'unexpected';
+  kind: 'tag' | 'text' | 'missing' | 'unexpected' | 'attribute';
   expected: string;
   actual: string;
 }
@@ -271,6 +271,27 @@ function walkAndHydrate(
       expected: vnode.tag,
       actual: element.tagName.toLowerCase(),
     });
+  }
+
+  for (const [key, value] of Object.entries(vnode.props)) {
+    if (key === 'key' || key === 'children' || key.startsWith('on')) continue;
+    const attributeName = key === 'className' ? 'class' : key === 'htmlFor' ? 'for' : key;
+    const expected = typeof value === 'boolean'
+      ? (value ? '' : null)
+      : value == null
+        ? null
+        : attributeName === 'style' && typeof value === 'object'
+          ? Object.entries(value as Record<string, unknown>).map(([name, styleValue]) => `${name}:${styleValue}`).join(';')
+          : String(value);
+    const actual = element.getAttribute(attributeName);
+    if (expected !== actual) {
+      mismatches.push({
+        path: `${path}[${attributeName}]`,
+        kind: 'attribute',
+        expected: expected ?? 'missing',
+        actual: actual ?? 'missing',
+      });
+    }
   }
 
   for (const [key, value] of Object.entries(vnode.props)) {

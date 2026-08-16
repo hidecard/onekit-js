@@ -14,7 +14,7 @@ type AsyncVNode = VNode | string | PromiseLike<VNode | string>;
 export declare function renderToString(vnode: VNode | string, context?: SSRContext): RenderResult;
 export interface HydrationMismatch {
     path: string;
-    kind: 'tag' | 'text' | 'missing' | 'unexpected';
+    kind: 'tag' | 'text' | 'missing' | 'unexpected' | 'attribute';
     expected: string;
     actual: string;
 }

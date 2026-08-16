@@ -3184,6 +3184,14 @@ function matchRoute(route, location) {
         return params;
     }, {});
 }
+function matchRoutePrefix(route, location) {
+    const patternSegments = normalizePath(route.path).split('/').filter(Boolean);
+    const locationSegments = normalizePath(location.path).split('/').filter(Boolean);
+    if (locationSegments.length < patternSegments.length)
+        return null;
+    const prefixLocation = { ...location, path: `/${locationSegments.slice(0, patternSegments.length).join('/')}` };
+    return matchRoute(route, prefixLocation);
+}
 class Router {
     routes = [];
     listeners = new Set();
@@ -3238,7 +3246,7 @@ class Router {
     forward() { if (typeof window !== 'undefined' && this.options.mode !== 'memory')
         window.history.forward(); }
     async resolve(input, push = false) {
-        const to = parseLocation(this.applyBase(input));
+        const to = parseLocation(this.removeBase(input));
         const matched = this.match(to);
         const from = this.current;
         const context = { to, from };
@@ -3304,13 +3312,25 @@ class Router {
         return result;
     }
     match(location) {
-        const search = (routes) => {
+        const search = (routes, parentPath = '') => {
             for (const route of routes) {
-                const params = matchRoute(route, location);
+                const fullPattern = parentPath
+                    ? `${parentPath.replace(/\/$/, '')}/${route.path.replace(/^\//, '')}`
+                    : route.path;
+                const routeWithFullPath = { ...route, path: fullPattern };
+                const exactParams = matchRoute(routeWithFullPath, location);
+                const prefixParams = route.children ? matchRoutePrefix(routeWithFullPath, location) : null;
+                const childMatch = prefixParams && route.children ? search(route.children, normalizePath(fullPattern)) : null;
+                if (childMatch) {
+                    return {
+                        route: childMatch.route,
+                        location: { ...childMatch.location, params: { ...prefixParams, ...childMatch.location.params } },
+                    };
+                }
+                const params = exactParams;
                 if (!params)
                     continue;
-                const childMatch = route.children ? search(route.children) : null;
-                return childMatch ?? { route, location: { ...location, params } };
+                return { route, location: { ...location, params } };
             }
             return null;
         };
@@ -3323,25 +3343,38 @@ class Router {
         this.listeners.forEach(listener => listener(to, from));
     }
     applyBase(path) {
-        const base = this.options.base ?? '';
-        if (!base || path.startsWith(base))
+        const rawBase = this.options.base?.trim() ?? '';
+        const base = rawBase ? normalizePath(rawBase) : '';
+        if (base === '/' || path === base || path.startsWith(`${base}/`))
             return path;
-        return `${base.replace(/\/$/, '')}/${path.replace(/^\//, '')}`;
+        return `${base}/${path.replace(/^\//, '')}`;
+    }
+    removeBase(path) {
+        const rawBase = this.options.base?.trim() ?? '';
+        const base = rawBase ? normalizePath(rawBase) : '';
+        if (!base || base === '/')
+            return path;
+        if (path === base)
+            return '/';
+        if (path.startsWith(`${base}/`))
+            return path.slice(base.length) || '/';
+        return path;
     }
     readBrowserPath() {
         if (typeof window === 'undefined')
             return this.options.initialPath ?? '/';
         if (this.options.mode === 'hash')
-            return window.location.hash.slice(1) || '/';
-        return `${window.location.pathname}${window.location.search}${window.location.hash}`;
+            return this.removeBase(window.location.hash.slice(1) || '/');
+        return this.removeBase(`${window.location.pathname}${window.location.search}${window.location.hash}`);
     }
     commit(location) {
         if (typeof window === 'undefined' || this.options.mode === 'memory')
             return;
+        const target = this.applyBase(location.fullPath);
         if (this.options.mode === 'hash')
-            window.history.pushState({}, '', `#${location.fullPath}`);
+            window.history.pushState({}, '', `#${target}`);
         else
-            window.history.pushState({}, '', location.fullPath);
+            window.history.pushState({}, '', target);
     }
 }
 function createRouter(routes = [], options = {}) {
@@ -4137,6 +4170,27 @@ function walkAndHydrate(element, vnode, path, mismatches, cleanups) {
             expected: vnode.tag,
             actual: element.tagName.toLowerCase(),
         });
+    }
+    for (const [key, value] of Object.entries(vnode.props)) {
+        if (key === 'key' || key === 'children' || key.startsWith('on'))
+            continue;
+        const attributeName = key === 'className' ? 'class' : key === 'htmlFor' ? 'for' : key;
+        const expected = typeof value === 'boolean'
+            ? (value ? '' : null)
+            : value == null
+                ? null
+                : attributeName === 'style' && typeof value === 'object'
+                    ? Object.entries(value).map(([name, styleValue]) => `${name}:${styleValue}`).join(';')
+                    : String(value);
+        const actual = element.getAttribute(attributeName);
+        if (expected !== actual) {
+            mismatches.push({
+                path: `${path}[${attributeName}]`,
+                kind: 'attribute',
+                expected: expected ?? 'missing',
+                actual: actual ?? 'missing',
+            });
+        }
     }
     for (const [key, value] of Object.entries(vnode.props)) {
         if (key.startsWith('on') && typeof value === 'function') {

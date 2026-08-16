@@ -23,3 +23,10 @@ The V3 package now exposes feature-oriented subpaths for `animation`, `api`, `a1
 API requests with `timeout` now participate in the configured retry policy. A timeout is retried with the same `retries` and `retryDelay` settings as network and HTTP failures. Storage key enumeration isolates malformed records so one corrupted entry cannot hide healthy records from `keys()` and `size()`.
 
 The package verification script installs the packed tarball into a clean temporary consumer project and imports the supported entry points directly. This check is part of the release validation matrix together with type-checking, Jest coverage, production build, HMR smoke verification, and documentation build.
+
+
+## Navigation and Hydration Hardening
+
+The router treats a configured `base` path as a deployment prefix rather than a route definition. Route declarations remain application-relative while browser history URLs retain the configured base. Nested routes inherit parent and child dynamic parameters in the final `RouteLocation`.
+
+Hydration reports serializable attribute mismatches in addition to tag, text, missing-node, and unexpected-node mismatches. Event handlers are attached without rewriting server-rendered DOM, and `HydrationResult.dispose()` removes them deterministically. Style object attributes use the same `property:value` representation during comparison as server rendering.

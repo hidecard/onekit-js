@@ -61,6 +61,30 @@ describe('M2 router production contract', () => {
     expect(result?.route.path).toBe('/404');
   });
 
+  it('inherits parent params for nested routes', async () => {
+    const router = createRouter([{
+      path: '/teams/:teamId',
+      children: [{ path: '/members/:memberId' }],
+    }], { mode: 'memory' });
+
+    const result = await router.navigate('/teams/alpha/members/42');
+
+    expect(result?.route.path).toBe('/members/:memberId');
+    expect(result?.location.params).toEqual({ teamId: 'alpha', memberId: '42' });
+  });
+
+  it('matches and commits routes relative to a configured base path', async () => {
+    const router = createRouter([{ path: '/dashboard' }], {
+      mode: 'memory',
+      base: '/console',
+    });
+
+    const result = await router.navigate('/dashboard');
+
+    expect(result?.route.path).toBe('/dashboard');
+    expect(router.getCurrentPath()).toBe('/dashboard');
+  });
+
   it('stops notifying subscribers after unsubscribe', async () => {
     const events: string[] = [];
     const router = createRouter([{ path: '/one' }, { path: '/two' }], { mode: 'memory' });

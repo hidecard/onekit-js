@@ -65,6 +65,7 @@ export declare class Router {
     private runGuard;
     private notify;
     private applyBase;
+    private removeBase;
     private readBrowserPath;
     private commit;
 }
