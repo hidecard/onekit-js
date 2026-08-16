@@ -2988,10 +2988,26 @@ function request(url, options = {}) {
         };
         const makeRequest = (attempt = 0) => {
             const xhr = new XMLHttpRequest();
-            // Set up timeout
-            const timeoutId = setTimeout(() => {
+            let completed = false;
+            let timeoutId;
+            const fail = (error) => {
+                if (completed)
+                    return;
+                completed = true;
+                clearTimeout(timeoutId);
+                if (attempt < (config.retries || 0)) {
+                    setTimeout(() => makeRequest(attempt + 1), config.retryDelay);
+                }
+                else {
+                    reject(error);
+                }
+            };
+            // Set up timeout. Timeouts participate in the same retry policy as
+            // network and HTTP failures, while the completed guard prevents an
+            // abort-triggered error event from settling the promise twice.
+            timeoutId = setTimeout(() => {
                 xhr.abort();
-                reject(new Error('Request timeout'));
+                fail(new Error('Request timeout'));
             }, config.timeout);
             xhr.open(config.method, sanitizedUrl);
             // Set headers
@@ -3007,6 +3023,9 @@ function request(url, options = {}) {
                 });
             }
             xhr.onload = function () {
+                if (completed)
+                    return;
+                completed = true;
                 clearTimeout(timeoutId);
                 const response = {
                     status: xhr.status,
@@ -3032,6 +3051,7 @@ function request(url, options = {}) {
                     const error = new Error(`HTTP ${xhr.status}: ${xhr.statusText}`);
                     error.response = response;
                     if (attempt < (config.retries || 0)) {
+                        completed = false;
                         setTimeout(() => makeRequest(attempt + 1), config.retryDelay);
                     }
                     else {
@@ -3040,13 +3060,7 @@ function request(url, options = {}) {
                 }
             };
             xhr.onerror = function () {
-                clearTimeout(timeoutId);
-                if (attempt < (config.retries || 0)) {
-                    setTimeout(() => makeRequest(attempt + 1), config.retryDelay);
-                }
-                else {
-                    reject(new Error('Network error'));
-                }
+                fail(new Error('Network error'));
             };
             // Send request
             if (config.body && typeof config.body === 'object') {
@@ -3457,9 +3471,15 @@ class Storage {
                     // Check if not expired
                     const item = this.storage.getItem(key);
                     if (item) {
-                        const data = JSON.parse(item);
-                        if (!this.isExpired(data.timestamp)) {
-                            keys.push(cleanKey);
+                        try {
+                            const data = JSON.parse(item);
+                            if (!this.isExpired(data.timestamp)) {
+                                keys.push(cleanKey);
+                            }
+                        }
+                        catch (error) {
+                            // Ignore one corrupted entry without hiding healthy keys.
+                            errorHandler(error, 'Storage.keys.entry');
                         }
                     }
                 }
