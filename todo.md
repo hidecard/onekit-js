@@ -283,5 +283,6 @@
   - [x] Added router regressions for nested params and configured base paths; router suite passes 9/9 tests.
 - [x] Re-run the full validation matrix and update the corresponding todo items and docs.
   - [x] Type-check, 19 suites/87 tests with coverage, production build, package verification, HMR (`HMR_SMOKE=PASS`), docs build, and `git diff --check` passed. Router and hydration contracts are documented in `PRODUCTION_READINESS.md`.
-- [ ] Commit and push all completed continuation work to `origin/V3`.
-  - [ ] Source, tests, generated artifacts, and checklist are ready for the maintenance commit after final status review.
+- [x] Commit and push all completed continuation work to `origin/V3`.
+  - [x] Source, tests, generated artifacts, docs, and checklist were pushed in commit `e340190`.
+  - [x] Source, tests, generated artifacts, and checklist were included in the maintenance commit.
