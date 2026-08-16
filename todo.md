@@ -175,3 +175,24 @@
 - [x] Commit and push the completed V3 DX improvements to GitHub.
   - [x] Pushed commit `8de7c22` to `origin/V3`.
 
+
+## GitHub V3 Source and Unit-Test Audit
+
+### Audit
+- [x] Synchronize local checkout with remote `origin/V3` and record branch/commit status.
+  - [x] Local `V3` matched `origin/V3` at `fb54226` before the audit changes; only the audit checklist was initially uncommitted.
+- [x] Inventory source modules, test suites, package scripts, and generated artifacts.
+  - [x] Audited public exports, source modules, 17 test suites, package scripts, declarations, and tracked `dist` artifacts.
+- [x] Run type-check, full unit tests, production build, package verification, and diff checks.
+  - [x] Type-check, 17 Jest suites/76 tests, build, package verification, HMR smoke, and `git diff --check` passed.
+- [x] Inspect source and tests for correctness defects, flaky behavior, missing regression coverage, and API inconsistencies.
+  - [x] Found that component `template` updates replaced the root with raw HTML, dropping compiled `ok-on`/`ok-model`/`ok-for` behavior after the first update.
+
+### Remediation
+- [x] Fix confirmed defects without breaking existing V3 contracts.
+  - [x] Component template updates now recompile inside a replaceable child scope and dispose the previous template scope.
+- [x] Add targeted regression tests for every confirmed defect or coverage gap.
+  - [x] Extended the single-root component regression to click twice and verify the event survives the first update.
+- [x] Re-run the complete validation matrix and document findings.
+  - [x] All validation commands passed after the component template scope fix.
+- [ ] Commit and push confirmed fixes to `origin/V3` when changes are required.

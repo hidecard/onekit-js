@@ -257,35 +257,17 @@ export function create(name: string, props: ComponentProps = {}, slots: { [key: 
         definition.beforeUpdate.call(this);
       }
 
-      let html = '';
+      let nextElement: Element | null = null;
       if (definition.template) {
-        html = definition.template.replace(/\{\{([^}]+)\}\}/g, (match, key) => {
-          const keys = key.trim().split('.');
-          let value: any = this.state;
-          if (keys[0] in this.props) {
-            value = this.props;
-          }
-          for (const k of keys) {
-            value = value && value[k];
-          }
-          return value !== undefined ? value : '';
-        });
-        // Replace slots
-        html = html.replace(/<slot><\/slot>/gi, this.slots.default || '');
-        html = html.replace(/<slot name="([^"]+)"><\/slot>/gi, (match, slotName) => {
-          return this.slots[slotName] || '';
-        });
+        nextElement = renderTemplate();
       } else if (definition.render) {
-        html = definition.render.call(this);
+        const html = sanitizeHTML(definition.render.call(this));
+        const newElement = document.createElement('div');
+        newElement.innerHTML = html;
+        nextElement = newElement.firstElementChild;
       }
 
-      if (html) {
-        // Sanitize HTML before rendering
-        const sanitized = sanitizeHTML(html);
-        const newElement = document.createElement('div');
-        newElement.innerHTML = sanitized;
-        const nextElement = newElement.firstElementChild;
-        if (nextElement) {
+      if (nextElement) {
           const previousElement = this.element;
           const parent = previousElement.parentNode;
           if (parent) {
@@ -297,9 +279,9 @@ export function create(name: string, props: ComponentProps = {}, slots: { [key: 
             previousElement.replaceChildren(...Array.from(nextElement.childNodes));
           }
         }
-        // Re-attach event listeners after update
 
-        if (definition.methods && this.element) {
+        // Legacy data-on-* method bindings remain supported for render() components.
+        if (!definition.template && definition.methods && this.element) {
           Object.keys(definition.methods).forEach(method => {
           const events = this.element!.querySelectorAll(`[data-on-${method}]`);
             events.forEach((el: Element) => {
@@ -313,12 +295,49 @@ export function create(name: string, props: ComponentProps = {}, slots: { [key: 
             });
           });
         }
-      }
 
-      emitDevToolsEvent({ type: 'component:lifecycle', componentId: this.componentId, name: this.name, phase: 'update' });
+        emitDevToolsEvent({ type: 'component:lifecycle', componentId: this.componentId, name: this.name, phase: 'update' });
       definition.updated?.call(this);
     }
   };
+
+  // Keep template effects/listeners in a replaceable child scope. Recompiling this
+  // scope on update preserves ok-on/ok-model/ok-for behavior after root replacement.
+  let templateScope: DisposableScope | null = null;
+  let templateContext: Record<string, unknown> | null = null;
+
+  const renderTemplate = (): Element => {
+    templateScope?.dispose();
+    templateScope = effectScope(true);
+    const context = templateContext ?? new Proxy({}, {
+      get(_target, key: string | symbol) {
+        if (key in instance.state) return instance.state[key as string];
+        if (key in instance.props) return instance.props[key as string];
+        if (key in instance && typeof key === 'string') return instance[key];
+        if (key === '$slots') return instance.slots;
+        return undefined;
+      },
+      has(_target, key: string | symbol) {
+        return key in instance.state || key in instance.props || key in instance || key === '$slots';
+      },
+      set(_target, key: string | symbol, value: unknown) {
+        if (typeof key !== 'string') return false;
+        if (key in instance.state) {
+          instance.state[key] = value;
+          return true;
+        }
+        if (key in instance.props) {
+          instance.props[key] = value;
+          return true;
+        }
+        return false;
+      },
+    });
+    templateContext = context;
+    return templateScope.run(() => compileTemplate(definition.template!, context));
+  };
+
+  instance.scope.add(() => templateScope?.dispose());
 
   // Create element inside the component scope so template effects and directive
   // listeners are disposed automatically when the component is destroyed.
@@ -333,36 +352,11 @@ export function create(name: string, props: ComponentProps = {}, slots: { [key: 
 
   instance.scope.run(() => renderBoundary.render(() => {
     if (definition.template) {
-      const context = new Proxy({}, {
-        get(_target, key: string | symbol) {
-          if (key in instance.state) return instance.state[key as string];
-          if (key in instance.props) return instance.props[key as string];
-          if (key in instance && typeof key === 'string') return instance[key];
-          if (key === '$slots') return instance.slots;
-          return undefined;
-        },
-        has(_target, key: string | symbol) {
-          return key in instance.state || key in instance.props || key in instance || key === '$slots';
-        },
-        set(_target, key: string | symbol, value: unknown) {
-          if (typeof key !== 'string') return false;
-          if (key in instance.state) {
-            instance.state[key] = value;
-            return true;
-          }
-          if (key in instance.props) {
-            instance.props[key] = value;
-            return true;
-          }
-          return false;
-        },
-      });
-      instance.element = compileTemplate(definition.template, context);
+      instance.element = renderTemplate();
     } else if (definition.render) {
-      const html = definition.render.call(instance);
-      const sanitized = sanitizeHTML(html);
+      const html = sanitizeHTML(definition.render.call(instance));
       const tempDiv = document.createElement('div');
-      tempDiv.innerHTML = sanitized;
+      tempDiv.innerHTML = html;
       instance.element = tempDiv.firstElementChild as Element;
     }
     return instance.element ?? document.createElement('div');

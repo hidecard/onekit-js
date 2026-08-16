@@ -32,9 +32,10 @@ describe('V3 regression coverage', () => {
     expect(instance).not.toBeNull();
     mount(instance!, target);
     (target.querySelector('button') as HTMLButtonElement).click();
+    (target.querySelector('button') as HTMLButtonElement).click();
 
     expect(target.children).toHaveLength(1);
-    expect(target.querySelector('button')?.textContent).toBe('1');
+    expect(target.querySelector('button')?.textContent).toBe('2');
     target.remove();
   });
 
