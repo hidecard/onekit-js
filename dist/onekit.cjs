@@ -2327,67 +2327,88 @@ function create(name, props = {}, slots = {}) {
             if (definition.beforeUpdate) {
                 definition.beforeUpdate.call(this);
             }
-            let html = '';
+            let nextElement = null;
             if (definition.template) {
-                html = definition.template.replace(/\{\{([^}]+)\}\}/g, (match, key) => {
-                    const keys = key.trim().split('.');
-                    let value = this.state;
-                    if (keys[0] in this.props) {
-                        value = this.props;
-                    }
-                    for (const k of keys) {
-                        value = value && value[k];
-                    }
-                    return value !== undefined ? value : '';
-                });
-                // Replace slots
-                html = html.replace(/<slot><\/slot>/gi, this.slots.default || '');
-                html = html.replace(/<slot name="([^"]+)"><\/slot>/gi, (match, slotName) => {
-                    return this.slots[slotName] || '';
-                });
+                nextElement = renderTemplate();
             }
             else if (definition.render) {
-                html = definition.render.call(this);
-            }
-            if (html) {
-                // Sanitize HTML before rendering
-                const sanitized = sanitizeHTML(html);
+                const html = sanitizeHTML(definition.render.call(this));
                 const newElement = document.createElement('div');
-                newElement.innerHTML = sanitized;
-                const nextElement = newElement.firstElementChild;
-                if (nextElement) {
-                    const previousElement = this.element;
-                    const parent = previousElement.parentNode;
-                    if (parent) {
-                        parent.replaceChild(nextElement, previousElement);
-                        componentInstances.delete(previousElement);
-                        componentInstances.set(nextElement, this);
-                        this.element = nextElement;
-                    }
-                    else {
-                        previousElement.replaceChildren(...Array.from(nextElement.childNodes));
-                    }
+                newElement.innerHTML = html;
+                nextElement = newElement.firstElementChild;
+            }
+            if (nextElement) {
+                const previousElement = this.element;
+                const parent = previousElement.parentNode;
+                if (parent) {
+                    parent.replaceChild(nextElement, previousElement);
+                    componentInstances.delete(previousElement);
+                    componentInstances.set(nextElement, this);
+                    this.element = nextElement;
                 }
-                // Re-attach event listeners after update
-                if (definition.methods && this.element) {
-                    Object.keys(definition.methods).forEach(method => {
-                        const events = this.element.querySelectorAll(`[data-on-${method}]`);
-                        events.forEach((el) => {
-                            el.addEventListener(method.split('on')[1], (e) => {
-                                e.preventDefault();
-                                const methodFn = this[method];
-                                if (typeof methodFn === 'function') {
-                                    methodFn(e);
-                                }
-                            });
+                else {
+                    previousElement.replaceChildren(...Array.from(nextElement.childNodes));
+                }
+            }
+            // Legacy data-on-* method bindings remain supported for render() components.
+            if (!definition.template && definition.methods && this.element) {
+                Object.keys(definition.methods).forEach(method => {
+                    const events = this.element.querySelectorAll(`[data-on-${method}]`);
+                    events.forEach((el) => {
+                        el.addEventListener(method.split('on')[1], (e) => {
+                            e.preventDefault();
+                            const methodFn = this[method];
+                            if (typeof methodFn === 'function') {
+                                methodFn(e);
+                            }
                         });
                     });
-                }
+                });
             }
             emitDevToolsEvent({ type: 'component:lifecycle', componentId: this.componentId, name: this.name, phase: 'update' });
             definition.updated?.call(this);
         }
     };
+    // Keep template effects/listeners in a replaceable child scope. Recompiling this
+    // scope on update preserves ok-on/ok-model/ok-for behavior after root replacement.
+    let templateScope = null;
+    let templateContext = null;
+    const renderTemplate = () => {
+        templateScope?.dispose();
+        templateScope = effectScope(true);
+        const context = templateContext ?? new Proxy({}, {
+            get(_target, key) {
+                if (key in instance.state)
+                    return instance.state[key];
+                if (key in instance.props)
+                    return instance.props[key];
+                if (key in instance && typeof key === 'string')
+                    return instance[key];
+                if (key === '$slots')
+                    return instance.slots;
+                return undefined;
+            },
+            has(_target, key) {
+                return key in instance.state || key in instance.props || key in instance || key === '$slots';
+            },
+            set(_target, key, value) {
+                if (typeof key !== 'string')
+                    return false;
+                if (key in instance.state) {
+                    instance.state[key] = value;
+                    return true;
+                }
+                if (key in instance.props) {
+                    instance.props[key] = value;
+                    return true;
+                }
+                return false;
+            },
+        });
+        templateContext = context;
+        return templateScope.run(() => compileTemplate(definition.template, context));
+    };
+    instance.scope.add(() => templateScope?.dispose());
     // Create element inside the component scope so template effects and directive
     // listeners are disposed automatically when the component is destroyed.
     const renderBoundary = createErrorBoundary({
@@ -2400,42 +2421,12 @@ function create(name, props = {}, slots = {}) {
     });
     instance.scope.run(() => renderBoundary.render(() => {
         if (definition.template) {
-            const context = new Proxy({}, {
-                get(_target, key) {
-                    if (key in instance.state)
-                        return instance.state[key];
-                    if (key in instance.props)
-                        return instance.props[key];
-                    if (key in instance && typeof key === 'string')
-                        return instance[key];
-                    if (key === '$slots')
-                        return instance.slots;
-                    return undefined;
-                },
-                has(_target, key) {
-                    return key in instance.state || key in instance.props || key in instance || key === '$slots';
-                },
-                set(_target, key, value) {
-                    if (typeof key !== 'string')
-                        return false;
-                    if (key in instance.state) {
-                        instance.state[key] = value;
-                        return true;
-                    }
-                    if (key in instance.props) {
-                        instance.props[key] = value;
-                        return true;
-                    }
-                    return false;
-                },
-            });
-            instance.element = compileTemplate(definition.template, context);
+            instance.element = renderTemplate();
         }
         else if (definition.render) {
-            const html = definition.render.call(instance);
-            const sanitized = sanitizeHTML(html);
+            const html = sanitizeHTML(definition.render.call(instance));
             const tempDiv = document.createElement('div');
-            tempDiv.innerHTML = sanitized;
+            tempDiv.innerHTML = html;
             instance.element = tempDiv.firstElementChild;
         }
         return instance.element ?? document.createElement('div');

@@ -195,4 +195,5 @@
   - [x] Extended the single-root component regression to click twice and verify the event survives the first update.
 - [x] Re-run the complete validation matrix and document findings.
   - [x] All validation commands passed after the component template scope fix.
-- [ ] Commit and push confirmed fixes to `origin/V3` when changes are required.
+- [x] Commit and push confirmed fixes to `origin/V3` when changes are required.
+  - [x] Source/test fix pushed as commit `d2866c2`; generated `dist` artifacts are synchronized in the follow-up release commit.
