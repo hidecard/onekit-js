@@ -1,5 +1,7 @@
 /* OneKit style: predictable DOM ownership, keyed updates, explicit prop diffing, and small renderer primitives. */
 
+import { isSafeURL, sanitizeStyleValue } from '../core/security';
+
 export interface VNodeProps {
   [key: string]: unknown;
 }
@@ -34,9 +36,9 @@ function setProp(element: Element, prop: string, value: unknown, oldValue?: unkn
     else if (value && typeof value === 'object') (value as { current?: Element }).current = element;
     return;
   }
-  if (prop.startsWith('on')) {
+  if (/^on/i.test(prop)) {
     const event = prop.slice(2).toLowerCase();
-    if (oldValue && oldValue !== value) element.removeEventListener(event, oldValue as EventListener);
+    if (oldValue && typeof oldValue === 'function' && oldValue !== value) element.removeEventListener(event, oldValue as EventListener);
     if (typeof value === 'function' && value !== oldValue) element.addEventListener(event, value as EventListener);
     return;
   }
@@ -48,7 +50,10 @@ function setProp(element: Element, prop: string, value: unknown, oldValue?: unkn
     const style = (element as HTMLElement).style;
     const previous = (oldValue && typeof oldValue === 'object') ? oldValue as Record<string, unknown> : {};
     Object.keys(previous).forEach(key => { if (!(key in (value as object))) style.removeProperty(key); });
-    Object.entries(value as Record<string, unknown>).forEach(([key, item]) => style.setProperty(key, String(item)));
+    Object.entries(value as Record<string, unknown>).forEach(([key, item]) => {
+      const safeValue = sanitizeStyleValue(String(item));
+      if (safeValue) style.setProperty(key, safeValue); else style.removeProperty(key);
+    });
     return;
   }
   if (value == null || value === false) {
@@ -60,6 +65,10 @@ function setProp(element: Element, prop: string, value: unknown, oldValue?: unkn
     return;
   }
   if (value === true) { element.setAttribute(prop, ''); return; }
+  if (['href', 'src', 'action', 'formaction', 'poster'].includes(prop.toLowerCase()) && !isSafeURL(String(value))) {
+    element.removeAttribute(prop);
+    return;
+  }
   if (prop in element && typeof value !== 'string') {
     try { (element as unknown as Record<string, unknown>)[prop] = value; return; } catch { /* fall through to attribute */ }
   }

@@ -1,5 +1,6 @@
 // Server-Side Rendering (SSR) Support Module
 import { VNode, render as clientRender } from './vdom';
+import { isSafeURL, sanitizeStyleValue } from '../core/security';
 
 export interface SSRContext {
   head?: string[];
@@ -188,11 +189,17 @@ function renderAttributes(props: Record<string, unknown>): string {
       attrs.push(`class="${escapeHtml(String(value))}"`);
     } else if (key === 'style' && typeof value === 'object') {
       const styleStr = Object.entries(value as Record<string, string>)
-        .map(([k, v]) => `${k}:${v}`)
+        .map(([k, v]) => {
+          const safeValue = sanitizeStyleValue(String(v));
+          return safeValue ? `${k}:${safeValue}` : '';
+        })
+        .filter(Boolean)
         .join(';');
-      attrs.push(`style="${escapeHtml(styleStr)}"`);
-    } else if (key.startsWith('on') && typeof value === 'function') {
-      // Skip event handlers for SSR
+      if (styleStr) attrs.push(`style="${escapeHtml(styleStr)}"`);
+    } else if (/^on/i.test(key)) {
+      // Never serialize event-handler props, including attacker-controlled strings.
+      continue;
+    } else if (['href', 'src', 'action', 'formaction', 'poster'].includes(key.toLowerCase()) && !isSafeURL(String(value))) {
       continue;
     } else if (typeof value === 'boolean') {
       if (value) attrs.push(key);

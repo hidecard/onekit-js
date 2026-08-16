@@ -11,6 +11,16 @@ describe('SSR production contracts', () => {
     expect(result.html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
   });
 
+  it('omits unsafe URL and event attributes while filtering dangerous styles', () => {
+    const result = renderToString(h('a', {
+      HREF: 'javascript:alert(1)',
+      ONCLICK: 'alert(1)',
+      style: { backgroundImage: 'url(javascript:alert(1))', color: 'red' },
+    }, 'safe text'));
+
+    expect(result.html).toBe('<a style="color:red">safe text</a>');
+  });
+
   it('renders context meta without corrupting the content buffer', () => {
     const context = createSSRContext();
     setMeta(context, 'description', 'OneKit & V3');

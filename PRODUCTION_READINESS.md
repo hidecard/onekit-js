@@ -45,3 +45,12 @@ Router navigation is last-write-wins for asynchronous guards and loaders. If a n
 Loading and error boundaries protect their state from stale asynchronous completions. A newer boundary run or `reset()` prevents an older promise from replacing the latest ready value, error, or pending state. These contracts are covered by focused concurrency regression tests.
 
 Nested `batch()` calls share one flush boundary. Effects queued by an inner batch are not flushed until the outermost batch completes, preserving deterministic one-run scheduling for grouped updates.
+
+
+## V3 Security Hardening
+
+The runtime now applies a shared URL and CSS-value policy at both the client VDOM and SSR boundaries. `javascript:`, `vbscript:`, and `data:` URLs are rejected for navigational/resource attributes, string-valued `on*` props are never serialized or installed as DOM attributes, and dangerous CSS script-binding patterns are removed. SSR attribute escaping remains enabled for text and attribute values.
+
+Storage-key validation and safe cloning avoid prototype-pollution key paths and do not rely on an attacker-controlled `hasOwnProperty` method. The dependency audit for the production dependency set reported no known vulnerabilities at the time of this audit, and the packed-package verification passed in a clean temporary consumer project.
+
+These controls reduce framework-level XSS and prototype-pollution risk but do not make arbitrary application input safe by default. `addScript`, `addToHead`, and `addToBody` accept trusted raw markup by design; applications must not pass untrusted strings to them. Applications should also deploy a restrictive CSP, validate authorization on the server, avoid exposing secrets in browser bundles, and keep dependencies and the runtime updated.

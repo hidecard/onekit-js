@@ -6,7 +6,9 @@ export interface SecurityConfig {
 }
 export declare function sanitizeHTML(html: string): string;
 export declare function validateSelector(selector: string): boolean;
+export declare function isSafeURL(url: string, base?: string): boolean;
 export declare function sanitizeURL(url: string): string;
+export declare function sanitizeStyleValue(value: string): string;
 export declare function deepCloneSafe(obj: any): any;
 export declare function validateStorageKey(key: string): boolean;
 export declare function updateSecurityConfig(config: Partial<SecurityConfig>): void;

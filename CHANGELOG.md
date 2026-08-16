@@ -13,11 +13,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add effect cleanup callbacks, nested-batch scheduling guarantees, last-write-wins router navigation, and stale-promise protection for async boundaries.
 - Extend packed-package verification to cover ESM and CommonJS feature entry points.
 - Add regression coverage for API timeout retries and storage key enumeration with corrupted records.
+- Add adversarial security coverage for VDOM and SSR URL, event-attribute, style, and prototype-pollution boundaries.
 
 ### Fixed
 - Apply the configured retry policy to request timeouts, matching network and HTTP failure behavior.
 - Prevent stale asynchronous route loaders and boundary runs from overwriting the latest application state or notifying subscribers after a newer operation wins.
 - Prevent one malformed storage record from hiding healthy keys and size information.
+- Reject unsafe URL protocols and string event attributes at client VDOM and SSR boundaries, filter dangerous CSS values, and harden safe cloning against attacker-controlled object methods.
 
 
 ## [3.1.13] - 2026-08-15

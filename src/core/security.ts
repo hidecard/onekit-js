@@ -115,20 +115,36 @@ export function validateSelector(selector: string): boolean {
   return !dangerousPatterns.some(pattern => pattern.test(selector));
 }
 
+// Validate URL protocols without requiring a browser global. Relative URLs are allowed.
+export function isSafeURL(url: string, base = 'http://onekit.invalid/'): boolean {
+  if (!securityConfig.enableValidation) return true;
+  try {
+    const parsed = new URL(url, base);
+    return ['http:', 'https:'].includes(parsed.protocol);
+  } catch {
+    return false;
+  }
+}
+
 // Sanitize URL
 export function sanitizeURL(url: string): string {
   if (!securityConfig.enableValidation) return url;
 
   try {
-    const parsed = new URL(url, window.location.origin);
-    // Only allow http and https protocols
-    if (!['http:', 'https:'].includes(parsed.protocol)) {
-      return '';
-    }
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'http://onekit.invalid';
+    const parsed = new URL(url, origin);
+    if (!isSafeURL(url, `${origin}/`)) return '';
     return parsed.href;
   } catch {
     return '';
   }
+}
+
+// Reject CSS values that can execute markup or trigger legacy CSS script bindings.
+export function sanitizeStyleValue(value: string): string {
+  if (!securityConfig.enableValidation) return value;
+  const unsafe = /(?:javascript|vbscript|data)\s*:|expression\s*\(|url\s*\(\s*["']?\s*(?:javascript|vbscript|data):|-moz-binding|behavior\s*:/i;
+  return unsafe.test(value) ? '' : value;
 }
 
 // Deep clone with security checks
@@ -143,9 +159,9 @@ export function deepCloneSafe(obj: any): any {
     return obj.map(item => deepCloneSafe(item));
   }
 
-  const cloned: { [key: string]: any } = {};
-  for (const key in obj) {
-    if (obj.hasOwnProperty(key)) {
+  const cloned: { [key: string]: any } = Object.create(null);
+  for (const key of Object.keys(obj)) {
+    if (validateStorageKey(key) || !['__proto__', 'constructor', 'prototype'].includes(key)) {
       cloned[key] = deepCloneSafe(obj[key]);
     }
   }

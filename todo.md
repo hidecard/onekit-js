@@ -316,3 +316,15 @@
 - [ ] Add focused regression/integration tests for each completed improvement.
 - [ ] Update API/adoption/production documentation and the parity checklist.
 - [ ] Run the full release matrix and commit/push the next V3 update to `origin/V3`.
+
+## V3 Security Audit
+
+- [x] Inventory browser, SSR, compiler, router, storage, API, CLI, package, and dependency attack surfaces.
+- [x] Audit prototype pollution, XSS/HTML injection, unsafe template evaluation, SSR escaping/isolation, hydration mutation, router open redirects/DoS, storage corruption, API abuse, CLI path/process injection, and package exports.
+  - [x] Confirmed and closed unsafe URL/event-attribute/CSS paths at VDOM and SSR boundaries; restricted template evaluation and package/CLI boundaries were already covered by existing V3 controls.
+- [x] Run dependency and static security checks, then classify findings by severity and exploitability.
+  - [x] `npm audit --audit-level=moderate` and production-only audit reported 0 known vulnerabilities; framework-level findings were fixed and adversarial tests added.
+- [x] Implement confirmed security fixes without breaking backward compatibility.
+- [x] Add adversarial regression tests and update security/production documentation.
+- [x] Run the complete validation matrix and push the security-audited V3 update to origin/V3.
+  - [x] 19 Jest suites / 96 tests, type-check, production build, clean package verification, HMR smoke, full dependency audit, and diff checks passed.

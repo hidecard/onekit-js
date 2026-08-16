@@ -512,21 +512,39 @@ function validateSelector(selector) {
     ];
     return !dangerousPatterns.some(pattern => pattern.test(selector));
 }
+// Validate URL protocols without requiring a browser global. Relative URLs are allowed.
+function isSafeURL(url, base = 'http://onekit.invalid/') {
+    if (!securityConfig.enableValidation)
+        return true;
+    try {
+        const parsed = new URL(url, base);
+        return ['http:', 'https:'].includes(parsed.protocol);
+    }
+    catch {
+        return false;
+    }
+}
 // Sanitize URL
 function sanitizeURL(url) {
     if (!securityConfig.enableValidation)
         return url;
     try {
-        const parsed = new URL(url, window.location.origin);
-        // Only allow http and https protocols
-        if (!['http:', 'https:'].includes(parsed.protocol)) {
+        const origin = typeof window !== 'undefined' ? window.location.origin : 'http://onekit.invalid';
+        const parsed = new URL(url, origin);
+        if (!isSafeURL(url, `${origin}/`))
             return '';
-        }
         return parsed.href;
     }
     catch {
         return '';
     }
+}
+// Reject CSS values that can execute markup or trigger legacy CSS script bindings.
+function sanitizeStyleValue(value) {
+    if (!securityConfig.enableValidation)
+        return value;
+    const unsafe = /(?:javascript|vbscript|data)\s*:|expression\s*\(|url\s*\(\s*["']?\s*(?:javascript|vbscript|data):|-moz-binding|behavior\s*:/i;
+    return unsafe.test(value) ? '' : value;
 }
 // Deep clone with security checks
 function deepCloneSafe(obj) {
@@ -541,9 +559,9 @@ function deepCloneSafe(obj) {
     if (Array.isArray(obj)) {
         return obj.map(item => deepCloneSafe(item));
     }
-    const cloned = {};
-    for (const key in obj) {
-        if (obj.hasOwnProperty(key)) {
+    const cloned = Object.create(null);
+    for (const key of Object.keys(obj)) {
+        if (validateStorageKey(key) || !['__proto__', 'constructor', 'prototype'].includes(key)) {
             cloned[key] = deepCloneSafe(obj[key]);
         }
     }
@@ -2682,9 +2700,9 @@ function setProp(element, prop, value, oldValue) {
             value.current = element;
         return;
     }
-    if (prop.startsWith('on')) {
+    if (/^on/i.test(prop)) {
         const event = prop.slice(2).toLowerCase();
-        if (oldValue && oldValue !== value)
+        if (oldValue && typeof oldValue === 'function' && oldValue !== value)
             element.removeEventListener(event, oldValue);
         if (typeof value === 'function' && value !== oldValue)
             element.addEventListener(event, value);
@@ -2702,7 +2720,13 @@ function setProp(element, prop, value, oldValue) {
         const previous = (oldValue && typeof oldValue === 'object') ? oldValue : {};
         Object.keys(previous).forEach(key => { if (!(key in value))
             style.removeProperty(key); });
-        Object.entries(value).forEach(([key, item]) => style.setProperty(key, String(item)));
+        Object.entries(value).forEach(([key, item]) => {
+            const safeValue = sanitizeStyleValue(String(item));
+            if (safeValue)
+                style.setProperty(key, safeValue);
+            else
+                style.removeProperty(key);
+        });
         return;
     }
     if (value == null || value === false) {
@@ -2718,6 +2742,10 @@ function setProp(element, prop, value, oldValue) {
     }
     if (value === true) {
         element.setAttribute(prop, '');
+        return;
+    }
+    if (['href', 'src', 'action', 'formaction', 'poster'].includes(prop.toLowerCase()) && !isSafeURL(String(value))) {
+        element.removeAttribute(prop);
         return;
     }
     if (prop in element && typeof value !== 'string') {
@@ -4172,12 +4200,20 @@ function renderAttributes(props) {
         }
         else if (key === 'style' && typeof value === 'object') {
             const styleStr = Object.entries(value)
-                .map(([k, v]) => `${k}:${v}`)
+                .map(([k, v]) => {
+                const safeValue = sanitizeStyleValue(String(v));
+                return safeValue ? `${k}:${safeValue}` : '';
+            })
+                .filter(Boolean)
                 .join(';');
-            attrs.push(`style="${escapeHtml(styleStr)}"`);
+            if (styleStr)
+                attrs.push(`style="${escapeHtml(styleStr)}"`);
         }
-        else if (key.startsWith('on') && typeof value === 'function') {
-            // Skip event handlers for SSR
+        else if (/^on/i.test(key)) {
+            // Never serialize event-handler props, including attacker-controlled strings.
+            continue;
+        }
+        else if (['href', 'src', 'action', 'formaction', 'poster'].includes(key.toLowerCase()) && !isSafeURL(String(value))) {
             continue;
         }
         else if (typeof value === 'boolean') {

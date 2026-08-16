@@ -32,6 +32,23 @@ describe('M3 renderer production contract', () => {
     expect(root.firstElementChild?.children[0]).toBe(retained);
   });
 
+  it('blocks unsafe URLs, string event attributes, and dangerous style values', () => {
+    const root = document.createElement('div');
+    const vnode = createElement('a', {
+      HREF: 'javascript:alert(1)',
+      ONCLICK: 'alert(1)',
+      style: { backgroundImage: 'url(javascript:alert(1))', color: 'red' },
+    }, 'unsafe');
+
+    patch(root, vnode);
+
+    const link = root.firstElementChild as HTMLAnchorElement;
+    expect(link.hasAttribute('href')).toBe(false);
+    expect(link.hasAttribute('onclick')).toBe(false);
+    expect(link.style.backgroundImage).toBe('');
+    expect(link.style.color).toBe('red');
+  });
+
   it('replaces event handlers and removes stale props', () => {
     const root = document.createElement('div');
     const firstCalls: string[] = [];
