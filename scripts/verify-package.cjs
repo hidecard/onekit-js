@@ -19,9 +19,19 @@ try {
   execFileSync(process.execPath, ['--input-type=module', '-e', `
     import * as OneKit from 'onekit-js';
     import * as SSR from 'onekit-js/ssr';
+    import * as API from 'onekit-js/api';
+    import * as Storage from 'onekit-js/storage';
+    import * as A11y from 'onekit-js/a11y';
+    import * as Ergonomics from 'onekit-js/ergonomics';
+    import * as WebComponents from 'onekit-js/web-components';
     import * as Vite from 'onekit-js/vite';
     if (typeof OneKit.reactive !== 'function') throw new Error('root reactive export missing');
     if (typeof SSR.renderToString !== 'function') throw new Error('SSR export missing');
+    if (typeof API.request !== 'function') throw new Error('API subpath export missing');
+    if (typeof Storage.createStorage !== 'function') throw new Error('Storage subpath export missing');
+    if (typeof A11y.announce !== 'function') throw new Error('A11y subpath export missing');
+    if (typeof Ergonomics.state !== 'function') throw new Error('Ergonomics subpath export missing');
+    if (typeof WebComponents.registerWebComponent !== 'function') throw new Error('Web-components subpath export missing');
     if (typeof Vite.oneKitVitePlugin !== 'function') throw new Error('Vite plugin export missing');
     if (typeof Vite.preserveHMRState !== 'function') throw new Error('HMR state helper missing');
   `], { cwd: temp, stdio: 'inherit' });

@@ -144,9 +144,14 @@ class Storage {
           // Check if not expired
           const item = this.storage.getItem(key);
           if (item) {
-            const data = JSON.parse(item);
-            if (!this.isExpired(data.timestamp)) {
-              keys.push(cleanKey);
+            try {
+              const data = JSON.parse(item);
+              if (!this.isExpired(data.timestamp)) {
+                keys.push(cleanKey);
+              }
+            } catch (error) {
+              // Ignore one corrupted entry without hiding healthy keys.
+              errorHandler(error, 'Storage.keys.entry');
             }
           }
         }

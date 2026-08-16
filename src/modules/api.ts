@@ -46,10 +46,26 @@ export function request(url: string, options: RequestOptions = {}): Promise<Resp
     const makeRequest = (attempt: number = 0) => {
       const xhr = new XMLHttpRequest();
 
-      // Set up timeout
-      const timeoutId = setTimeout(() => {
+      let completed = false;
+      let timeoutId: ReturnType<typeof setTimeout>;
+
+      const fail = (error: Error) => {
+        if (completed) return;
+        completed = true;
+        clearTimeout(timeoutId);
+        if (attempt < (config.retries || 0)) {
+          setTimeout(() => makeRequest(attempt + 1), config.retryDelay);
+        } else {
+          reject(error);
+        }
+      };
+
+      // Set up timeout. Timeouts participate in the same retry policy as
+      // network and HTTP failures, while the completed guard prevents an
+      // abort-triggered error event from settling the promise twice.
+      timeoutId = setTimeout(() => {
         xhr.abort();
-        reject(new Error('Request timeout'));
+        fail(new Error('Request timeout'));
       }, config.timeout);
 
       xhr.open(config.method!, sanitizedUrl);
@@ -69,6 +85,8 @@ export function request(url: string, options: RequestOptions = {}): Promise<Resp
       }
 
       xhr.onload = function() {
+        if (completed) return;
+        completed = true;
         clearTimeout(timeoutId);
 
         const response: ResponseData = {
@@ -96,6 +114,7 @@ export function request(url: string, options: RequestOptions = {}): Promise<Resp
           (error as any).response = response;
 
           if (attempt < (config.retries || 0)) {
+            completed = false;
             setTimeout(() => makeRequest(attempt + 1), config.retryDelay);
           } else {
             reject(error);
@@ -104,13 +123,7 @@ export function request(url: string, options: RequestOptions = {}): Promise<Resp
       };
 
       xhr.onerror = function() {
-        clearTimeout(timeoutId);
-
-        if (attempt < (config.retries || 0)) {
-          setTimeout(() => makeRequest(attempt + 1), config.retryDelay);
-        } else {
-          reject(new Error('Network error'));
-        }
+        fail(new Error('Network error'));
       };
 
       // Send request

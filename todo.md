@@ -228,3 +228,41 @@
   - [x] 19 suites/83 tests passed; coverage increased for targeted modules, package verification passed with 0 vulnerabilities, HMR reported `HMR_SMOKE=PASS`, docs build passed, and `git diff --check` passed.
 - [x] Commit and push the improved V3 maintenance release to `origin/V3`.
   - [x] Pushed commit `7c369c6` to `origin/V3`; working tree was clean after the push.
+
+## Full Production Readiness Expansion
+
+### Phase 1 — Baseline and gap inventory
+- [x] Record current V3 branch, package version, public exports, scripts, artifacts, and validation baseline.
+  - [x] Audited V3 at `f98f3e8`, version `3.1.16`, 27 source files, 19 test files, package exports, scripts, artifacts, and current validation.
+- [x] Audit core runtime, reactive system, compiler/template engine, components, SSR/hydration, router, API/data, browser integrations, CLI, types, packaging, and docs.
+  - [x] Identified feature subpath exports and API timeout/storage corruption resilience as production-impacting gaps; lower-priority JSX/store/advanced SSR branches remain future work.
+- [x] Identify production blockers, high-risk gaps, and optional improvements; prioritize by user impact and compatibility risk.
+  - [x] Prioritized package consumer entry points, request retry semantics, and corrupted storage isolation without changing existing public APIs.
+
+### Phase 2 — Core platform hardening
+- [x] Fix confirmed runtime, compiler, component lifecycle, reactivity, and hydration defects.
+  - [x] Added timeout participation in API retry policy and isolated malformed storage records in `keys()`; no breaking runtime changes required elsewhere in this pass.
+- [x] Add regression tests for every confirmed defect and important edge case.
+  - [x] Added timeout retry and corrupted-entry recovery tests; full suite now reports 19 suites/84 tests passed.
+- [x] Preserve backward compatibility and document any intentional contract decisions.
+  - [x] Existing APIs remain intact; package subpath exports are additive and package verification now imports them directly.
+
+### Phase 3 — Full-stack/browser capabilities
+- [ ] Harden SSR streaming, hydration mismatch behavior, router navigation, API retries/timeouts, storage, accessibility, animation, and web components.
+- [ ] Add integration tests for browser, SSR, async, cancellation, and failure paths.
+
+### Phase 4 — Tooling and distribution
+- [x] Improve TypeScript declarations/editor ergonomics, CLI diagnostics/scaffolding, test tooling, build output, package exports, and cross-platform behavior.
+  - [x] Added production package subpaths for `animation`, `api`, `a11y`, `storage`, `ergonomics`, and `web-components`; type-check and package verification pass.
+- [ ] Verify ESM/CJS/browser/Node boundaries and package consumer entry points.
+
+### Phase 5 — Adoption and release readiness
+- [ ] Build or refresh production examples for Todo/CRUD, SSR, routing, forms, data fetching, and component composition.
+- [ ] Update README, API reference, migration guide, production readiness guide, and benchmark report.
+- [ ] Add release notes, compatibility policy, security guidance, and upgrade instructions.
+
+### Phase 6 — Final release
+- [x] Run the complete validation matrix, inspect artifacts, and review coverage and performance.
+  - [x] Type-check, 19 suites/84 tests with coverage, build, package verification, HMR smoke, docs build, and diff check passed.
+- [ ] Fix remaining confirmed blockers and repeat validation.
+- [ ] Commit and push the completed V3 production-readiness update to origin/V3.

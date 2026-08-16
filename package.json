@@ -62,6 +62,36 @@
       "import": "./dist/onekit.esm.js",
       "require": "./dist/onekit.cjs"
     },
+    "./animation": {
+      "types": "./dist/types/modules/animation.d.ts",
+      "import": "./dist/onekit.esm.js",
+      "require": "./dist/onekit.cjs"
+    },
+    "./api": {
+      "types": "./dist/types/modules/api.d.ts",
+      "import": "./dist/onekit.esm.js",
+      "require": "./dist/onekit.cjs"
+    },
+    "./a11y": {
+      "types": "./dist/types/modules/a11y.d.ts",
+      "import": "./dist/onekit.esm.js",
+      "require": "./dist/onekit.cjs"
+    },
+    "./storage": {
+      "types": "./dist/types/modules/storage.d.ts",
+      "import": "./dist/onekit.esm.js",
+      "require": "./dist/onekit.cjs"
+    },
+    "./ergonomics": {
+      "types": "./dist/types/modules/ergonomics.d.ts",
+      "import": "./dist/onekit.esm.js",
+      "require": "./dist/onekit.cjs"
+    },
+    "./web-components": {
+      "types": "./dist/types/modules/web-components.d.ts",
+      "import": "./dist/onekit.esm.js",
+      "require": "./dist/onekit.cjs"
+    },
     "./vite": {
       "types": "./dist/types/vite.d.ts",
       "import": "./dist/vite.mjs",

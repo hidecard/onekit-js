@@ -115,6 +115,10 @@ describe('low-coverage DOM and storage contracts', () => {
 
     storage.set('a', 1);
     storage.set('b', 2);
+    values.set('test_broken', '{not-json');
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    expect(storage.keys()).toEqual(['a', 'b']);
+    errorSpy.mockRestore();
     storage.clear();
     expect(storage.size()).toBe(0);
   });

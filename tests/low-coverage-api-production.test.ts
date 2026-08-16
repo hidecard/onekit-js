@@ -50,6 +50,37 @@ describe('low-coverage API and web-component contracts', () => {
     Object.defineProperty(globalThis, 'XMLHttpRequest', { configurable: true, value: original });
   });
 
+  it('retries a timed-out request and resolves the later attempt', async () => {
+    jest.useFakeTimers();
+    let attempts = 0;
+    class RetryXHR {
+      status = 200;
+      statusText = 'OK';
+      responseText = '{"attempt":2}';
+      responseURL = 'https://example.test/retry';
+      onload?: () => void;
+      onerror?: () => void;
+      open = jest.fn();
+      setRequestHeader = jest.fn();
+      addEventListener = jest.fn();
+      getAllResponseHeaders = jest.fn(() => '');
+      abort = jest.fn();
+      send = jest.fn(() => {
+        attempts += 1;
+        if (attempts > 1) this.onload?.();
+      });
+    }
+    const original = globalThis.XMLHttpRequest;
+    Object.defineProperty(globalThis, 'XMLHttpRequest', { configurable: true, value: RetryXHR });
+
+    const pending = request('https://example.test/retry', { timeout: 10, retries: 1, retryDelay: 0 });
+    jest.advanceTimersByTime(10);
+    jest.runOnlyPendingTimers();
+    await expect(pending).resolves.toMatchObject({ status: 200, data: { attempt: 2 } });
+    expect(attempts).toBe(2);
+    Object.defineProperty(globalThis, 'XMLHttpRequest', { configurable: true, value: original });
+  });
+
   it('registers a custom element and forwards observed attributes to props', () => {
     const name = `okjs-card-${Date.now()}`;
     registerWebComponent(name, {
