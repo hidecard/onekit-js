@@ -12,13 +12,23 @@ function parseCreateArgs(values) {
   return { appName: positional[0], template };
 }
 
+function readOption(values, name) {
+  const index = values.indexOf(name);
+  if (index >= 0) return values[index + 1];
+  const prefix = `${name}=`;
+  const inline = values.find(value => value.startsWith(prefix));
+  return inline ? inline.slice(prefix.length) : undefined;
+}
+
 function parseRunnerArgs(values) {
-  const cwdIndex = values.indexOf('--cwd');
-  const cwd = cwdIndex >= 0 ? values[cwdIndex + 1] : undefined;
-  const withoutCwd = values.filter((value, index) => value !== '--cwd' && index !== cwdIndex + 1);
-  const separatorIndex = withoutCwd.indexOf('--');
-  const forwarded = separatorIndex >= 0 ? withoutCwd.slice(separatorIndex + 1) : withoutCwd;
-  return { cwd, forwarded };
+  const separatorIndex = values.indexOf('--');
+  const control = separatorIndex >= 0 ? values.slice(0, separatorIndex) : values;
+  const forwarded = separatorIndex >= 0 ? values.slice(separatorIndex + 1) : [];
+  return { cwd: readOption(control, '--cwd'), forwarded };
+}
+
+function parseOutputDir(values) {
+  return readOption(values, '--out-dir') ?? 'dist';
 }
 
 function printHelp() {
@@ -43,15 +53,16 @@ try {
   } else if (command === 'build') {
     const { build } = await import('../lib/cli/build.js');
     const outIndex = args.indexOf('--out-dir');
-    const output = outIndex >= 0 ? args[outIndex + 1] : 'dist';
+    const output = parseOutputDir(args);
     await build({ output, minify: !args.includes('--no-minify') });
   } else if (command === 'dev' || command === 'preview' || command === 'test') {
     const { cwd, forwarded } = parseRunnerArgs(args);
+    const output = parseOutputDir(args);
     const runner = await import('../lib/cli/run.js');
     const exitCode = command === 'dev'
       ? await runner.runDev(forwarded, { cwd })
       : command === 'preview'
-        ? await runner.runPreview(forwarded, { cwd, output: args.includes('--out-dir') ? args[args.indexOf('--out-dir') + 1] : 'dist' })
+        ? await runner.runPreview(forwarded, { cwd, output })
         : await runner.runTest(forwarded, { cwd });
     if (exitCode !== 0) process.exitCode = exitCode;
   } else if (command === 'help' || command === '--help' || command === '-h') {

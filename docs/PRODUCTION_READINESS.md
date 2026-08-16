@@ -13,10 +13,10 @@ OneKit JS V3 is a usable compact browser framework and a credible foundation for
 | Reactive state | Proxy-based `reactive`, `effect`, `computed`, `watch`, `batch`, and `nextTick` | Foundation is usable; deterministic tests now cover dependency cleanup, stoppable effects, computed chains, batching, array length/index changes, and deep array watch. Cleanup callbacks and a fully formal scheduler contract remain. |
 | Components | Options-style components, templates, lifecycle hooks, mount/unmount | Suitable for demos and small apps; update diffing, event listener ownership, prop updates, and composition APIs need hardening. |
 | VDOM/JSX | Basic VDOM and JSX helpers exist | Needs broader reconciliation, keyed lists, fragments, refs, controlled inputs, and hydration parity tests. |
-| SSR | String rendering, streaming utilities, request-scoped context, hydration helpers, metadata helpers | M4 baseline complete: escaping, nested context propagation, metadata safety, hydration mismatch diagnostics, listener disposal, and boundary primitives are tested. Streaming abort/error semantics and async scheduling remain future work. |
+| SSR | String rendering, streaming utilities, request-scoped context, hydration helpers, metadata helpers | M4 baseline complete: escaping, nested context propagation, metadata safety, hydration mismatch diagnostics, listener disposal, and boundary primitives are tested. Streaming now preserves original async render errors, supports AbortSignal cancellation, and avoids double-abort masking; async scheduling remains future work. |
 | Router | Minimal `Router` class with exact path lookup and handlers | Not yet comparable to a production router; needs route matching, params, history integration, guards, nested layouts, 404 handling, and SSR URL resolution. |
 | Stores | Named stores and actions are available | Needs lifecycle, reset, subscriptions, dev inspection, persistence policy, and SSR request isolation. |
-| CLI | `create`, `build`, `dev`, `preview`, and `test` commands work | Needs broader cross-platform acceptance coverage, plugin hooks, and richer diagnostics. |
+| CLI | `create`, `build`, `dev`, `preview`, and `test` commands work | Core workflow has acceptance coverage for delegated exit codes, cwd/argument passthrough, missing preview output, inline `--cwd=`/`--out-dir=` syntax, and absolute output paths. Plugin hooks and richer diagnostics remain future work. |
 | Package/release | TypeScript declarations, subpath exports, build checks, tests, and npm metadata exist | Release foundation is present; package export matrix, Node/browser compatibility, changelog discipline, and npm publish verification remain. |
 | Documentation | V3 usage guide, framework guide, getting started guide, and OneKit-only docs page exist | Strong baseline; production caveats and API stability labels should be made explicit. |
 
@@ -38,7 +38,7 @@ A production router should support exact and dynamic paths, query strings, param
 
 **M4 baseline status:** SSR now preserves request-scoped context through nested elements and components, escapes text and attributes, safely renders metadata, and remains import-safe in Node. Hydration reports structural mismatches and returns a disposer for listeners without silently rewriting server DOM. Error and loading boundary primitives are available for render, loader, and SSR adapters.
 
-Remaining SSR work includes async component scheduling, streaming abort/error semantics, serialized loader state, and a larger browser compatibility matrix.
+Remaining SSR work includes async component scheduling, serialized loader state, and a larger browser compatibility matrix. Streaming abort/error semantics now have regression coverage for original render failures and AbortSignal cancellation.
 
 ### 5. Improve component rendering architecture
 
@@ -46,7 +46,7 @@ The current options-style component API is useful, but production applications n
 
 ### 6. Make the CLI a complete project workflow
 
-The CLI should provide `create`, `dev`, `build`, `preview`, and `test` commands with consistent exit codes and helpful diagnostics. The starter should include TypeScript configuration, an application entrypoint, a production build, a test example, and a clear SSR option. CLI acceptance tests should run on Linux, macOS, and Windows path conventions where possible.
+The CLI should provide `create`, `dev`, `build`, `preview`, and `test` commands with consistent exit codes and helpful diagnostics. The starter should include TypeScript configuration, an application entrypoint, a production build, a test example, and a clear SSR option. CLI acceptance tests should run on Linux, macOS, and Windows path conventions where possible. The current suite covers inline option syntax and absolute output paths in addition to POSIX-style cwd and exit-code checks.
 
 ### 7. Add production observability and failure boundaries
 
@@ -63,8 +63,8 @@ Before publishing a new release, the package should pass type-checking, all test
 | M1 | Reactive contract and tests | Conditional effects, cleanup, watch stop, computed chains, batching, and arrays pass deterministic tests. |
 | M2 | Router 1.0 | Factory API, dynamic params, history, guards, 404, and SSR matching are documented and tested. |
 | M3 | Renderer 1.0 | Keyed reconciliation, fragments, event cleanup, refs, and component error handling are stable. |
-| M4 | SSR 1.0 | Server/client parity suite, mismatch diagnostics, safe metadata handling, context isolation, hydration disposal, and boundary primitives are implemented; streaming error semantics remain follow-up work. |
-| M5 | CLI 1.0 | Create/dev/build/preview/test workflow works from a clean install and generated starter; child exit codes, `--cwd`, and argument passthrough are implemented. |
+| M4 | SSR 1.0 | Server/client parity suite, mismatch diagnostics, safe metadata handling, context isolation, hydration disposal, boundary primitives, and streaming error/abort semantics are implemented; async scheduling remains follow-up work. |
+| M5 | CLI 1.0 | Create/dev/build/preview/test workflow works from a clean install and generated starter; child exit codes, `--cwd`, argument passthrough, inline options, and absolute output paths are implemented and covered. |
 | M6 | Release 3.x | Package export matrix, changelog, migration guide, clean-install smoke test, and npm release verification are complete. |
 
 ## What OneKit should not promise yet

@@ -64,6 +64,23 @@ describe('OneKit CLI', () => {
     }
   });
 
+  it('supports inline cwd and out-dir options used by Windows shells', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'onekit-cli-inline-'));
+    const output = path.join(root, 'custom-output');
+    try {
+      await writePackage(root, {
+        name: 'inline-fixture',
+        scripts: { preview: 'node -e "process.exit(process.argv[1] === \\\"inline-forwarded\\\" ? 0 : 9)"' },
+      });
+      await mkdir(output, { recursive: true });
+      await expect(run(process.execPath, [
+        path.resolve('bin/onekit.js'), 'preview', `--cwd=${root}`, `--out-dir=${output}`, '--', 'inline-forwarded',
+      ])).resolves.toBeDefined();
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('returns a non-zero exit code when a delegated test script fails', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'onekit-cli-failing-'));
     try {
