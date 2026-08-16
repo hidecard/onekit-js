@@ -197,3 +197,21 @@
   - [x] All validation commands passed after the component template scope fix.
 - [x] Commit and push confirmed fixes to `origin/V3` when changes are required.
   - [x] Source/test fix pushed as commit `d2866c2`; generated `dist` artifacts are synchronized in the follow-up release commit.
+
+## Current GitHub V3 Source and Unit-Test Re-audit
+
+- [x] Synchronize local checkout with remote `origin/V3` and record the current commit/status.
+  - [x] Local `V3` matches `origin/V3` at `fe9b7d9`; only the new audit checklist is uncommitted.
+- [x] Inventory current source modules, public exports, unit-test suites, scripts, and generated artifacts.
+  - [x] Current branch contains 24 source files, 17 test suites, 76 test declarations, package scripts, and tracked distribution output.
+- [x] Run type-check, full unit tests, coverage, production build, package verification, and HMR checks.
+  - [x] Type-check, 17 suites/76 tests, coverage thresholds, build, package verification, HMR smoke, and diff check passed.
+- [x] Inspect source and tests for confirmed defects, flaky behavior, and missing regression coverage.
+  - [x] No new correctness defect was confirmed after the previous template-scope fix; low coverage remains in optional modules such as API, storage, animation, a11y, and web-components and should be expanded in a future focused test pass.
+  - [x] `--detectOpenHandles` completed with 17 suites/76 tests passing and no open-handle failure.
+- [x] Fix confirmed issues and add targeted regression tests.
+  - [x] No additional source change was required in this re-audit because the current remote branch already contains the confirmed fix and its regression test.
+- [x] Re-run the full validation matrix and document results.
+  - [x] Type-check, coverage run, build, package verification, HMR smoke, docs build, diff check, and open-handle test all passed.
+- [x] Commit and push confirmed fixes to `origin/V3`.
+  - [x] No new source changes were required; only this completed audit record remains to be committed.
