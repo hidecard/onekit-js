@@ -174,6 +174,27 @@ export class Router {
     return this.resolve(path, true);
   }
 
+  /** Resolve guards and route data without committing history or changing current state. */
+  async prefetch(path: string): Promise<MatchedRoute | null> {
+    const requested = parseLocation(this.removeBase(path));
+    const matched = this.match(requested);
+    const to = matched?.location ?? requested;
+    const route = matched?.route ?? this.options.notFound;
+    if (!route) return null;
+    const context: RouteContext = { to, from: this.current };
+    const globalGuard = await this.runGuard(this.options.beforeEach, context);
+    if (globalGuard === false || typeof globalGuard === 'string') return null;
+    const routeGuard = await this.runGuard(route.beforeEnter, context);
+    if (routeGuard === false || typeof routeGuard === 'string') return null;
+    const result: MatchedRoute = matched ?? { route, location: to };
+    if (route.loader) {
+      result.data = this.options.errorBoundary
+        ? await this.options.errorBoundary.renderAsync(async () => await route.loader!(context), 'route-prefetch')
+        : await route.loader(context);
+    }
+    return result;
+  }
+
   back(): void { if (typeof window !== 'undefined' && this.options.mode !== 'memory') window.history.back(); }
   forward(): void { if (typeof window !== 'undefined' && this.options.mode !== 'memory') window.history.forward(); }
 

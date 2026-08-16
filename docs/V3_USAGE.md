@@ -295,7 +295,7 @@ const unsubscribe = appRouter.subscribe((to, from) => {
 unsubscribe();
 ```
 
-The router resolves navigation and data but does not automatically render route components. Applications should subscribe to matches and connect them to their renderer or component layer. Stop a router with `router.stop()` when its application scope is destroyed.
+The router resolves navigation and data but does not automatically render route components. Applications should subscribe to matches and connect them to their renderer or component layer. `router.prefetch(path)` runs applicable guards and the route loader without changing the current route, browser history, handlers, or subscribers; use it for hover/focus or viewport-based data warming. Stop a router with `router.stop()` when its application scope is destroyed.
 
 ## 8. Stores and plugins
 

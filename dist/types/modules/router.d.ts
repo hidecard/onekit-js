@@ -59,6 +59,8 @@ export declare class Router {
     start(): Promise<MatchedRoute | null>;
     stop(): void;
     navigate(path: string): Promise<MatchedRoute | null>;
+    /** Resolve guards and route data without committing history or changing current state. */
+    prefetch(path: string): Promise<MatchedRoute | null>;
     back(): void;
     forward(): void;
     resolve(input: string, push?: boolean): Promise<MatchedRoute | null>;

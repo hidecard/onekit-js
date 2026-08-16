@@ -2,6 +2,21 @@ import { createRouter } from '../src/index';
 import { createErrorBoundary } from '../src/index';
 
 describe('M2 router production contract', () => {
+  it('prefetches route data without committing navigation state', async () => {
+    const router = createRouter([
+      { path: '/', handler: jest.fn() },
+      { path: '/docs/:id', loader: ({ to }) => ({ id: to.params.id }) },
+    ], { mode: 'memory', initialPath: '/' });
+    await router.start();
+    const listener = jest.fn();
+    router.subscribe(listener);
+
+    const result = await router.prefetch('/docs/42');
+
+    expect(result?.data).toEqual({ id: '42' });
+    expect(router.getCurrentPath()).toBe('/');
+    expect(listener).not.toHaveBeenCalled();
+  });
   it('matches dynamic params and query values', async () => {
     const router = createRouter([{ path: '/users/:id' }], { mode: 'memory' });
     const result = await router.navigate('/users/42?tab=posts&tag=a&tag=b');

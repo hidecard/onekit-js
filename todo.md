@@ -360,7 +360,8 @@
   - [x] Published as `onekit-js/testing` with 2 focused tests.
 - [x] Add application productivity primitives for query caching/invalidation and validated forms.
   - [x] Published as `onekit-js/query` and `onekit-js/forms` with deduplication, stale-time, invalidation, validation, submit, reset, and subscription coverage.
-- [ ] Add typed nested router layouts, lazy routes, prefetching, and scroll restoration where compatible with the current router contract.
+- [ ] Add typed nested router layouts, lazy routes, and scroll restoration where compatible with the current router contract.
+  - [x] Added `router.prefetch(path)` with guard/loader resolution and no history/current/listener mutation; nested typed layouts, lazy routes, and scroll restoration remain follow-up work.
 - [ ] Improve template/JSX TypeScript ergonomics, accessibility helpers, and DevTools inspection/profiling APIs.
 - [x] Update official examples, documentation, release notes, validation matrix, and push the verified parity milestone to `origin/V3`.
-  - [x] Updated V3 usage and production-readiness docs, CHANGELOG 3.1.16, package exports, and focused/full validation records.
+  - [x] Updated V3 usage and production-readiness docs, CHANGELOG 3.1.16, package exports, and focused/full validation records; latest full run reached 22 suites / 107 tests.
