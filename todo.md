@@ -8,7 +8,8 @@
 - [x] Add security, testing, troubleshooting, project structure, and contribution guidance for new developers.
 - [x] Validate README examples, links, versions, formatting, and project checks.
   - [x] README audit passed; `git diff --check` passed; all referenced local documentation paths exist; version and command checks passed; added the missing MIT `LICENSE` file for the README link.
-- [ ] Commit and push the README user-guide update to `origin/V3`.
+- [x] Commit and push the README user-guide update to `origin/V3`.
+  - [x] Pushed commit `b0d0c1d` to `origin/V3`; branch is synchronized and the working tree is clean.
 
 ## Version 3.1.17 / CLI 1.0.7 README Update
 
