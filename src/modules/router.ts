@@ -125,6 +125,7 @@ export class Router {
   private listeners = new Set<Listener>();
   private current: RouteLocation | null = null;
   private started = false;
+  private navigationToken = 0;
   private readonly options: RouterOptions;
   private readonly popstateHandler = () => { void this.resolve(this.readBrowserPath(), false); };
 
@@ -169,6 +170,7 @@ export class Router {
 
   stop(): void {
     if (typeof window !== 'undefined') window.removeEventListener('popstate', this.popstateHandler);
+    this.navigationToken += 1;
     this.started = false;
   }
 
@@ -180,12 +182,15 @@ export class Router {
   forward(): void { if (typeof window !== 'undefined' && this.options.mode !== 'memory') window.history.forward(); }
 
   async resolve(input: string, push = false): Promise<MatchedRoute | null> {
+    const navigationToken = ++this.navigationToken;
+    const isCurrentNavigation = () => navigationToken === this.navigationToken;
     const to = parseLocation(this.removeBase(input));
     const matched = this.match(to);
     const from = this.current;
     const context: RouteContext = { to, from };
     emitDevToolsEvent({ type: 'router:navigation', phase: 'start', to: to.fullPath, from: from?.fullPath ?? null });
     const guardResult = await this.runGuard(this.options.beforeEach, context);
+    if (!isCurrentNavigation()) return null;
     if (guardResult === false) {
       emitDevToolsEvent({ type: 'router:navigation', phase: 'cancel', to: to.fullPath, from: from?.fullPath ?? null });
       return null;
@@ -201,6 +206,7 @@ export class Router {
       return null;
     }
     const routeGuard = await this.runGuard(route.beforeEnter, context);
+    if (!isCurrentNavigation()) return null;
     if (routeGuard === false) {
       emitDevToolsEvent({ type: 'router:navigation', phase: 'cancel', to: to.fullPath, from: from?.fullPath ?? null, route: route.path });
       return null;
@@ -228,11 +234,13 @@ export class Router {
         } else {
           result.data = await load();
         }
+        if (!isCurrentNavigation()) return null;
       } catch (error) {
         emitDevToolsEvent({ type: 'router:navigation', phase: 'error', to: to.fullPath, from: from?.fullPath ?? null, route: route.path, error });
         throw error;
       }
     }
+    if (!isCurrentNavigation()) return null;
     if (push) this.commit(to);
     this.current = to;
     if (route.handler) await route.handler({ ...context, to });

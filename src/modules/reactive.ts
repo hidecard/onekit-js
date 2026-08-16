@@ -17,9 +17,13 @@ export interface ComputedRef<T = unknown> {
   readonly __isComputed: true;
 }
 
+type EffectCleanup = () => void;
+type RegisterCleanup = (cleanup: EffectCleanup) => void;
+
 interface EffectFn {
   (): void;
   deps: Set<EffectFn>[];
+  cleanups: EffectCleanup[];
   options?: EffectOptions;
   stopped?: boolean;
 }
@@ -40,7 +44,7 @@ let activeEffect: EffectFn | null = null;
 const effectStack: EffectFn[] = [];
 
 // Batch updates
-let isBatching = false;
+let batchDepth = 0;
 const updateQueue = new Set<EffectFn>();
 let isFlushing = false;
 
@@ -58,6 +62,17 @@ function flushJobs() {
   updateQueue.forEach(job => job());
   updateQueue.clear();
   isFlushing = false;
+}
+
+function runCleanups(effectFn: EffectFn) {
+  const callbacks = effectFn.cleanups.splice(0);
+  callbacks.forEach(callback => {
+    try {
+      callback();
+    } catch (error) {
+      console.error('OneKit effect cleanup failed:', error);
+    }
+  });
 }
 
 function cleanup(effectFn: EffectFn) {
@@ -127,7 +142,7 @@ function trigger(target: object, key: string | symbol, oldValue?: unknown, newVa
     if (effect.options?.scheduler) {
       effect.options.scheduler(effect);
     } else {
-      if (isBatching) {
+      if (batchDepth > 0) {
         queueJob(effect);
       } else {
         effect();
@@ -198,7 +213,7 @@ export function computed<T>(getter: () => T): ComputedRef<T> {
 }
 
 export function effect(
-  fn: () => void,
+  fn: (onCleanup?: RegisterCleanup) => void,
   options: EffectOptions = {}
 ): () => void {
   const effectFn: EffectFn = (() => {
@@ -207,11 +222,15 @@ export function effect(
     }
 
     emitDevToolsEvent({ type: 'reactive:effect', effectId: getDevToolsEffectId(effectFn), phase: 'run' });
+    runCleanups(effectFn);
     cleanup(effectFn);
     try {
       effectStack.push(effectFn);
       activeEffect = effectFn;
-      return fn();
+      const registerCleanup: RegisterCleanup = callback => {
+        if (!effectFn.stopped) effectFn.cleanups.push(callback);
+      };
+      return fn(registerCleanup);
     } finally {
       effectStack.pop();
       activeEffect = effectStack[effectStack.length - 1] || null;
@@ -219,6 +238,7 @@ export function effect(
   }) as EffectFn;
 
   effectFn.deps = [];
+  effectFn.cleanups = [];
   effectFn.options = options;
 
   const effectId = getDevToolsEffectId(effectFn);
@@ -258,6 +278,7 @@ export function effect(
 export function stop(runner: () => void): void {
   const effectFn = runner as EffectFn;
   effectFn.stopped = true;
+  runCleanups(effectFn);
   emitDevToolsEvent({ type: 'reactive:effect', effectId: getDevToolsEffectId(effectFn), phase: 'stop' });
   cleanup(effectFn);
 }
@@ -341,12 +362,12 @@ function traverse(value: unknown, deep: boolean = false, seen = new Set<object>(
 }
 
 export function batch<T>(fn: () => T): T {
-  isBatching = true;
+  batchDepth += 1;
   try {
     return fn();
   } finally {
-    isBatching = false;
-    flushJobs();
+    batchDepth -= 1;
+    if (batchDepth === 0) flushJobs();
   }
 }
 

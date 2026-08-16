@@ -10,11 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Add production feature subpath exports for `api`, `storage`, `a11y`, `animation`, `ergonomics`, and `web-components`.
+- Add effect cleanup callbacks, nested-batch scheduling guarantees, last-write-wins router navigation, and stale-promise protection for async boundaries.
 - Extend packed-package verification to cover ESM and CommonJS feature entry points.
 - Add regression coverage for API timeout retries and storage key enumeration with corrupted records.
 
 ### Fixed
 - Apply the configured retry policy to request timeouts, matching network and HTTP failure behavior.
+- Prevent stale asynchronous route loaders and boundary runs from overwriting the latest application state or notifying subscribers after a newer operation wins.
 - Prevent one malformed storage record from hiding healthy keys and size information.
 
 

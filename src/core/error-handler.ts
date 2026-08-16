@@ -52,9 +52,12 @@ function toError(error: unknown): Error {
 
 export function createErrorBoundary<T>(options: ErrorBoundaryOptions<T>): ErrorBoundary<T> {
   const state: BoundaryState = { error: null, pending: false };
+  let runToken = 0;
 
   const reset = (): void => {
+    runToken += 1;
     state.error = null;
+    state.pending = false;
   };
 
   const report = (error: unknown, context: string): Error => {
@@ -66,6 +69,7 @@ export function createErrorBoundary<T>(options: ErrorBoundaryOptions<T>): ErrorB
   };
 
   const run = (work: () => T, context = 'boundary'): T => {
+    runToken += 1;
     try {
       state.error = null;
       return work();
@@ -75,14 +79,17 @@ export function createErrorBoundary<T>(options: ErrorBoundaryOptions<T>): ErrorB
   };
 
   const runAsync = async (work: () => Promise<T>, context = 'boundary'): Promise<T> => {
+    const token = ++runToken;
     state.pending = true;
     state.error = null;
     try {
-      return await work();
+      const value = await work();
+      return value;
     } catch (error) {
+      if (token !== runToken) throw toError(error);
       throw report(error, context);
     } finally {
-      state.pending = false;
+      if (token === runToken) state.pending = false;
     }
   };
 
@@ -114,18 +121,21 @@ export interface LoadingBoundary<T> {
 export function createLoadingBoundary<T>(): LoadingBoundary<T> {
   const state: BoundaryState = { error: null, pending: false };
   let value: T | undefined;
+  let runToken = 0;
 
   const run = async (work: () => Promise<T>): Promise<T> => {
+    const token = ++runToken;
     state.pending = true;
     state.error = null;
     try {
-      value = await work();
-      return value;
+      const nextValue = await work();
+      if (token === runToken) value = nextValue;
+      return nextValue;
     } catch (error) {
-      state.error = toError(error);
-      throw state.error;
+      if (token === runToken) state.error = toError(error);
+      throw toError(error);
     } finally {
-      state.pending = false;
+      if (token === runToken) state.pending = false;
     }
   };
 

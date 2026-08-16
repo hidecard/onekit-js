@@ -46,6 +46,7 @@ export declare class Router {
     private listeners;
     private current;
     private started;
+    private navigationToken;
     private readonly options;
     private readonly popstateHandler;
     constructor(routes?: Route[], options?: RouterOptions);

@@ -29,16 +29,20 @@
 
 - [ ] Define M1 reactive contract: effect cleanup, stoppable watchers, cleanup callbacks, deep watch, arrays, computed chains, batching, and scheduler semantics.
   - [x] Implement and test proxy identity, conditional dependency cleanup, stoppable effects, computed chains, batching, array length/index invalidation, and deep array watch.
-  - [ ] Specify cleanup callbacks and the complete scheduler contract.
+  - [x] Specify cleanup callbacks and the complete scheduler contract.
+  - [x] Effects accept per-run cleanup registration; cleanup runs before reruns and on stop/scope disposal, and nested batches flush only at the outermost boundary.
 - [ ] Add M1 regression tests for conditional dependencies, nested proxy identity, arrays, computed values, batch flushing, and stop behavior.
   - [x] Added deterministic regression coverage for all listed items, including array additions and removed indexes.
-- [ ] Implement M2 Router 1.0 factory API with dynamic params, query parsing, history/hash navigation, guards, async loaders, 404 handling, and unsubscribe lifecycle.
-- [ ] Add M2 router tests for matching, params, navigation, guards, loaders, redirects, and browser history behavior.
+- [x] Implement M2 Router 1.0 factory API with dynamic params, query parsing, history/hash navigation, guards, async loaders, 404 handling, and unsubscribe lifecycle.
+  - [x] Added last-write-wins cancellation for stale async guards/loaders and invalidation on router stop.
+- [x] Add M2 router tests for matching, params, navigation, guards, loaders, redirects, and browser history behavior.
+  - [x] Added async navigation race coverage ensuring only the winning route commits and notifies.
 - [x] Implement M3 renderer improvements for keyed reconciliation, fragments, props/events, refs, component lifecycle, and event cleanup.
   - [x] Existing keyed/props/events/refs behavior was retained; fragment replacement and nested fragment updates now remove stale nodes and preserve sibling order.
 - [x] Add M3 renderer tests for create/update/remove, keyed lists, fragments, event replacement, and unmount cleanup.
   - [x] Renderer suite now covers create/update, keyed retention, stale event/prop removal, root fragments, nested fragments, and refs.
-- [ ] Synchronize M1-M3 API documentation, examples, changelog, and release notes.
+- [x] Synchronize M1-M3 API documentation, examples, changelog, and release notes.
+  - [x] Production-readiness contract and 3.1.16 changelog now document effect cleanup, nested batching, router cancellation, and boundary concurrency semantics.
 
 ## Current-state error audit
 
@@ -87,7 +91,8 @@
   - [x] Streaming error ownership, original error propagation, AbortSignal cancellation, and deterministic Promise root/child scheduling are covered by regression tests.
 - [ ] Add hydration mismatch detection and diagnostics without mutating the server DOM incorrectly.
 - [ ] Add SSR/client parity tests for text, attributes, boolean props, events, keyed nodes, fragments, and nested components.
-- [ ] Add framework-level error boundaries and loading boundary contracts for render, effect, route, loader, and SSR failures.
+- [x] Add framework-level error boundaries and loading boundary contracts for render, effect, route, loader, and SSR failures.
+  - [x] Async error/loading boundaries now ignore stale completions after a newer run or reset.
 - [ ] Add M4 examples, regression tests, and documentation.
   - [x] Added streaming failure/cancellation regression tests and updated production-readiness documentation.
 - [x] Define and implement the next CLI/release milestone after the scaffolder.
@@ -302,3 +307,12 @@
 - [x] Commit and push the completed increment to `origin/V3`.
   - [x] Pushed implementation, tests, generated artifacts, docs, and checklist in commit `33e9fdd`.
   - [x] Source, tests, generated artifacts, docs, and checklist were included in the maintenance commit.
+
+## React/Vue Parity Continuation
+
+- [ ] Audit every remaining unchecked production gap and select the next highest-impact increment.
+- [ ] Improve router 1.0 completeness, renderer lifecycle cleanup, SSR/client parity, and loading/error boundary behavior where gaps are confirmed.
+- [ ] Improve TypeScript/editor ergonomics, CLI scaffolding, test workflow, and production examples where gaps are confirmed.
+- [ ] Add focused regression/integration tests for each completed improvement.
+- [ ] Update API/adoption/production documentation and the parity checklist.
+- [ ] Run the full release matrix and commit/push the next V3 update to `origin/V3`.

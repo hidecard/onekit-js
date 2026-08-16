@@ -85,6 +85,26 @@ describe('M2 router production contract', () => {
     expect(router.getCurrentPath()).toBe('/dashboard');
   });
 
+  it('ignores stale async loaders when a newer navigation wins', async () => {
+    let releaseSlow!: () => void;
+    const slow = new Promise(resolve => { releaseSlow = () => resolve({ slow: true }); });
+    const events: string[] = [];
+    const router = createRouter([
+      { path: '/slow', loader: () => slow },
+      { path: '/fast' },
+    ], { mode: 'memory' });
+    router.subscribe(to => events.push(to.path));
+
+    const slowNavigation = router.navigate('/slow');
+    const fastNavigation = router.navigate('/fast');
+    expect((await fastNavigation)?.route.path).toBe('/fast');
+    releaseSlow();
+
+    expect(await slowNavigation).toBeNull();
+    expect(router.getCurrentPath()).toBe('/fast');
+    expect(events).toEqual(['/fast']);
+  });
+
   it('stops notifying subscribers after unsubscribe', async () => {
     const events: string[] = [];
     const router = createRouter([{ path: '/one' }, { path: '/two' }], { mode: 'memory' });

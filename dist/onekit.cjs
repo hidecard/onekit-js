@@ -31,8 +31,11 @@ function toError(error) {
 }
 function createErrorBoundary(options) {
     const state = { error: null, pending: false };
+    let runToken = 0;
     const reset = () => {
+        runToken += 1;
         state.error = null;
+        state.pending = false;
     };
     const report = (error, context) => {
         const normalized = toError(error);
@@ -42,6 +45,7 @@ function createErrorBoundary(options) {
         return normalized;
     };
     const run = (work, context = 'boundary') => {
+        runToken += 1;
         try {
             state.error = null;
             return work();
@@ -51,16 +55,21 @@ function createErrorBoundary(options) {
         }
     };
     const runAsync = async (work, context = 'boundary') => {
+        const token = ++runToken;
         state.pending = true;
         state.error = null;
         try {
-            return await work();
+            const value = await work();
+            return value;
         }
         catch (error) {
+            if (token !== runToken)
+                throw toError(error);
             throw report(error, context);
         }
         finally {
-            state.pending = false;
+            if (token === runToken)
+                state.pending = false;
         }
     };
     const render = (work, context = 'render') => {
@@ -84,19 +93,25 @@ function createErrorBoundary(options) {
 function createLoadingBoundary() {
     const state = { error: null, pending: false };
     let value;
+    let runToken = 0;
     const run = async (work) => {
+        const token = ++runToken;
         state.pending = true;
         state.error = null;
         try {
-            value = await work();
-            return value;
+            const nextValue = await work();
+            if (token === runToken)
+                value = nextValue;
+            return nextValue;
         }
         catch (error) {
-            state.error = toError(error);
-            throw state.error;
+            if (token === runToken)
+                state.error = toError(error);
+            throw toError(error);
         }
         finally {
-            state.pending = false;
+            if (token === runToken)
+                state.pending = false;
         }
     };
     const render = (loading, ready) => state.pending ? loading : (value ?? ready);
@@ -1220,7 +1235,7 @@ const proxyCache = new WeakMap();
 let activeEffect = null;
 const effectStack = [];
 // Batch updates
-let isBatching = false;
+let batchDepth = 0;
 const updateQueue = new Set();
 let isFlushing = false;
 function queueJob(job) {
@@ -1236,6 +1251,17 @@ function flushJobs() {
     updateQueue.forEach(job => job());
     updateQueue.clear();
     isFlushing = false;
+}
+function runCleanups(effectFn) {
+    const callbacks = effectFn.cleanups.splice(0);
+    callbacks.forEach(callback => {
+        try {
+            callback();
+        }
+        catch (error) {
+            console.error('OneKit effect cleanup failed:', error);
+        }
+    });
 }
 function cleanup(effectFn) {
     clearDevToolsDependencies(getDevToolsEffectId(effectFn));
@@ -1299,7 +1325,7 @@ function trigger(target, key, oldValue, newValue) {
             effect.options.scheduler(effect);
         }
         else {
-            if (isBatching) {
+            if (batchDepth > 0) {
                 queueJob(effect);
             }
             else {
@@ -1370,11 +1396,16 @@ function effect(fn, options = {}) {
             return; // Prevent infinite recursion
         }
         emitDevToolsEvent({ type: 'reactive:effect', effectId: getDevToolsEffectId(effectFn), phase: 'run' });
+        runCleanups(effectFn);
         cleanup(effectFn);
         try {
             effectStack.push(effectFn);
             activeEffect = effectFn;
-            return fn();
+            const registerCleanup = callback => {
+                if (!effectFn.stopped)
+                    effectFn.cleanups.push(callback);
+            };
+            return fn(registerCleanup);
         }
         finally {
             effectStack.pop();
@@ -1382,6 +1413,7 @@ function effect(fn, options = {}) {
         }
     });
     effectFn.deps = [];
+    effectFn.cleanups = [];
     effectFn.options = options;
     const effectId = getDevToolsEffectId(effectFn);
     const ownerScope = getCurrentScope();
@@ -1417,6 +1449,7 @@ function effect(fn, options = {}) {
 function stop(runner) {
     const effectFn = runner;
     effectFn.stopped = true;
+    runCleanups(effectFn);
     emitDevToolsEvent({ type: 'reactive:effect', effectId: getDevToolsEffectId(effectFn), phase: 'stop' });
     cleanup(effectFn);
 }
@@ -1490,13 +1523,14 @@ function traverse(value, deep = false, seen = new Set()) {
     return value;
 }
 function batch(fn) {
-    isBatching = true;
+    batchDepth += 1;
     try {
         return fn();
     }
     finally {
-        isBatching = false;
-        flushJobs();
+        batchDepth -= 1;
+        if (batchDepth === 0)
+            flushJobs();
     }
 }
 function nextTick(callback) {
@@ -3217,6 +3251,7 @@ class Router {
     listeners = new Set();
     current = null;
     started = false;
+    navigationToken = 0;
     options;
     popstateHandler = () => { void this.resolve(this.readBrowserPath(), false); };
     constructor(routes = [], options = {}) {
@@ -3256,6 +3291,7 @@ class Router {
     stop() {
         if (typeof window !== 'undefined')
             window.removeEventListener('popstate', this.popstateHandler);
+        this.navigationToken += 1;
         this.started = false;
     }
     navigate(path) {
@@ -3266,12 +3302,16 @@ class Router {
     forward() { if (typeof window !== 'undefined' && this.options.mode !== 'memory')
         window.history.forward(); }
     async resolve(input, push = false) {
+        const navigationToken = ++this.navigationToken;
+        const isCurrentNavigation = () => navigationToken === this.navigationToken;
         const to = parseLocation(this.removeBase(input));
         const matched = this.match(to);
         const from = this.current;
         const context = { to, from };
         emitDevToolsEvent({ type: 'router:navigation', phase: 'start', to: to.fullPath, from: from?.fullPath ?? null });
         const guardResult = await this.runGuard(this.options.beforeEach, context);
+        if (!isCurrentNavigation())
+            return null;
         if (guardResult === false) {
             emitDevToolsEvent({ type: 'router:navigation', phase: 'cancel', to: to.fullPath, from: from?.fullPath ?? null });
             return null;
@@ -3287,6 +3327,8 @@ class Router {
             return null;
         }
         const routeGuard = await this.runGuard(route.beforeEnter, context);
+        if (!isCurrentNavigation())
+            return null;
         if (routeGuard === false) {
             emitDevToolsEvent({ type: 'router:navigation', phase: 'cancel', to: to.fullPath, from: from?.fullPath ?? null, route: route.path });
             return null;
@@ -3315,12 +3357,16 @@ class Router {
                 else {
                     result.data = await load();
                 }
+                if (!isCurrentNavigation())
+                    return null;
             }
             catch (error) {
                 emitDevToolsEvent({ type: 'router:navigation', phase: 'error', to: to.fullPath, from: from?.fullPath ?? null, route: route.path, error });
                 throw error;
             }
         }
+        if (!isCurrentNavigation())
+            return null;
         if (push)
             this.commit(to);
         this.current = to;

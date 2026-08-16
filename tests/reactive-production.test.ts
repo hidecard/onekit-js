@@ -21,6 +21,20 @@ describe('M1 reactive production contract', () => {
     expect(seen).toEqual([1, 3, 2, 5]);
   });
 
+  it('runs registered cleanup before reruns and on stop', () => {
+    const state = reactive({ id: 'a' });
+    const lifecycle: string[] = [];
+    const runner = effect(onCleanup => {
+      lifecycle.push(`run:${state.id}`);
+      onCleanup?.(() => lifecycle.push(`cleanup:${state.id}`));
+    });
+
+    state.id = 'b';
+    stop(runner);
+
+    expect(lifecycle).toEqual(['run:a', 'cleanup:b', 'run:b', 'cleanup:b']);
+  });
+
   it('stops effects and removes their dependencies', () => {
     const state = reactive({ count: 0 });
     const seen: number[] = [];
@@ -46,6 +60,22 @@ describe('M1 reactive production contract', () => {
 
     expect(quadrupled.value).toBe(12);
     expect(seen).toEqual([4, 12]);
+  });
+
+  it('does not flush an outer batch during a nested batch', () => {
+    const state = reactive({ count: 0 });
+    const seen: number[] = [];
+    effect(() => seen.push(state.count));
+
+    batch(() => {
+      state.count = 1;
+      batch(() => {
+        state.count = 2;
+      });
+      state.count = 3;
+    });
+
+    expect(seen).toEqual([0, 3]);
   });
 
   it('reacts to array length changes and removed indexes', () => {

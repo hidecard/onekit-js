@@ -5,9 +5,12 @@ export interface ComputedRef<T = unknown> {
     readonly value: T;
     readonly __isComputed: true;
 }
+type EffectCleanup = () => void;
+type RegisterCleanup = (cleanup: EffectCleanup) => void;
 interface EffectFn {
     (): void;
     deps: Set<EffectFn>[];
+    cleanups: EffectCleanup[];
     options?: EffectOptions;
     stopped?: boolean;
 }
@@ -17,7 +20,7 @@ export interface EffectOptions {
 }
 export declare function reactive<T extends object>(obj: T): T;
 export declare function computed<T>(getter: () => T): ComputedRef<T>;
-export declare function effect(fn: () => void, options?: EffectOptions): () => void;
+export declare function effect(fn: (onCleanup?: RegisterCleanup) => void, options?: EffectOptions): () => void;
 export declare function stop(runner: () => void): void;
 export declare const autorun: typeof effect;
 export declare function watch(source: string | symbol | object | (() => unknown), callback: (newValue: unknown, oldValue: unknown, property?: string | symbol) => void, options?: {

@@ -34,3 +34,14 @@ Hydration reports serializable attribute mismatches in addition to tag, text, mi
 ## V3.1.16 Renderer Fragment Contract
 
 The V3 renderer treats fragment updates as a multi-node reconciliation boundary. When a fragment changes shape, stale nodes are removed as a group, the new fragment is inserted at the original sibling position, and following siblings remain intact. This contract is covered by root-fragment and nested-fragment regression tests alongside keyed child retention, event replacement, stale prop removal, and refs.
+
+
+## V3.1.16 Runtime Concurrency Contracts
+
+Effects may register per-run cleanup callbacks through the optional `onCleanup` argument. OneKit invokes the previous run's callbacks before dependency collection begins and invokes the final callbacks when the effect is stopped or its owning scope is disposed. Cleanup failures are isolated and do not prevent dependency teardown.
+
+Router navigation is last-write-wins for asynchronous guards and loaders. If a newer navigation begins before an older one finishes, the older result is discarded before history, `current`, handlers, subscribers, or `afterEach` are updated. Calling `router.stop()` also invalidates pending navigations.
+
+Loading and error boundaries protect their state from stale asynchronous completions. A newer boundary run or `reset()` prevents an older promise from replacing the latest ready value, error, or pending state. These contracts are covered by focused concurrency regression tests.
+
+Nested `batch()` calls share one flush boundary. Effects queued by an inner batch are not flushed until the outermost batch completes, preserving deterministic one-run scheduling for grouped updates.
