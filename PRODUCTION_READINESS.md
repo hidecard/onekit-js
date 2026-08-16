@@ -30,3 +30,7 @@ The package verification script installs the packed tarball into a clean tempora
 The router treats a configured `base` path as a deployment prefix rather than a route definition. Route declarations remain application-relative while browser history URLs retain the configured base. Nested routes inherit parent and child dynamic parameters in the final `RouteLocation`.
 
 Hydration reports serializable attribute mismatches in addition to tag, text, missing-node, and unexpected-node mismatches. Event handlers are attached without rewriting server-rendered DOM, and `HydrationResult.dispose()` removes them deterministically. Style object attributes use the same `property:value` representation during comparison as server rendering.
+
+## V3.1.16 Renderer Fragment Contract
+
+The V3 renderer treats fragment updates as a multi-node reconciliation boundary. When a fragment changes shape, stale nodes are removed as a group, the new fragment is inserted at the original sibling position, and following siblings remain intact. This contract is covered by root-fragment and nested-fragment regression tests alongside keyed child retention, event replacement, stale prop removal, and refs.

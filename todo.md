@@ -34,8 +34,10 @@
   - [x] Added deterministic regression coverage for all listed items, including array additions and removed indexes.
 - [ ] Implement M2 Router 1.0 factory API with dynamic params, query parsing, history/hash navigation, guards, async loaders, 404 handling, and unsubscribe lifecycle.
 - [ ] Add M2 router tests for matching, params, navigation, guards, loaders, redirects, and browser history behavior.
-- [ ] Implement M3 renderer improvements for keyed reconciliation, fragments, props/events, refs, component lifecycle, and event cleanup.
-- [ ] Add M3 renderer tests for create/update/remove, keyed lists, fragments, event replacement, and unmount cleanup.
+- [x] Implement M3 renderer improvements for keyed reconciliation, fragments, props/events, refs, component lifecycle, and event cleanup.
+  - [x] Existing keyed/props/events/refs behavior was retained; fragment replacement and nested fragment updates now remove stale nodes and preserve sibling order.
+- [x] Add M3 renderer tests for create/update/remove, keyed lists, fragments, event replacement, and unmount cleanup.
+  - [x] Renderer suite now covers create/update, keyed retention, stale event/prop removal, root fragments, nested fragments, and refs.
 - [ ] Synchronize M1-M3 API documentation, examples, changelog, and release notes.
 
 ## Current-state error audit
@@ -286,3 +288,14 @@
 - [x] Commit and push all completed continuation work to `origin/V3`.
   - [x] Source, tests, generated artifacts, docs, and checklist were pushed in commit `e340190`.
   - [x] Source, tests, generated artifacts, and checklist were included in the maintenance commit.
+
+## Todo Continuation Pass 2
+
+- [ ] Re-read and prioritize every remaining unchecked item after the router/hydration increment.
+- [ ] Implement the next highest-impact unfinished platform or adoption improvement.
+- [x] Add focused regression/integration tests and preserve V3 compatibility.
+  - [x] Added two fragment regression tests; TypeScript and the targeted renderer suite pass with 6/6 tests.
+- [x] Run full validation and update production documentation/checklist.
+  - [x] Type-check, coverage, 19 suites/89 tests, production build, package verification, HMR (`HMR_SMOKE=PASS`), docs build, and `git diff --check` passed; renderer fragment contract was added to `PRODUCTION_READINESS.md`.
+- [ ] Commit and push the completed increment to `origin/V3`.
+  - [ ] Source, tests, generated artifacts, docs, and checklist are ready for the next maintenance commit.

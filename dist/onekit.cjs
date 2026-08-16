@@ -2733,7 +2733,22 @@ function patchNode(parent, domNode, next, previous) {
         parent.replaceChild(created, domNode);
         return created;
     }
-    if (next.tag !== previous.tag || next.key !== previous.key || isFragment(next) || isFragment(previous)) {
+    if (isFragment(next) || isFragment(previous)) {
+        const oldCount = countTopLevelNodes(previous);
+        const childNodes = Array.from(parent.childNodes);
+        const domIndex = childNodes.findIndex(node => node === domNode);
+        const anchor = childNodes[domIndex + oldCount] ?? null;
+        let current = domNode;
+        for (let index = 0; index < oldCount && current; index += 1) {
+            const following = current.nextSibling;
+            parent.removeChild(current);
+            current = following;
+        }
+        const created = render(next);
+        parent.insertBefore(created, anchor);
+        return created.nodeType === Node.DOCUMENT_FRAGMENT_NODE ? parent.childNodes[Math.max(0, Array.from(parent.childNodes).indexOf(anchor) - 1)] ?? null : created;
+    }
+    if (next.tag !== previous.tag || next.key !== previous.key) {
         const created = render(next);
         parent.replaceChild(created, domNode);
         return created;
@@ -2743,6 +2758,11 @@ function patchNode(parent, domNode, next, previous) {
     patchChildren(element, next.children, previous.children);
     element._vnode = next;
     return element;
+}
+function countTopLevelNodes(vnode) {
+    if (typeof vnode === 'string' || !isFragment(vnode))
+        return 1;
+    return vnode.children.reduce((count, child) => count + countTopLevelNodes(child), 0);
 }
 function patchChildren(parent, nextChildren, previousChildren) {
     const keyed = new Map();

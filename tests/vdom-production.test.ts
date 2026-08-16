@@ -50,6 +50,42 @@ describe('M3 renderer production contract', () => {
     expect(root.firstElementChild?.hasAttribute('title')).toBe(false);
   });
 
+  it('updates fragments without leaving stale or misplaced nodes', () => {
+    const root = document.createElement('div');
+    const first = createElement('fragment', {},
+      createElement('span', {}, 'A'),
+      createElement('span', {}, 'B')
+    );
+    const next = createElement('fragment', {},
+      createElement('strong', {}, 'Only')
+    );
+
+    patch(root, first);
+    patch(root, next, first);
+
+    expect(root.innerHTML).toBe('<strong>Only</strong>');
+  });
+
+  it('handles a fragment nested inside an element update', () => {
+    const root = document.createElement('div');
+    const first = createElement('section', {},
+      createElement('fragment', {},
+        createElement('i', {}, 'one'),
+        createElement('i', {}, 'two')
+      ),
+      createElement('em', {}, 'tail')
+    );
+    const next = createElement('section', {},
+      createElement('fragment', {}, createElement('b', {}, 'new')),
+      createElement('em', {}, 'tail')
+    );
+
+    patch(root, first);
+    patch(root, next, first);
+
+    expect(root.innerHTML).toBe('<section><b>new</b><em>tail</em></section>');
+  });
+
   it('assigns refs to rendered elements', () => {
     const root = document.createElement('div');
     const ref: { current?: Element } = {};
