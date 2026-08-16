@@ -56,6 +56,32 @@ onekit test --cwd ./my-app -- --watch
 
 Use `onekit --help` after a global install, or `npx --yes --package=onekit-js onekit --help` without a global install.
 
+### CLI diagnostics and error codes
+
+OneKit reports command failures to stderr using a stable code and an actionable hint:
+
+```text
+OneKit CLI error: [ERROR_CODE] Human-readable explanation.
+Hint: The next action to take.
+```
+
+| Code | When it is emitted | What to do |
+|---|---|---|
+| `UNKNOWN_COMMAND` | The command name is not recognized. | Run `onekit help` and select a supported command. |
+| `INVALID_OPTION` | `--cwd` or `--out-dir` has no value, including a missing inline value. | Use `--cwd <directory>`/`--out-dir <directory>` or `--cwd=<directory>`/`--out-dir=<directory>`. |
+| `INVALID_PROJECT` | The project directory, `package.json`, or command-specific script is invalid or missing. | Verify the directory and JSON, then add the required `dev`, `preview`, or `test` script. |
+| `COMMAND_FAILED` | OneKit cannot start the delegated command. | Check npm and the project dependencies are installed and available on `PATH`. |
+| `CLI_ERROR` | An error does not match a more specific category. | Follow the message and hint, then rerun the corrected command. |
+
+OneKit preserves a delegated child command's non-zero exit code. Preview validates the build output before starting the preview script. Both separated and inline option forms work across POSIX and Windows shells:
+
+```bash
+onekit preview --cwd ./my-app --out-dir ./my-app/dist -- --port 4173
+onekit preview --cwd=C:\\work\\my-app --out-dir=C:\\work\\my-app\\dist -- --port 4173
+```
+
+When troubleshooting, read the bracketed code first. `INVALID_OPTION` indicates argument parsing; `INVALID_PROJECT` indicates the target project; and `COMMAND_FAILED` indicates that the delegated process could not start. A delegated `test` process that runs and exits non-zero is intentionally returned unchanged so CI receives the original failure status.
+
 ## 3. Reactive state
 
 ### `reactive`

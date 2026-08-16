@@ -154,7 +154,7 @@ onekit create my-app
 
 ## Troubleshooting
 
-`npm run type-check` အောင်မြင်ပြီး `npm test` မအောင်မြင်ပါက `package.json` တွင် `type: module` ပါရှိသည့်အတွက် Jest configuration file သည် `jest.config.cjs` ဖြစ်ရမည်။ Build ပြီးနောက် package metadata သည် `dist/types` အောက်ရှိ declaration files နှင့် ကိုက်ညီရမည်။ Browser တွင် package import မရပါက Vite/အခြား ESM-aware dev server ဖြင့် run လုပ်ပြီး `dist` folder ကို static server မှ တိုက်ရိုက် serve မလုပ်မီ build ပြီးကြောင်း စစ်ပါ။
+`npm run type-check` အောင်မြင်ပြီး `npm test` မအောင်မြင်ပါက `package.json` တွင် `type: module` ပါရှိသည့်အတွက် Jest configuration file သည် `jest.config.cjs` ဖြစ်ရမည်။ Build ပြီးနောက် package metadata သည် `dist/types` အောက်ရှိ declaration files နှင့် ကိုက်ညီရမည်။ Browser တွင် package import မရပါက Vite/အခြား ESM-aware dev server ဖြင့် run လုပ်ပြီး `dist` folder ကို static server မှ တိုက်ရိုက် serve မလုပ်မီ build ပြီးကြောင်း စစ်ပါ။ CLI error ပေါ်လာပါက stderr ရှိ bracketed code ကို အရင်ဖတ်ပါ။ `UNKNOWN_COMMAND` သည် `onekit help` လိုအပ်ခြင်း၊ `INVALID_OPTION` သည် `--cwd=<dir>` သို့မဟုတ် `--out-dir=<dir>` value မပြည့်ခြင်း၊ `INVALID_PROJECT` သည် project/package.json/script ပြဿနာ၊ `COMMAND_FAILED` သည် delegated command မစနိုင်ခြင်းကို ဆိုလိုပါသည်။ အသေးစိတ် code table နှင့် Windows path examples ကို [V3 Usage Guide ရဲ့ CLI diagnostics section](V3_USAGE.md#cli-diagnostics-and-error-codes) တွင် ကြည့်ပါ။
 
 ## Contribution Workflow
 

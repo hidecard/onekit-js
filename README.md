@@ -99,6 +99,32 @@ onekit preview --cwd ./my-app -- --port 4173
 onekit test --cwd ./my-app -- --watch
 ```
 
+### CLI diagnostics and error codes
+
+CLI failures are written to stderr in a stable, searchable format:
+
+```text
+OneKit CLI error: [ERROR_CODE] Message explaining the failure.
+Hint: An actionable next step.
+```
+
+The current diagnostic codes are:
+
+| Code | Meaning | Typical resolution |
+|---|---|---|
+| `UNKNOWN_COMMAND` | The requested command is not supported. | Run `onekit help` and use one of the listed commands. |
+| `INVALID_OPTION` | An option such as `--cwd` or `--out-dir` is missing its value. | Use `--cwd <directory>` or the inline form `--cwd=<directory>`. |
+| `INVALID_PROJECT` | The target directory is not a valid project, its `package.json` is malformed, or the requested script is missing. | Check the target path, repair `package.json`, or add the required `dev`, `preview`, or `test` script. |
+| `COMMAND_FAILED` | OneKit could not start the delegated package-manager command. | Verify that npm is installed and available on `PATH`. |
+| `CLI_ERROR` | A fallback CLI error without a more specific classification. | Read the message and hint, then rerun with corrected project or command arguments. |
+
+Child project commands retain their original non-zero exit code. A missing preview output is reported before the project preview script starts. For Windows shells and scripts, both separated and inline forms are supported:
+
+```bash
+onekit preview --cwd C:\\work\\my-app --out-dir C:\\work\\my-app\\dist
+onekit preview --cwd=C:\\work\\my-app --out-dir=C:\\work\\my-app\\dist
+```
+
 ## Your first reactive application
 
 The following example works in a browser page containing `#count` and `#increment` elements:
@@ -785,6 +811,18 @@ import {
 The package provides CommonJS, ESM, UMD, declarations, the SSR subpath, and the Vite tooling subpath. Keep application code on public exports. If an API is not exported from `onekit-js`, treat it as internal rather than importing it from a source path.
 
 ## Troubleshooting
+
+### Reading CLI diagnostics
+
+Start with the bracketed code rather than the prose. For example, this indicates an option parsing error, not a project failure:
+
+```text
+OneKit CLI error: [INVALID_OPTION] Missing value for --cwd.
+Hint: Use --cwd <value> or --cwd=<value>.
+```
+
+If the code is `INVALID_PROJECT`, confirm that the directory contains a readable `package.json` and that the command-specific script exists. If the code is `COMMAND_FAILED`, check the local npm installation and `PATH`. If a delegated `test` command exits with a non-zero status, OneKit preserves that status so CI can fail reliably.
+
 
 ### The effect does not rerun
 
