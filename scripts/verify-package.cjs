@@ -38,7 +38,13 @@ try {
 
   execFileSync(process.execPath, ['-e', `
     const OneKit = require('onekit-js');
+    const CJSApi = require('onekit-js/api');
+    const CJSStorage = require('onekit-js/storage');
+    const CJSErgonomics = require('onekit-js/ergonomics');
     if (typeof OneKit.reactive !== 'function') throw new Error('CJS reactive export missing');
+    if (typeof CJSApi.request !== 'function') throw new Error('CJS API subpath export missing');
+    if (typeof CJSStorage.createStorage !== 'function') throw new Error('CJS storage subpath export missing');
+    if (typeof CJSErgonomics.state !== 'function') throw new Error('CJS ergonomics subpath export missing');
   `], { cwd: temp, stdio: 'inherit' });
 
   execFileSync('node', [path.join(temp, 'node_modules', 'onekit-js', 'bin', 'onekit.js'), '--help'], {

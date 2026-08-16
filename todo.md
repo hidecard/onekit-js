@@ -254,7 +254,8 @@
 ### Phase 4 — Tooling and distribution
 - [x] Improve TypeScript declarations/editor ergonomics, CLI diagnostics/scaffolding, test tooling, build output, package exports, and cross-platform behavior.
   - [x] Added production package subpaths for `animation`, `api`, `a11y`, `storage`, `ergonomics`, and `web-components`; type-check and package verification pass.
-- [ ] Verify ESM/CJS/browser/Node boundaries and package consumer entry points.
+- [x] Verify ESM/CJS/browser/Node boundaries and package consumer entry points.
+  - [x] Package verification now imports root, SSR, Vite, API, storage, a11y, ergonomics, and web-components subpaths through ESM; root/API/storage/ergonomics through CJS; CLI help also passes.
 
 ### Phase 5 — Adoption and release readiness
 - [ ] Build or refresh production examples for Todo/CRUD, SSR, routing, forms, data fetching, and component composition.
@@ -264,5 +265,6 @@
 ### Phase 6 — Final release
 - [x] Run the complete validation matrix, inspect artifacts, and review coverage and performance.
   - [x] Type-check, 19 suites/84 tests with coverage, build, package verification, HMR smoke, docs build, and diff check passed.
-- [ ] Fix remaining confirmed blockers and repeat validation.
+- [x] Fix remaining confirmed blockers and repeat validation.
+  - [x] Confirmed blockers addressed in this pass: missing feature subpath exports, timeout requests bypassing retry policy, and malformed storage records aborting key enumeration.
 - [ ] Commit and push the completed V3 production-readiness update to origin/V3.
