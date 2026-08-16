@@ -1,6 +1,6 @@
 # OneKit JS V3 Migration Guide
 
-**Target release:** OneKit JS V3 / `3.1.16`
+**Target release:** OneKit JS V3 / `3.1.17`
 **Package:** `onekit-js`
 **Runtime:** Browser-first JavaScript and TypeScript
 **Audience:** OneKit 2.x or legacy single-file users moving to V3, and teams adopting V3 in a new application
@@ -729,7 +729,7 @@ my-app/
     "test": "jest --runInBand"
   },
   "dependencies": {
-    "onekit-js": "^3.1.16"
+    "onekit-js": "^3.1.17"
   },
   "devDependencies": {
     "vite": "latest",

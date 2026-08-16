@@ -2,7 +2,8 @@
 
 **OneKit JS V3** is a compact, TypeScript-first reactive JavaScript framework for browser applications. It provides explicit APIs for reactive state, components, templates, JSX/VDOM, routing, stores, SSR/hydration, HTTP, browser storage, accessibility, security, plugins, dependency injection, animations, Web Components, DevTools inspection, disposable scopes, and Vite HMR tooling.
 
-> **Current release:** `3.1.16`
+> **Current release:** `3.1.17`
+> **Starter CLI:** `1.0.7`
 > **License:** MIT
 > **Runtime:** Browser-first JavaScript and TypeScript
 > **Repository:** [github.com/hidecard/onekit-js](https://github.com/hidecard/onekit-js)
@@ -64,7 +65,7 @@ Use the root import for runtime APIs. Use `onekit-js/vite` only from Vite config
 The fastest path is the built-in starter generator:
 
 ```bash
-npm create onekit@latest my-app
+npm create onekit@1.0.7 my-app
 cd my-app
 npm install
 npm run dev
@@ -74,7 +75,7 @@ Equivalent commands are available when the package is already installed or when 
 
 ```bash
 npx --yes --package=onekit-js onekit create my-app
-npx create-onekit my-app
+npx create-onekit@1.0.7 my-app
 ```
 
 The generated project contains a Vite-compatible entrypoint, TypeScript source, a Vite configuration, and a starter component. Build and preview it with:
@@ -860,7 +861,8 @@ OneKit's CI build keeps Node 18 portable by skipping incompatible terser minific
 | [Changelog](CHANGELOG.md) | Release history and maintenance notes. |
 | [Counter example](examples/counter) | Minimal reactive application. |
 | [Todo example](examples/todo) | Store-backed application. |
-| [V3.1.16 Release](https://github.com/hidecard/onekit-js/releases/tag/v3.1.16) | Current GitHub release. |
+| [V3.1.17 Release](https://github.com/hidecard/onekit-js/releases/tag/v3.1.17) | Current OneKit JS GitHub release. |
+| `create-onekit@1.0.7` | Current starter CLI release. |
 
 ## License
 

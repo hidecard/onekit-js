@@ -5068,7 +5068,7 @@ ${bodyContent}
     // Main entry point with tree-shaking friendly exports
     // Core systems
     // Version info
-    const VERSION = '3.1.16';
+    const VERSION = '3.1.17';
 
     exports.API = API;
     exports.DependencyInjector = DependencyInjector;

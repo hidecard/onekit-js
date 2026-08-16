@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.17] - 2026-08-16
+
+### Fixed
+- Ship the `query`, `forms`, and `testing` TypeScript declaration artifacts referenced by the package root exports.
+- Add declaration export verification to the publish validation workflow.
+- Update the README and starter CLI documentation for OneKit JS `3.1.17` and `create-onekit` `1.0.7`.
+
 ## [3.1.16] - 2026-08-16
 
 ### Added

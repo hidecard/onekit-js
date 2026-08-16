@@ -1,5 +1,14 @@
 # OneKit JS V3 Documentation Update
 
+## Version 3.1.17 / CLI 1.0.7 README Update
+
+- [x] Inventory README, package metadata, changelog, and examples for stale version references.
+  - [x] Updated first-party README, docs, examples, migration guide, CLI scaffold, and runtime/package metadata; historical changelog entries remain intentionally unchanged.
+- [x] Update README and release documentation to OneKit JS `3.1.17` and CLI/create-onekit `1.0.7`.
+- [x] Validate version consistency and documentation examples.
+  - [x] Type-check, 23 Jest suites / 114 tests, production build, docs build, declaration verification, package verification, and diff checks passed after removing one Markdown trailing-whitespace issue.
+- [ ] Commit and push the documentation update to `origin/V3`.
+
 - [ ] Audit all public V3 exports and source module signatures.
 - [ ] Audit README, getting started, framework guide, migration guide, changelog, and examples for stale or missing usage.
 - [ ] Write a complete V3 usage guide covering installation, CLI, reactive state, effects, batching, nextTick, components, templates, JSX, router, stores, plugins, SSR, web components, utilities, and error handling.

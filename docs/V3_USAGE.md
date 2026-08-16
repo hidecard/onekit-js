@@ -1,6 +1,6 @@
 # OneKit JS V3 Usage Guide
 
-**Target release:** OneKit JS V3 / 3.1.16
+**Target release:** OneKit JS V3 / 3.1.17
 **License:** MIT  
 **Runtime:** Browser-first JavaScript and TypeScript
 
@@ -655,7 +655,7 @@ The existing `reactive`, `effect`, `watch`, `register`, `create`, and `mount` AP
 
 ## Testing, query, and forms foundations
 
-OneKit 3.1.16 includes a small DOM-first testing foundation from `onekit-js/testing`. `renderTest()` mounts a VNode into an isolated container and provides `rerender()` and `unmount()`; `cleanup()` removes containers registered by the helper; `fireEvent()`, `flush()`, and `waitFor()` support common synchronous and asynchronous component tests.
+OneKit 3.1.17 includes a small DOM-first testing foundation from `onekit-js/testing`. `renderTest()` mounts a VNode into an isolated container and provides `rerender()` and `unmount()`; `cleanup()` removes containers registered by the helper; `fireEvent()`, `flush()`, and `waitFor()` support common synchronous and asynchronous component tests.
 
 ```ts
 import { cleanup, fireEvent, renderTest, waitFor } from "onekit-js/testing";

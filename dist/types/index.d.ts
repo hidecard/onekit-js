@@ -20,4 +20,4 @@ export * from './testing';
 export * from './okjs';
 export { OneKitWebComponent, registerWebComponent } from './modules/web-components';
 export { okjs, component, h, jsx, jsxDEV, Fragment } from './modules/jsx';
-export declare const VERSION = "3.1.16";
+export declare const VERSION = "3.1.17";
