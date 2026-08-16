@@ -8,9 +8,14 @@ export interface RouteLocation {
     query: QueryParams;
     hash: string;
 }
+export interface RouteMatch {
+    route: Route;
+    location: RouteLocation;
+}
 export interface RouteContext {
     to: RouteLocation;
     from: RouteLocation | null;
+    matched?: readonly RouteMatch[];
 }
 export type NavigationResult = void | boolean | string | RouteLocation;
 export type RouteGuard = (context: RouteContext) => NavigationResult | Promise<NavigationResult>;
@@ -20,6 +25,8 @@ export type ScrollBehavior = (to: RouteLocation, from: RouteLocation | null) => 
 export interface Route {
     path: string;
     component?: unknown;
+    /** Parent route component used as a layout when this route has children. */
+    layout?: unknown;
     lazy?: RouteComponentLoader;
     handler?: (context?: RouteContext) => void | Promise<void>;
     beforeEnter?: RouteGuard;
@@ -31,6 +38,12 @@ export interface MatchedRoute {
     route: Route;
     location: RouteLocation;
     data?: unknown;
+    /** Parent-to-leaf route records for nested layouts. */
+    matched?: readonly RouteMatch[];
+    /** Loader results in parent-to-leaf order; `data` remains the leaf result for compatibility. */
+    dataByRoute?: readonly unknown[];
+    /** Resolved parent-to-leaf components for layout composition. */
+    components?: readonly unknown[];
 }
 export interface RouterOptions {
     mode?: 'history' | 'hash' | 'memory';
@@ -38,8 +51,9 @@ export interface RouterOptions {
     initialPath?: string;
     notFound?: Route;
     beforeEach?: RouteGuard;
-    afterEach?: (context: RouteContext & {
+    afterEach?: (context: Omit<RouteContext, 'matched'> & {
         matched: MatchedRoute | null;
+        routeMatches?: readonly RouteMatch[];
     }) => void;
     scrollBehavior?: ScrollBehavior;
     errorBoundary?: ErrorBoundary<unknown>;
@@ -69,6 +83,7 @@ export declare class Router {
     forward(): void;
     resolve(input: string, push?: boolean): Promise<MatchedRoute | null>;
     private match;
+    private recordsFor;
     private runGuard;
     private ensureLazyComponent;
     private notify;

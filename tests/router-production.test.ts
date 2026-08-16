@@ -41,6 +41,49 @@ describe('M2 router production contract', () => {
     expect(scroll).toHaveBeenCalledWith(expect.objectContaining({ path: '/next' }), null);
   });
 
+  it('exposes parent-to-leaf matched records and composes nested layout components', async () => {
+    const order: string[] = [];
+    const router = createRouter([{
+      path: '/app/:tenant',
+      component: 'AppLayout',
+      beforeEnter: ({ to, matched }) => { order.push(`guard:${to.params.tenant}:${matched?.length}`); },
+      loader: ({ to }) => { order.push(`load-parent:${to.params.tenant}`); return { tenant: to.params.tenant }; },
+      children: [{
+        path: '/users/:id',
+        component: 'UserPage',
+        beforeEnter: ({ to }) => { order.push(`guard-child:${to.params.id}`); },
+        loader: ({ to }) => { order.push(`load-child:${to.params.id}`); return { id: to.params.id }; },
+      }],
+    }], { mode: 'memory' });
+
+    const result = await router.navigate('/app/acme/users/42');
+
+    expect(result?.matched?.map(match => match.route.path)).toEqual(['/app/:tenant', '/users/:id']);
+    expect(result?.location.params).toEqual({ tenant: 'acme', id: '42' });
+    expect(result?.components).toEqual(['AppLayout', 'UserPage']);
+    expect(result?.dataByRoute).toEqual([{ tenant: 'acme' }, { id: '42' }]);
+    expect(order).toEqual(['guard:acme:2', 'guard-child:42', 'load-parent:acme', 'load-child:42']);
+  });
+
+  it('prefetches nested layout data without committing or notifying', async () => {
+    const listener = jest.fn();
+    const router = createRouter([{
+      path: '/workspace/:workspaceId',
+      component: 'WorkspaceLayout',
+      loader: ({ to }) => ({ workspaceId: to.params.workspaceId }),
+      children: [{ path: '/settings', component: 'SettingsPage', loader: () => ({ ready: true }) }],
+    }], { mode: 'memory', initialPath: '/' });
+    await router.start();
+    router.subscribe(listener);
+
+    const result = await router.prefetch('/workspace/acme/settings');
+
+    expect(result?.dataByRoute).toEqual([{ workspaceId: 'acme' }, { ready: true }]);
+    expect(result?.components).toEqual(['WorkspaceLayout', 'SettingsPage']);
+    expect(router.getCurrentPath()).toBe('/');
+    expect(listener).not.toHaveBeenCalled();
+  });
+
   it('matches dynamic params and query values', async () => {
     const router = createRouter([{ path: '/users/:id' }], { mode: 'memory' });
     const result = await router.navigate('/users/42?tab=posts&tag=a&tag=b');

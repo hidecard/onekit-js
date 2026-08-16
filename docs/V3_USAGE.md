@@ -694,3 +694,31 @@ Routes may provide a typed `lazy` component loader. OneKit resolves the loader o
 The router passes the matched location, including decoded params and query values, to guards, loaders, and handlers. Applications can provide `scrollBehavior(to, from)` in router options to restore or reposition scroll state after a successful navigation.
 
 `trapFocus(container)` safely handles empty containers and returns a cleanup function that removes the keyboard handler and restores the element that was focused before the trap was activated. This makes modal and drawer lifecycles safer for keyboard and assistive-technology users.
+
+## Nested typed layouts
+
+Routes may declare `children` to create a parent-to-leaf matched chain. Parent routes can provide `component` or `layout`, guards, lazy components, and loaders; child routes add the leaf page. Navigation resolves guards, lazy components, and loaders from parent to leaf, while merged params are available through every `RouteContext`.
+
+```ts
+const router = createRouter([
+  {
+    path: '/workspace/:workspaceId',
+    component: WorkspaceLayout,
+    loader: ({ to }) => loadWorkspace(to.params.workspaceId),
+    children: [
+      {
+        path: '/settings',
+        component: SettingsPage,
+        loader: ({ to }) => loadSettings(to.params.workspaceId),
+      },
+    ],
+  },
+]);
+
+const result = await router.navigate('/workspace/acme/settings');
+result?.components;  // [WorkspaceLayout, SettingsPage]
+result?.dataByRoute;  // parent and leaf loader values
+result?.matched;      // parent-to-leaf route records
+```
+
+The `afterEach` callback retains its existing `matched` `MatchedRoute` value for compatibility and additionally receives `routeMatches`, containing the parent-to-leaf records. `router.prefetch()` resolves the same nested guards, lazy components, and loaders without changing the current route, history, or subscribers.

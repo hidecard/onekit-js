@@ -376,3 +376,13 @@
 - [ ] Extend DevTools inspection/profiling contracts with safe lifecycle behavior and tests.
 - [x] Run the complete validation matrix, update docs/changelog, and push the verified increment to `origin/V3`.
   - [x] 23 Jest suites / 112 tests passed; type-check, strict unused check, build, package verification, and `git diff --check` passed.
+
+## Nested Typed Layouts
+
+- [x] Audit current router matching, route contracts, component/lazy resolution, and navigation lifecycle before changing behavior.
+- [x] Add backward-compatible nested route definitions with typed parent/child matched context.
+- [x] Compose parent layouts and child route components with deterministic guard/loader/lazy ordering.
+- [x] Preserve prefetch, scroll behavior, cancellation, history, subscriptions, and cleanup semantics for nested navigation.
+- [x] Add regression coverage for nested params/query, layouts, loaders, guards, lazy components, prefetch, redirects, and teardown.
+- [x] Update V3 docs/changelog, run the full validation matrix, and push the verified implementation to `origin/V3`.
+  - [x] Type-check, strict unused check, 23 Jest suites / 114 tests, production build, clean package verification, and `git diff --check` passed.

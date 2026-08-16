@@ -3344,20 +3344,34 @@ class Router {
         const route = matched?.route ?? this.options.notFound;
         if (!route)
             return null;
-        const context = { to, from: this.current };
+        const records = this.recordsFor(matched, route, to);
+        const context = { to, from: this.current, matched: records };
         const globalGuard = await this.runGuard(this.options.beforeEach, context);
         if (globalGuard === false || typeof globalGuard === 'string')
             return null;
-        const routeGuard = await this.runGuard(route.beforeEnter, context);
-        if (routeGuard === false || typeof routeGuard === 'string')
-            return null;
-        await this.ensureLazyComponent(route);
-        const result = matched ?? { route, location: to };
-        if (route.loader) {
-            result.data = this.options.errorBoundary
-                ? await this.options.errorBoundary.renderAsync(async () => await route.loader(context), 'route-prefetch')
-                : await route.loader(context);
+        for (const record of records) {
+            const guardResult = await this.runGuard(record.route.beforeEnter, { ...context, to: record.location });
+            if (guardResult === false || typeof guardResult === 'string')
+                return null;
         }
+        for (const record of records)
+            await this.ensureLazyComponent(record.route);
+        const result = matched ?? { route, location: to };
+        result.matched = records;
+        result.components = records.map(record => record.route.component ?? record.route.layout).filter(component => component !== undefined);
+        const data = [];
+        for (const record of records) {
+            if (!record.route.loader) {
+                data.push(undefined);
+                continue;
+            }
+            const loaded = this.options.errorBoundary
+                ? await this.options.errorBoundary.renderAsync(async () => await record.route.loader({ ...context, to: record.location }), 'route-prefetch')
+                : await record.route.loader({ ...context, to: record.location });
+            data.push(loaded);
+        }
+        result.dataByRoute = data;
+        result.data = data[data.length - 1];
         return result;
     }
     back() { if (typeof window !== 'undefined' && this.options.mode !== 'memory')
@@ -3371,65 +3385,61 @@ class Router {
         const matched = this.match(requested);
         const to = matched?.location ?? requested;
         const from = this.current;
-        const context = { to, from };
+        const route = matched?.route ?? this.options.notFound;
         emitDevToolsEvent({ type: 'router:navigation', phase: 'start', to: to.fullPath, from: from?.fullPath ?? null });
-        const guardResult = await this.runGuard(this.options.beforeEach, context);
+        const baseContext = { to, from };
+        const guardResult = await this.runGuard(this.options.beforeEach, baseContext);
         if (!isCurrentNavigation())
             return null;
-        if (guardResult === false) {
-            emitDevToolsEvent({ type: 'router:navigation', phase: 'cancel', to: to.fullPath, from: from?.fullPath ?? null });
+        if (guardResult === false)
             return null;
-        }
-        if (typeof guardResult === 'string' && guardResult !== to.fullPath) {
-            emitDevToolsEvent({ type: 'router:navigation', phase: 'cancel', to: to.fullPath, from: from?.fullPath ?? null });
+        if (typeof guardResult === 'string' && guardResult !== to.fullPath)
             return this.resolve(guardResult, true);
-        }
-        const route = matched?.route ?? this.options.notFound;
         if (!route) {
             this.current = to;
             this.notify(to, from);
             return null;
         }
-        const routeGuard = await this.runGuard(route.beforeEnter, context);
-        if (!isCurrentNavigation())
-            return null;
-        if (routeGuard === false) {
-            emitDevToolsEvent({ type: 'router:navigation', phase: 'cancel', to: to.fullPath, from: from?.fullPath ?? null, route: route.path });
-            return null;
+        const records = this.recordsFor(matched, route, to);
+        const context = { ...baseContext, matched: records };
+        for (const record of records) {
+            const routeGuard = await this.runGuard(record.route.beforeEnter, { ...context, to: record.location });
+            if (!isCurrentNavigation())
+                return null;
+            if (routeGuard === false)
+                return null;
+            if (typeof routeGuard === 'string' && routeGuard !== to.fullPath)
+                return this.resolve(routeGuard, true);
         }
-        if (typeof routeGuard === 'string' && routeGuard !== to.fullPath) {
-            emitDevToolsEvent({ type: 'router:navigation', phase: 'cancel', to: to.fullPath, from: from?.fullPath ?? null, route: route.path });
-            return this.resolve(routeGuard, true);
+        for (const record of records) {
+            await this.ensureLazyComponent(record.route);
+            if (!isCurrentNavigation())
+                return null;
         }
-        await this.ensureLazyComponent(route);
         const result = matched ?? { route, location: to };
-        if (route.loader) {
-            try {
-                const load = () => route.loader(context);
-                if (this.options.errorBoundary) {
-                    result.data = await this.options.errorBoundary.renderAsync(async () => await load(), 'route-loader');
-                    if (this.options.errorBoundary.state.error) {
-                        emitDevToolsEvent({
-                            type: 'router:navigation',
-                            phase: 'error',
-                            to: to.fullPath,
-                            from: from?.fullPath ?? null,
-                            route: route.path,
-                            error: this.options.errorBoundary.state.error,
-                        });
-                    }
+        result.matched = records;
+        result.components = records.map(record => record.route.component ?? record.route.layout).filter(component => component !== undefined);
+        const data = [];
+        try {
+            for (const record of records) {
+                if (!record.route.loader) {
+                    data.push(undefined);
+                    continue;
                 }
-                else {
-                    result.data = await load();
-                }
+                const loaded = this.options.errorBoundary
+                    ? await this.options.errorBoundary.renderAsync(async () => await record.route.loader({ ...context, to: record.location }), 'route-loader')
+                    : await record.route.loader({ ...context, to: record.location });
+                data.push(loaded);
                 if (!isCurrentNavigation())
                     return null;
             }
-            catch (error) {
-                emitDevToolsEvent({ type: 'router:navigation', phase: 'error', to: to.fullPath, from: from?.fullPath ?? null, route: route.path, error });
-                throw error;
-            }
         }
+        catch (error) {
+            emitDevToolsEvent({ type: 'router:navigation', phase: 'error', to: to.fullPath, from: from?.fullPath ?? null, route: route.path, error });
+            throw error;
+        }
+        result.dataByRoute = data;
+        result.data = data[data.length - 1];
         if (!isCurrentNavigation())
             return null;
         if (push)
@@ -3439,12 +3449,12 @@ class Router {
             await route.handler({ ...context, to });
         await this.options.scrollBehavior?.(to, from);
         this.notify(to, from);
-        this.options.afterEach?.({ ...context, matched: result });
+        this.options.afterEach?.({ to: context.to, from: context.from, matched: result, routeMatches: records });
         emitDevToolsEvent({ type: 'router:navigation', phase: 'success', to: to.fullPath, from: from?.fullPath ?? null, route: route.path });
         return result;
     }
     match(location) {
-        const search = (routes, parentPath = '') => {
+        const search = (routes, parentPath = '', parentMatches = []) => {
             for (const route of routes) {
                 const fullPattern = parentPath
                     ? `${parentPath.replace(/\/$/, '')}/${route.path.replace(/^\//, '')}`
@@ -3452,21 +3462,40 @@ class Router {
                 const routeWithFullPath = { ...route, path: fullPattern };
                 const exactParams = matchRoute(routeWithFullPath, location);
                 const prefixParams = route.children ? matchRoutePrefix(routeWithFullPath, location) : null;
-                const childMatch = prefixParams && route.children ? search(route.children, normalizePath(fullPattern)) : null;
-                if (childMatch) {
-                    return {
-                        route: childMatch.route,
-                        location: { ...childMatch.location, params: { ...prefixParams, ...childMatch.location.params } },
-                    };
+                if (prefixParams && route.children) {
+                    const parentLocation = { ...location, params: { ...prefixParams } };
+                    const childMatch = search(route.children, normalizePath(fullPattern), [
+                        ...parentMatches,
+                        { route, location: parentLocation },
+                    ]);
+                    if (childMatch) {
+                        const params = { ...prefixParams, ...childMatch.location.params };
+                        const mergedLocation = { ...childMatch.location, params };
+                        return {
+                            route: childMatch.route,
+                            location: mergedLocation,
+                            matched: childMatch.matched.map(match => ({ ...match, location: { ...match.location, params } })),
+                        };
+                    }
                 }
-                const params = exactParams;
-                if (!params)
+                if (!exactParams)
                     continue;
-                return { route, location: { ...location, params } };
+                const matchedLocation = { ...location, params: exactParams };
+                return {
+                    route,
+                    location: matchedLocation,
+                    matched: [...parentMatches, { route, location: matchedLocation }],
+                };
             }
             return null;
         };
-        return search(this.routes);
+        const result = search(this.routes);
+        if (!result)
+            return null;
+        return { route: result.route, location: result.location, matched: result.matched };
+    }
+    recordsFor(matched, route, location) {
+        return matched?.matched ? [...matched.matched] : [{ route, location }];
     }
     async runGuard(guard, context) {
         return guard ? guard(context) : undefined;

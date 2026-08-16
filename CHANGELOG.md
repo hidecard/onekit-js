@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add hydration parity checks for case-insensitive attributes, boolean properties, meaningful whitespace, object styles, fragments, and nested component output.
 - Add DOM-first testing helpers (`renderTest`, `cleanup`, `fireEvent`, `flush`, and `waitFor`), a deduplicating `QueryClient`, and typed form state with validation, submit, reset, and subscriptions.
 - Add router `prefetch()` for guard/loader data warming without committing navigation state, browser history, handlers, or subscribers.
+- Add nested typed route records with parent-to-leaf matching, merged params, ordered guards/loaders, lazy components, `dataByRoute`, composed `components`, and non-breaking `routeMatches` navigation context.
 - Add effect cleanup callbacks, nested-batch scheduling guarantees, last-write-wins router navigation, and stale-promise protection for async boundaries.
 - Extend packed-package verification to cover ESM and CommonJS feature entry points.
 - Add regression coverage for API timeout retries and storage key enumeration with corrupted records.
