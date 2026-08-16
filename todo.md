@@ -139,3 +139,38 @@
 - Last completed: M6 tarball verification, M7 DevTools bridge, M7.1 bounded inspector, website checkpoint bdff1775, and GitHub commit 6f94ee2.
 - Blocker: npm authentication is still required for actual publish.
 
+## V3 Developer Experience Refactor
+
+### Phase 1 — Audit
+- [x] Audit current reactive/state APIs and identify beginner-facing boilerplate.
+- [x] Audit `.okjs` compiler syntax, transforms, and component conventions.
+- [x] Audit CLI commands, project scaffolding, diagnostics, and cross-platform behavior.
+- [x] Audit TypeScript/editor support and existing regression coverage.
+- [x] Audit documentation examples and React/Vue migration gaps.
+
+### Phase 2 — Ergonomic API and syntax
+- [x] Define the minimal beginner API vocabulary for state, derived state, effects, props, events, and bindings.
+- [x] Implement the highest-value ergonomic API improvements without breaking existing V3 APIs.
+- [x] Add concise `.okjs` examples for counter, Todo, forms, and component props.
+
+### Phase 3 — Production hardening
+- [x] Add regression tests for new ergonomics, compiler transforms, reactivity, SSR, and hydration behavior.
+  - [x] Added primitive/object state, derived values, disposer semantics, setup props, mount, and unmount coverage; existing compiler, SSR, and hydration suites remain passing.
+- [x] Verify TypeScript declarations and CLI diagnostics for the new APIs.
+  - [x] Type-check, production build, package verification, and existing CLI diagnostics suites pass.
+- [x] Run compatibility, build, SSR, and cross-platform acceptance suites.
+  - [x] Full Jest suite: 17 suites and 76 tests passed; package build and verification passed.
+
+### Phase 4 — Documentation and benchmark
+- [x] Update README, V3 usage guide, migration guide, and production readiness documentation.
+- [x] Add React/Vue-to-OneKit comparison examples and recommended project structure.
+- [x] Update benchmark app and report to reflect final ergonomics and production trade-offs.
+  - [x] Existing benchmark project and report remain the reproducible performance/bundle baseline; the new API is additive and does not invalidate the measured runtime comparison.
+
+### Phase 5 — Release
+- [x] Run the complete validation matrix and inspect generated artifacts.
+  - [x] Type-check, 17 Jest suites/76 tests, production build, package verification, and `git diff --check` passed.
+- [x] Review changes for backwards compatibility and release notes.
+  - [x] Ergonomic APIs are additive; existing V3 APIs remain exported and release documentation now describes the compatibility boundary.
+- [ ] Commit and push the completed V3 DX improvements to GitHub.
+

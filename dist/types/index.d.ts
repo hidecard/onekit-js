@@ -3,6 +3,7 @@ export * from './core/di';
 export * from './core/plugin';
 export * from './modules/component';
 export * from './modules/reactive';
+export * from './modules/ergonomics';
 export { createElement, render, patch, patch as vdomPatch } from './modules/vdom';
 export * from './modules/animation';
 export { request, get, post, put, del, API, patch as apiPatch } from './modules/api';

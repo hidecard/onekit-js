@@ -1216,7 +1216,7 @@
 
     // Reactive State Management Module (Vue 3-style)
     // Global state
-    const state = {};
+    const state$1 = {};
     const watchers = {};
     // Dependency tracking
     const targetMap = new WeakMap();
@@ -1431,7 +1431,7 @@
         let oldValue;
         if (typeof source === 'string' || typeof source === 'symbol') {
             const key = source;
-            getter = () => state[key];
+            getter = () => state$1[key];
             // Backward compatibility
             if (!watchers[key]) {
                 watchers[key] = [];
@@ -2310,6 +2310,13 @@
             listeners: [],
             update: function () { } // Placeholder, will be overridden
         };
+        // Composition-style setup returns the public state/method surface used by the template.
+        if (definition.setup) {
+            const setupState = setupComponent(instance, definition.setup);
+            if (setupState && typeof setupState === 'object') {
+                Object.assign(instance.state, setupState);
+            }
+        }
         // Add methods
         if (definition.methods) {
             Object.keys(definition.methods).forEach(method => {
@@ -2588,6 +2595,51 @@
         finally {
             currentInstance = prevInstance;
         }
+    }
+
+    // OneKit V3 ergonomic API: a small beginner-facing layer over the production reactive and component primitives.
+    function state(initial) {
+        if (typeof initial === 'object' && initial !== null) {
+            return reactive(initial);
+        }
+        const holder = reactive({ value: initial });
+        Object.defineProperty(holder, '__isStateRef', { value: true, enumerable: false });
+        return holder;
+    }
+    /** Create a cached, dependency-tracked derived value. */
+    function derive(getter) {
+        return computed(getter);
+    }
+    /** Create a reactive side effect with a familiar beginner-facing name. */
+    function watchEffect(fn, options) {
+        const runner = effect(fn, options);
+        return () => stop(runner);
+    }
+    let appId = 0;
+    /**
+     * Mount a component definition directly without manually registering a name.
+     * The old register/create/mount APIs remain available for advanced use cases.
+     */
+    function createApp(definition) {
+        const component = defineComponent(definition);
+        const name = component.name || `OneKitApp${++appId}`;
+        const namedDefinition = component.name ? component : { ...component, name };
+        let instance = null;
+        return {
+            definition: namedDefinition,
+            component: namedDefinition,
+            mount(target, props = {}) {
+                register(name, namedDefinition);
+                instance = create(name, props);
+                return instance ? mount(instance, target) : null;
+            },
+            unmount() {
+                if (instance) {
+                    destroy(instance);
+                    instance = null;
+                }
+            },
+        };
     }
 
     /* OneKit style: predictable DOM ownership, keyed updates, explicit prop diffing, and small renderer primitives. */
@@ -4572,6 +4624,7 @@ ${bodyContent}
     exports.component = component;
     exports.computed = computed;
     exports.create = create;
+    exports.createApp = createApp;
     exports.createElement = createElement;
     exports.createErrorBoundary = createErrorBoundary;
     exports.createLandmarks = createLandmarks;
@@ -4586,6 +4639,7 @@ ${bodyContent}
     exports.defineComponent = defineComponent;
     exports.defineStore = defineStore;
     exports.del = del;
+    exports.derive = derive;
     exports.destroy = destroy;
     exports.devToolsSnapshot = devToolsSnapshot;
     exports.di = di;
@@ -4662,6 +4716,7 @@ ${bodyContent}
     exports.setupComponent = setupComponent;
     exports.skipToContent = skipToContent;
     exports.snapshot = snapshot;
+    exports.state = state;
     exports.stop = stop;
     exports.throttle = throttle;
     exports.trapFocus = trapFocus;
@@ -4670,6 +4725,7 @@ ${bodyContent}
     exports.validateAccessibility = validateAccessibility;
     exports.vdomPatch = patch$1;
     exports.watch = watch;
+    exports.watchEffect = watchEffect;
     exports.withCache = withCache;
     exports.withScope = withScope;
 

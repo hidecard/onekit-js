@@ -12,7 +12,7 @@ interface Watcher {
   property: string | symbol;
 }
 
-interface ComputedRef<T = unknown> {
+export interface ComputedRef<T = unknown> {
   readonly value: T;
   readonly __isComputed: true;
 }
@@ -24,7 +24,7 @@ interface EffectFn {
   stopped?: boolean;
 }
 
-interface EffectOptions {
+export interface EffectOptions {
   lazy?: boolean;
   scheduler?: (fn: EffectFn) => void;
 }

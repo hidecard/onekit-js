@@ -865,3 +865,25 @@ OneKit's CI build keeps Node 18 portable by skipping incompatible terser minific
 ## License
 
 MIT © OneKit contributors
+
+
+## Beginner-first V3 API
+
+New applications can start with the smaller ergonomic layer while retaining the complete V3 API for advanced use cases:
+
+```ts
+import { createApp, state, derive, watchEffect } from 'onekit-js';
+
+const model = state({ count: 0 });
+const doubled = derive(() => model.count * 2);
+const stop = watchEffect(() => console.log(doubled.value));
+
+const app = createApp({
+  setup: () => ({ model, doubled }),
+  template: '<button ok-on.click="model.count += 1">{{model.count}}</button>',
+});
+
+app.mount('#app');
+```
+
+The ergonomic layer provides `state`, `derive`, `watchEffect`, and `createApp`. Existing `reactive`, `computed`, `effect`, `watch`, `register`, `create`, and `mount` APIs remain supported. Primitive state uses an explicit `.value` ref; object and array state use the normal reactive proxy. See the [V3 DX audit](docs/V3_DX_AUDIT.md) and [beginner-first V3 guide](docs/V3_USAGE.md#0-beginner-first-application-api) for the design rationale and migration examples.

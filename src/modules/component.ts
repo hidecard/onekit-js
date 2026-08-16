@@ -33,6 +33,8 @@ export interface ComponentDefinition {
   name?: string;
   props?: ComponentPropsDefinition;
   data?: () => ComponentState;
+  /** Composition-style setup for concise state, methods, and lifecycle registration. */
+  setup?: (props: ComponentProps) => ComponentState;
   template?: string;
   render?: (this: ComponentInstance) => string;
   methods?: { [key: string]: (...args: unknown[]) => unknown };
@@ -230,6 +232,14 @@ export function create(name: string, props: ComponentProps = {}, slots: { [key: 
     listeners: [],
     update: function() {} // Placeholder, will be overridden
   };
+
+  // Composition-style setup returns the public state/method surface used by the template.
+  if (definition.setup) {
+    const setupState = setupComponent(instance, definition.setup);
+    if (setupState && typeof setupState === 'object') {
+      Object.assign(instance.state, setupState);
+    }
+  }
 
   // Add methods
   if (definition.methods) {

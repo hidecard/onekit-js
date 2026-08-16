@@ -19,6 +19,8 @@ export interface ComponentDefinition {
     name?: string;
     props?: ComponentPropsDefinition;
     data?: () => ComponentState;
+    /** Composition-style setup for concise state, methods, and lifecycle registration. */
+    setup?: (props: ComponentProps) => ComponentState;
     template?: string;
     render?: (this: ComponentInstance) => string;
     methods?: {

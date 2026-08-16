@@ -1283,3 +1283,38 @@ The migration is complete only when the feature behaves correctly after a full p
 - [Production Readiness](docs/PRODUCTION_READINESS.md)
 - [Changelog](CHANGELOG.md)
 - [OneKit JS GitHub repository](https://github.com/hidecard/onekit-js)
+
+
+## 30. Beginner-first ergonomic migration path
+
+Applications that are learning OneKit for the first time can adopt the ergonomic layer before learning the lower-level registry and runner APIs. The mapping below keeps familiar concepts while reducing boilerplate:
+
+| Existing pattern | OneKit ergonomic replacement |
+|---|---|
+| `reactive({ ... })` | `state({ ... })` |
+| `computed(getter)` | `derive(getter)` |
+| `effect(fn)` followed by manual runner management | `watchEffect(fn)` returning a disposer |
+| `register` + `create` + `mount` for an app root | `createApp(definition).mount(target, props)` |
+| component `data` plus `methods` | component `setup(props)` returning state and handlers |
+
+This layer is additive and does not invalidate existing V3 code. Use the lower-level APIs when a library needs explicit registries, custom schedulers, renderer integration, or migration compatibility.
+
+```ts
+import { createApp, state, derive } from 'onekit-js';
+
+const app = createApp({
+  setup: () => {
+    const form = state({ name: '' });
+    const greeting = derive(() => form.name ? `Hello, ${form.name}` : 'Enter your name');
+    return { form, greeting };
+  },
+  template: `
+    <label>Name <input ok-model="form.name" /></label>
+    <p>{{greeting.value}}</p>
+  `,
+});
+
+app.mount('#app');
+```
+
+Primitive state remains explicit: `const count = state(0); count.value += 1`. This avoids claiming that ordinary JavaScript bindings can be rewritten by the runtime alone. Compiler-level shorthand can be introduced later as an opt-in syntax with separate compatibility tests.

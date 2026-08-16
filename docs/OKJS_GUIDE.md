@@ -113,3 +113,43 @@ Always validate a production build separately from HMR development. HMR state pr
 ## Security model
 
 `.okjs` does not add a second expression evaluator. Template expressions use OneKit's restricted AST evaluator, dynamic `href` and `src` bindings pass through URL sanitization, and HTML is sanitized before component rendering. Treat the `.okjs` source itself as trusted application code and keep user-provided template source outside the compiler boundary.
+
+
+## Beginner-first setup pattern
+
+For new components, use `setup(props)` to keep local state, derived values, event handlers, and lifecycle registration in one predictable place. This is an optional layer over the existing `data`, `methods`, and lifecycle definition fields.
+
+```okjs
+<script lang="ts">
+import { state, derive } from 'onekit-js';
+
+export default {
+  name: 'TodoSummary',
+  setup: (props) => {
+    const todos = state({ items: props.items ?? [] });
+    const openCount = derive(() => todos.items.filter((todo) => !todo.done).length);
+
+    return {
+      todos,
+      openCount,
+      toggle(todo: { done: boolean }) {
+        todo.done = !todo.done;
+      },
+    };
+  },
+};
+</script>
+
+<template>
+  <section>
+    <strong>{{openCount.value}} open</strong>
+    <ul ok-for="todo in todos.items">
+      <li>
+        <button ok-on.click="toggle(todo)">{{todo.title}}</button>
+      </li>
+    </ul>
+  </section>
+</template>
+```
+
+Use `createApp(component).mount('#app', props)` when a component is the application root. Use `register`, `create`, and `mount` directly when an application needs named registries, dynamic factories, or advanced lifecycle control.

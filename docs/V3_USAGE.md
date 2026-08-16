@@ -587,3 +587,68 @@ Never place an npm access token in source files, commit history, chat messages, 
 [9]: ../lib/cli/build.js "OneKit build command"  
 [10]: ../lib/cli/run.js "OneKit project workflow command runner"  
 [11]: ../src/core/devtools.ts "OneKit experimental DevTools bridge"
+
+
+## 0. Beginner-first application API
+
+For a new application, prefer the small ergonomic layer exported from the package root. It keeps the existing lower-level V3 APIs available while reducing the number of concepts needed for a first component.
+
+```ts
+import { createApp, state, derive, watchEffect } from 'onekit-js';
+
+const todos = state({ items: [] as { id: number; title: string; done: boolean }[] });
+const openCount = derive(() => todos.items.filter((todo) => !todo.done).length);
+
+const stopLogging = watchEffect(() => {
+  console.log(`${openCount.value} open tasks`);
+});
+
+const app = createApp({
+  setup: () => ({ todos, openCount }),
+  template: `
+    <section>
+      <p>{{openCount.value}} open tasks</p>
+      <ul ok-for="todo in todos.items">
+        <li>{{todo.title}}</li>
+      </ul>
+    </section>
+  `,
+});
+
+app.mount('#app');
+// Call stopLogging() when the surrounding application scope is disposed.
+```
+
+`state(object)` returns the normal reactive proxy, while `state(primitive)` returns an explicit ref with a `.value` property. This boundary is intentional: JavaScript cannot make an ordinary primitive binding such as `count++` update a runtime signal without a compiler transform. The ergonomic layer therefore stays predictable and type-safe instead of promising unsupported syntax.
+
+| Need | React | Vue | OneKit V3 ergonomic layer |
+|---|---|---|---|
+| Primitive state | `useState(0)` and a setter | `ref(0)` and `.value` | `state(0)` and `.value` |
+| Object state | `useState({})` plus immutable updates | `reactive({})` | `state({})` |
+| Derived value | `useMemo(fn, deps)` | `computed(fn)` | `derive(fn)` |
+| Reactive effect disposal | `useEffect` cleanup | `watchEffect` stop handle | `watchEffect(fn)` returns disposer |
+| First mount | `createRoot(...).render(...)` | `createApp(...).mount(...)` | `createApp(definition).mount(target)` |
+
+For `.okjs` single-file components, the recommended V3 shape is:
+
+```okjs
+<script lang="ts">
+import { state } from 'onekit-js';
+
+export default {
+  name: 'Counter',
+  setup: () => ({
+    count: state(0),
+    increment() {
+      this.count.value += 1;
+    },
+  }),
+};
+</script>
+
+<template>
+  <button ok-on.click="increment()">Count: {{count.value}}</button>
+</template>
+```
+
+The existing `reactive`, `effect`, `watch`, `register`, `create`, and `mount` APIs remain supported for advanced applications and migration compatibility.

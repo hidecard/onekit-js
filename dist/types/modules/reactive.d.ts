@@ -1,7 +1,7 @@
 interface ReactiveObject {
     [key: string]: unknown;
 }
-interface ComputedRef<T = unknown> {
+export interface ComputedRef<T = unknown> {
     readonly value: T;
     readonly __isComputed: true;
 }
@@ -11,7 +11,7 @@ interface EffectFn {
     options?: EffectOptions;
     stopped?: boolean;
 }
-interface EffectOptions {
+export interface EffectOptions {
     lazy?: boolean;
     scheduler?: (fn: EffectFn) => void;
 }
