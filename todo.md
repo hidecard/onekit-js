@@ -215,3 +215,15 @@
   - [x] Type-check, coverage run, build, package verification, HMR smoke, docs build, diff check, and open-handle test all passed.
 - [x] Commit and push confirmed fixes to `origin/V3`.
   - [x] No new source changes were required; only this completed audit record remains to be committed.
+
+## Low-Coverage Module Improvement
+
+- [x] Audit API, storage, animation, a11y, and web-components public contracts and edge cases.
+  - [x] Reviewed request lifecycle, storage TTL/prefix behavior, animation cleanup, focus management, accessibility validation, custom-element registration, and observed attributes.
+- [x] Add focused unit tests for the low-coverage modules and browser/SSR boundaries.
+  - [x] Added 2 focused suites covering API, storage, animation, accessibility, and web-component behavior; 7 targeted tests pass.
+- [x] Fix confirmed runtime defects and improve type-safe public behavior.
+  - [x] No runtime defect was confirmed; public contracts passed focused behavior tests and TypeScript validation.
+- [x] Re-run coverage and full validation matrix, including docs/build/package/HMR checks.
+  - [x] 19 suites/83 tests passed; coverage increased for targeted modules, package verification passed with 0 vulnerabilities, HMR reported `HMR_SMOKE=PASS`, docs build passed, and `git diff --check` passed.
+- [ ] Commit and push the improved V3 maintenance release to `origin/V3`.
