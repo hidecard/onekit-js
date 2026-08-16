@@ -10,7 +10,8 @@ export interface OKJSElement {
 
 // OKJS template parser - custom syntax: [tag attr="value"]content[/tag]
 export function okjs(template: TemplateStringsArray, ...values: unknown[]): OKJSElement | VNode {
-  const parsed = parseOKJSTemplate(template.raw[0]);
+  const source = template.raw.reduce((output, chunk, index) => output + chunk + (index < values.length ? String(values[index] ?? '') : ''), '');
+  const parsed = parseOKJSTemplate(source);
   return createVNodeFromOKJS(parsed);
 }
 
@@ -21,10 +22,8 @@ function parseOKJSTemplate(template: string): OKJSElement {
   const selfClosingRegex = /\[(\w+)(?:\s+([^\/\]]*?))?\s*\/\]/g;
 
   let result: OKJSElement = { tag: 'div', props: {}, children: [] };
-  let lastIndex = 0;
-
   // Handle self-closing tags
-  template = template.replace(selfClosingRegex, (match, tag, attrs) => {
+  template = template.replace(selfClosingRegex, (_match, tag, attrs) => {
     const props = parseAttributes(attrs || '');
     const element: OKJSElement = { tag, props, children: [] };
     result.children.push(element);

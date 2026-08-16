@@ -1,6 +1,6 @@
 # OneKit JS V3 Usage Guide
 
-**Target release:** OneKit JS V3 / 3.1.12  
+**Target release:** OneKit JS V3 / 3.1.16
 **License:** MIT  
 **Runtime:** Browser-first JavaScript and TypeScript
 
@@ -249,7 +249,7 @@ const element = compileTemplate(
 document.querySelector("#app")?.appendChild(element);
 ```
 
-Keep untrusted HTML out of templates. OneKit sanitizes component HTML, but applications should still validate external content before putting it into a UI model.
+Keep untrusted HTML out of templates. OneKit sanitizes component HTML, filters unsafe URL/event/CSS values at VDOM and SSR boundaries, and restricts dynamic template evaluation; applications should still validate external content and never pass untrusted data to raw-markup helpers.
 
 ## 6. JSX, VDOM, and render helpers
 

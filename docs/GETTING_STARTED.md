@@ -1,6 +1,6 @@
 # OneKit JS V3 — Getting Started
 
-OneKit JS V3.1.12 သည် browser အခြေပြု JavaScript/TypeScript application များအတွက် **reactivity, component lifecycle, virtual DOM, routing, storage, API helpers နှင့် SSR utilities** ကို package တစ်ခုအတွင်း ပေါင်းစည်းပေးသော framework-style library ဖြစ်သည်။ React လို component-oriented application များရေးနိုင်သော်လည်း React runtime ကို dependency အဖြစ် မလိုအပ်ပါ။
+OneKit JS V3.1.16 သည် browser အခြေပြု JavaScript/TypeScript application များအတွက် **reactivity, component lifecycle, virtual DOM, routing, storage, API helpers နှင့် SSR utilities** ကို package တစ်ခုအတွင်း ပေါင်းစည်းပေးသော framework-style library ဖြစ်သည်။ React လို component-oriented application များရေးနိုင်သော်လည်း React runtime ကို dependency အဖြစ် မလိုအပ်ပါ။
 
 > API အားလုံး၏ signature, runnable examples, migration notes, troubleshooting နှင့် release checklist ကို [Complete V3 Usage Guide](V3_USAGE.md) တွင် ဖတ်ရှုပါ။
 
@@ -16,7 +16,7 @@ ES module မှ import လုပ်ပါ။
 import { reactive, effect, register, mount } from 'onekit-js';
 ```
 
-Browser CDN အသုံးပြုလိုပါက build file ကို သုံးနိုင်သည်။
+Browser CDN အသုံးပြုလိုပါက build file ကို သုံးနိုင်သည်။ User-controlled URL/event/style values များကို OneKit renderer က policy ဖြင့် filter လုပ်ပေးသော်လည်း raw markup helpers ထဲ untrusted input မထည့်ပါနှင့်။
 
 ```html
 <script src="https://unpkg.com/onekit-js/dist/onekit.js"></script>

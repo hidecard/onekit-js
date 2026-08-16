@@ -25,8 +25,6 @@ export interface HydrationResult {
 export declare function hydrate(rootElement: Element, vnode: VNode): HydrationResult;
 export declare class StreamingRenderer {
     private context;
-    private chunks;
-    private isComplete;
     constructor(context?: SSRContext);
     renderToStream(vnode: AsyncVNode, options?: {
         signal?: AbortSignal;

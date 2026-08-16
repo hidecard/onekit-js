@@ -10,11 +10,9 @@ const HTMLElementBase: any = typeof HTMLElement !== 'undefined' ? HTMLElement : 
 
 export class OneKitWebComponent extends HTMLElementBase {
   private componentInstance: ComponentInstance | null = null;
-  private componentDef: ComponentDefinition;
 
-  constructor(componentDef: ComponentDefinition, options: WebComponentOptions = {}) {
+  constructor(componentDef: ComponentDefinition, _options: WebComponentOptions = {}) {
     super();
-    this.componentDef = componentDef;
 
     // Create shadow DOM
     const shadow = this.attachShadow({ mode: 'open' });
@@ -43,7 +41,7 @@ export class OneKitWebComponent extends HTMLElementBase {
     }
   }
 
-  attributeChangedCallback(name: string, oldValue: string | null, newValue: string | null): void {
+  attributeChangedCallback(name: string, _oldValue: string | null, newValue: string | null): void {
     if (this.componentInstance && this.componentInstance.props) {
       // Update component props when attributes change
       this.componentInstance.props[name] = newValue;

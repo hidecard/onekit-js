@@ -1,5 +1,4 @@
 // HTTP/API Module
-import { errorHandler } from '../core/error-handler';
 import { sanitizeURL } from '../core/security';
 
 interface RequestOptions {

@@ -4,7 +4,7 @@
 - [ ] Audit README, getting started, framework guide, migration guide, changelog, and examples for stale or missing usage.
 - [ ] Write a complete V3 usage guide covering installation, CLI, reactive state, effects, batching, nextTick, components, templates, JSX, router, stores, plugins, SSR, web components, utilities, and error handling.
 - [ ] Add API reference tables and runnable examples for every public module.
-- [x] Synchronize README, docs, examples, package metadata, and website documentation with version 3.1.12.
+- [x] Synchronize README, docs, examples, package metadata, and website documentation with version 3.1.16.
 - [ ] Validate documentation code samples against the actual package API.
 - [x] Run type-check, tests, build, package dry-run, and isolated package verification.
 - [ ] Commit documentation changes and prepare GitHub/website checkpoint delivery.
@@ -137,12 +137,12 @@
 ## Decisions
 
 - Documentation language: English for the public developer docs.
-- Target release: OneKit JS V3 / 3.1.12.
+- Target release: OneKit JS V3 / 3.1.16.
 - Do not claim npm publication until registry authentication and publish verification succeed.
 
 ## Status
 
-- Current phase: M7.1 DevTools diagnostics inspector completed; ready for the 3.1.12 release cycle.
+- Current phase: Complete V3 codebase audit in progress after the 3.1.16 security hardening cycle.
 - Last completed: M6 tarball verification, M7 DevTools bridge, M7.1 bounded inspector, website checkpoint bdff1775, and GitHub commit 6f94ee2.
 - Blocker: npm authentication is still required for actual publish.
 
@@ -328,3 +328,17 @@
 - [x] Add adversarial regression tests and update security/production documentation.
 - [x] Run the complete validation matrix and push the security-audited V3 update to origin/V3.
   - [x] 19 Jest suites / 96 tests, type-check, production build, clean package verification, HMR smoke, full dependency audit, and diff checks passed.
+
+## Complete V3 Codebase Audit
+
+- [x] Inventory every source module, public export, CLI command, compiler feature, runtime feature, test suite, generated artifact, and documentation entry.
+  - [x] Audited 27 source modules, public subpath exports, CLI/scaffolder commands, 19 test suites, tracked dist artifacts, examples, and documentation entries.
+- [x] Check duplicate implementations, dead/unreferenced files, stale generated output, unreachable branches, TODO/FIXME markers, and export/documentation drift.
+  - [x] Removed confirmed dead imports/helpers/fields, fixed core DOM security paths, synchronized 3.1.16 docs/examples/scaffolder references, refreshed dist output, and added `.npmignore` to exclude generated dependencies.
+- [x] Run type-check, lint/static checks if available, full tests, build, package verification, HMR, CLI/scaffolder checks, dependency audit, and git diff checks.
+  - [x] Normal and strict no-unused TypeScript checks passed; Jest, build, package dry-run, dependency audit, HMR/CLI checks, and `git diff --check` passed. Package dry-run is 689.3 kB / 107 files.
+- [x] Exercise representative reactivity, VDOM, SSR/hydration, router, boundaries, storage, API, compiler, security, DevTools, and CLI flows.
+  - [x] Existing regression suites plus new core DOM security and parser/interpolation coverage exercised the representative paths; no new runtime failures were observed.
+- [x] Fix confirmed defects or redundant code only when removal is safe and backward-compatible; document intentional duplication or remaining risks.
+  - [x] Confirmed fixes were limited to dead-code cleanup, OKJS interpolation behavior, package hygiene, version drift, and security-policy consistency. Remaining risks are documented roadmap items such as full SSR/client parity and npm publication verification.
+- [ ] Re-run all validation and push the complete audit result to origin/V3.

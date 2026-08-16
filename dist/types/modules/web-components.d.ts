@@ -6,11 +6,10 @@ interface WebComponentOptions {
 declare const HTMLElementBase: any;
 export declare class OneKitWebComponent extends HTMLElementBase {
     private componentInstance;
-    private componentDef;
-    constructor(componentDef: ComponentDefinition, options?: WebComponentOptions);
+    constructor(componentDef: ComponentDefinition, _options?: WebComponentOptions);
     connectedCallback(): void;
     disconnectedCallback(): void;
-    attributeChangedCallback(name: string, oldValue: string | null, newValue: string | null): void;
+    attributeChangedCallback(name: string, _oldValue: string | null, newValue: string | null): void;
     static get observedAttributes(): string[];
 }
 export declare function registerWebComponent(name: string, componentDef: ComponentDefinition, options?: WebComponentOptions): void;

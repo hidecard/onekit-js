@@ -116,10 +116,6 @@ function matchRoutePrefix(route: Route, location: RouteLocation): RouteParams | 
   return matchRoute(route, prefixLocation);
 }
 
-function sameLocation(a: RouteLocation | null, b: RouteLocation): boolean {
-  return !!a && a.fullPath === b.fullPath;
-}
-
 export class Router {
   private routes: Route[] = [];
   private listeners = new Set<Listener>();

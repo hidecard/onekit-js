@@ -1,15 +1,10 @@
 // Core OneKit functionality
-import { errorHandler, safeMethod, createErrorBoundary, createLoadingBoundary } from './error-handler';
+import { errorHandler, safeMethod } from './error-handler';
 
 export { errorHandler, safeMethod, createErrorBoundary, createLoadingBoundary } from './error-handler';
 export * from './devtools';
 export * from './scope';
-import { sanitizeHTML, validateSelector, sanitizeURL, deepCloneSafe, validateStorageKey } from './security';
-import { reactive, computed, effect, autorun, watch, batch, snapshot, bind } from '../modules/reactive';
-import { compileTemplate, registerDirective, initTemplateEngine } from '../modules/template';
-import { register as registerComponent, create as createComponent, mount as mountComponent, getInstance as getComponentInstance, destroy as destroyComponent, PropType, PropDefinition, ComponentPropsDefinition } from '../modules/component';
-import { defineStore, useStore, getAllStores, removeStore, addStorePlugin, Store, StoreDefinition, StorePlugin } from '../modules/store';
-import { renderToString, hydrate, StreamingRenderer, createSSRContext, addToHead, addToBody, addStyle, addScript, setMeta, preloadModule, preloadStyle, preloadScript, renderTitle, renderMeta, renderOpenGraph, isServer, isClient, withCache, SSRContext, RenderResult } from '../modules/ssr';
+import { sanitizeHTML, validateSelector, isSafeURL, sanitizeStyleValue } from './security';
 
 export interface OneKitConfig {
   enableSanitization?: boolean;
@@ -162,20 +157,26 @@ export class OneKit {
   }
 
   attr(name: string | Record<string, string>, value?: string): string | OneKit {
+    const apply = (element: Element, key: string, rawValue: string) => {
+      if (/^on/i.test(key)) return;
+      const lowerKey = key.toLowerCase();
+      if (['href', 'src', 'action', 'formaction', 'poster'].includes(lowerKey) && !isSafeURL(rawValue)) {
+        element.removeAttribute(key);
+        return;
+      }
+      element.setAttribute(key, rawValue);
+    };
+
     if (typeof name === 'object') {
       return this.each(function() {
-        for (const key in name) {
-          this.setAttribute(key, name[key]);
-        }
+        for (const key of Object.keys(name)) apply(this, key, name[key]);
       });
     }
 
     if (value === undefined) {
       return this.elements.length > 0 ? this.elements[0].getAttribute(name) || '' : '';
     }
-    return this.each(function() {
-      this.setAttribute(name, value);
-    });
+    return this.each(function() { apply(this, name, value); });
   }
 
   unattr(name: string): OneKit {
@@ -184,16 +185,18 @@ export class OneKit {
     });
   }
 
-  css(prop: string | object, value?: string | number): string | null | OneKit {
+    css(prop: string | object, value?: string | number): string | null | OneKit {
+    const apply = (element: HTMLElement, key: string, rawValue: string | number) => {
+      const safeValue = sanitizeStyleValue(String(rawValue));
+      if (safeValue) (element.style as any)[key] = safeValue;
+      else (element.style as any)[key] = '';
+    };
     if (typeof prop === 'object') {
       return this.each(function() {
         const element = this as HTMLElement;
-        for (const key in prop) {
-          ((element as HTMLElement).style as any)[key] = (prop as any)[key];
-        }
+        for (const key of Object.keys(prop)) apply(element, key, (prop as any)[key]);
       });
     }
-
     if (value === undefined) {
       if (this.elements.length > 0) {
         const styles = window.getComputedStyle(this.elements[0]);
@@ -201,10 +204,7 @@ export class OneKit {
       }
       return null;
     }
-    return this.each(function() {
-      const element = this as HTMLElement;
-      (element.style as any)[prop] = value;
-    });
+    return this.each(function() { apply(this as HTMLElement, prop, value); });
   }
 
   show(): OneKit {

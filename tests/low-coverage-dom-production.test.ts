@@ -11,6 +11,7 @@ import {
 } from '../src/modules/a11y';
 import { animations } from '../src/modules/animation';
 import { createStorage } from '../src/modules/storage';
+import { ok } from '../src/core';
 
 describe('low-coverage DOM and storage contracts', () => {
   afterEach(() => {
@@ -91,6 +92,19 @@ describe('low-coverage DOM and storage contracts', () => {
     document.body.append(missingAlt);
     const result = validateAccessibility(document.body);
     expect(result.errors).toContain('Image missing alt attribute');
+  });
+
+  it('sanitizes core attr and css helpers at the DOM boundary', () => {
+    const link = document.createElement('a');
+    document.body.append(link);
+    ok(link).attr({ HREF: 'javascript:alert(1)', ONCLICK: 'alert(1)', title: 'safe' });
+    ok(link).css({ backgroundImage: 'url(javascript:alert(1))', color: 'red' });
+
+    expect(link.hasAttribute('href')).toBe(false);
+    expect(link.hasAttribute('onclick')).toBe(false);
+    expect(link.getAttribute('title')).toBe('safe');
+    expect(link.style.backgroundImage).toBe('');
+    expect(link.style.color).toBe('red');
   });
 
   it('stores values with prefixes, TTL, custom serializers, and cleanup', () => {

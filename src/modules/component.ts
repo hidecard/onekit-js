@@ -1,9 +1,8 @@
 // Component System Module
 import { sanitizeHTML } from '../core/security';
 import { deepCloneSafe } from '../core/security';
-import { di } from '../core/di';
 import { compileTemplate } from './template';
-import { reactive, effect } from './reactive';
+import { reactive } from './reactive';
 import { DisposableScope, effectScope } from '../core/scope';
 import { emitDevToolsEvent, getDevToolsTargetId, registerDevToolsInspector } from '../core/devtools';
 import { createErrorBoundary } from '../core/error-handler';

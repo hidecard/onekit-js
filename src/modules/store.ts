@@ -1,5 +1,5 @@
 // Integrated State Manager (Pinia-like)
-import { reactive, computed, effect } from './reactive';
+import { reactive, computed } from './reactive';
 import { onScopeDispose } from '../core/scope';
 import { emitDevToolsEvent, registerDevToolsInspector } from '../core/devtools';
 

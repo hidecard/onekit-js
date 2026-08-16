@@ -1,5 +1,5 @@
 // Server-Side Rendering (SSR) Support Module
-import { VNode, render as clientRender } from './vdom';
+import { VNode } from './vdom';
 import { isSafeURL, sanitizeStyleValue } from '../core/security';
 
 export interface SSRContext {
@@ -375,8 +375,6 @@ function createSSRAbortError(): Error {
 
 export class StreamingRenderer {
   private context: SSRContext;
-  private chunks: string[] = [];
-  private isComplete = false;
 
   constructor(context: SSRContext = {}) {
     this.context = context;
@@ -429,7 +427,6 @@ export class StreamingRenderer {
       }
       await writer.close();
       markComplete();
-      this.isComplete = true;
     } catch (error) {
       await abortStream(error);
       throw error;

@@ -1,6 +1,6 @@
 # OneKit JS Framework Guide
 
-OneKit JS V3.1.12 is a small, browser-first JavaScript and TypeScript framework with reactive state, component lifecycle hooks, a store, routing, server-side rendering, JSX helpers, web components, and a zero-configuration CLI. The API is intentionally modular: applications may start with a single `reactive` object and grow into component- and route-based projects without adopting a large runtime. For copy-ready signatures and runnable usage for every public area, continue with [V3_USAGE.md](V3_USAGE.md).
+OneKit JS V3.1.16 is a small, browser-first JavaScript and TypeScript framework with reactive state, component lifecycle hooks, a store, routing, server-side rendering, JSX helpers, web components, and a zero-configuration CLI. The API is intentionally modular: applications may start with a single `reactive` object and grow into component- and route-based projects without adopting a large runtime. For copy-ready signatures and runnable usage for every public area, continue with [V3_USAGE.md](V3_USAGE.md).
 
 ## Recommended application shape
 
@@ -101,7 +101,7 @@ All subpaths point to the same browser-safe distribution while exposing focused 
 
 ## Security and production guidance
 
-OneKit sanitizes template HTML and rejects unsafe storage keys. Applications should still treat remote content as untrusted, validate API responses, avoid injecting raw HTML, and configure a Content Security Policy in production. Use `batch` for coordinated state changes and `nextTick` when code must observe the post-update DOM.
+OneKit sanitizes template HTML, rejects unsafe storage keys, filters unsafe URL/event/CSS values at VDOM and SSR boundaries, and avoids dynamic template code execution. Applications should still treat remote content as untrusted, validate API responses, avoid passing untrusted strings to raw-markup helpers, and configure a Content Security Policy in production. Use `batch` for coordinated state changes and `nextTick` when code must observe the post-update DOM.
 
 ## Verification workflow
 

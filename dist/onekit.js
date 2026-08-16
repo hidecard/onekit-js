@@ -722,19 +722,26 @@
             });
         }
         attr(name, value) {
+            const apply = (element, key, rawValue) => {
+                if (/^on/i.test(key))
+                    return;
+                const lowerKey = key.toLowerCase();
+                if (['href', 'src', 'action', 'formaction', 'poster'].includes(lowerKey) && !isSafeURL(rawValue)) {
+                    element.removeAttribute(key);
+                    return;
+                }
+                element.setAttribute(key, rawValue);
+            };
             if (typeof name === 'object') {
                 return this.each(function () {
-                    for (const key in name) {
-                        this.setAttribute(key, name[key]);
-                    }
+                    for (const key of Object.keys(name))
+                        apply(this, key, name[key]);
                 });
             }
             if (value === undefined) {
                 return this.elements.length > 0 ? this.elements[0].getAttribute(name) || '' : '';
             }
-            return this.each(function () {
-                this.setAttribute(name, value);
-            });
+            return this.each(function () { apply(this, name, value); });
         }
         unattr(name) {
             return this.each(function () {
@@ -742,12 +749,18 @@
             });
         }
         css(prop, value) {
+            const apply = (element, key, rawValue) => {
+                const safeValue = sanitizeStyleValue(String(rawValue));
+                if (safeValue)
+                    element.style[key] = safeValue;
+                else
+                    element.style[key] = '';
+            };
             if (typeof prop === 'object') {
                 return this.each(function () {
                     const element = this;
-                    for (const key in prop) {
-                        element.style[key] = prop[key];
-                    }
+                    for (const key of Object.keys(prop))
+                        apply(element, key, prop[key]);
                 });
             }
             if (value === undefined) {
@@ -757,10 +770,7 @@
                 }
                 return null;
             }
-            return this.each(function () {
-                const element = this;
-                element.style[prop] = value;
-            });
+            return this.each(function () { apply(this, prop, value); });
         }
         show() {
             return this.each(function () {
@@ -3052,6 +3062,7 @@
         OneKit.prototype[name] = animations[name];
     });
 
+    // HTTP/API Module
     const defaultHeaders = {
         'Content-Type': 'application/json',
         'X-Requested-With': 'XMLHttpRequest'
@@ -4361,8 +4372,6 @@ ${bodyContent}
     }
     class StreamingRenderer {
         context;
-        chunks = [];
-        isComplete = false;
         constructor(context = {}) {
             this.context = context;
         }
@@ -4410,7 +4419,6 @@ ${bodyContent}
                 }
                 await writer.close();
                 markComplete();
-                this.isComplete = true;
             }
             catch (error) {
                 await abortStream(error);
@@ -4600,10 +4608,8 @@ ${bodyContent}
     };
     class OneKitWebComponent extends HTMLElementBase {
         componentInstance = null;
-        componentDef;
-        constructor(componentDef, options = {}) {
+        constructor(componentDef, _options = {}) {
             super();
-            this.componentDef = componentDef;
             // Create shadow DOM
             const shadow = this.attachShadow({ mode: 'open' });
             // Register component if it has a name
@@ -4625,7 +4631,7 @@ ${bodyContent}
                 destroy(this.componentInstance);
             }
         }
-        attributeChangedCallback(name, oldValue, newValue) {
+        attributeChangedCallback(name, _oldValue, newValue) {
             if (this.componentInstance && this.componentInstance.props) {
                 // Update component props when attributes change
                 this.componentInstance.props[name] = newValue;
@@ -4665,7 +4671,8 @@ ${bodyContent}
     // OKJS - OneKit JavaScript Template Syntax Module
     // OKJS template parser - custom syntax: [tag attr="value"]content[/tag]
     function okjs(template, ...values) {
-        const parsed = parseOKJSTemplate(template.raw[0]);
+        const source = template.raw.reduce((output, chunk, index) => output + chunk + (index < values.length ? String(values[index] ?? '') : ''), '');
+        const parsed = parseOKJSTemplate(source);
         return createVNodeFromOKJS(parsed);
     }
     // Parse OKJS template string into AST-like structure
@@ -4675,7 +4682,7 @@ ${bodyContent}
         const selfClosingRegex = /\[(\w+)(?:\s+([^\/\]]*?))?\s*\/\]/g;
         let result = { tag: 'div', props: {}, children: [] };
         // Handle self-closing tags
-        template = template.replace(selfClosingRegex, (match, tag, attrs) => {
+        template = template.replace(selfClosingRegex, (_match, tag, attrs) => {
             const props = parseAttributes(attrs || '');
             const element = { tag, props, children: [] };
             result.children.push(element);

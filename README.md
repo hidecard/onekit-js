@@ -860,7 +860,7 @@ OneKit's CI build keeps Node 18 portable by skipping incompatible terser minific
 | [Changelog](CHANGELOG.md) | Release history and maintenance notes. |
 | [Counter example](examples/counter) | Minimal reactive application. |
 | [Todo example](examples/todo) | Store-backed application. |
-| [V3.1.13 Release](https://github.com/hidecard/onekit-js/releases/tag/v3.1.13) | Current GitHub release. |
+| [V3.1.16 Release](https://github.com/hidecard/onekit-js/releases/tag/v3.1.16) | Current GitHub release. |
 
 ## License
 
