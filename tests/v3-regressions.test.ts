@@ -1,4 +1,4 @@
-import { create, defineComponent, defineStore, nextTick, register, renderToString } from '../src/index';
+import { create, defineComponent, defineStore, mount, nextTick, register, renderToString } from '../src/index';
 import { compileTemplate } from '../src/modules/template';
 import { reactive } from '../src/modules/reactive';
 
@@ -12,6 +12,30 @@ describe('V3 regression coverage', () => {
     const instance = create('regression-card', { title: 'Working' });
     expect(instance?.props.title).toBe('Working');
     expect(instance?.element).not.toBeNull();
+  });
+
+  it('replaces the component root instead of nesting a duplicate on update', () => {
+    register('single-root-card', {
+      data: () => ({ count: 0 }),
+      methods: {
+        increment(this: any) {
+          this.state.count += 1;
+          this.update();
+        },
+      },
+      template: '<article><button ok-on.click="increment()">{{count}}</button></article>',
+    });
+
+    const target = document.createElement('div');
+    document.body.appendChild(target);
+    const instance = create('single-root-card');
+    expect(instance).not.toBeNull();
+    mount(instance!, target);
+    (target.querySelector('button') as HTMLButtonElement).click();
+
+    expect(target.children).toHaveLength(1);
+    expect(target.querySelector('button')?.textContent).toBe('1');
+    target.remove();
   });
 
   it('creates a store without duplicate export conflicts', () => {

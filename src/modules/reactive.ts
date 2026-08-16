@@ -88,6 +88,10 @@ function track(target: object, key: string | symbol) {
   }
 }
 
+function isArrayIndex(key: string | symbol): boolean {
+  return typeof key === 'string' && /^(0|[1-9]\d*)$/.test(key);
+}
+
 function trigger(target: object, key: string | symbol, oldValue?: unknown, newValue?: unknown) {
   emitDevToolsEvent({
     type: 'reactive:trigger',
@@ -99,10 +103,26 @@ function trigger(target: object, key: string | symbol, oldValue?: unknown, newVa
   const depsMap = targetMap.get(target);
   if (!depsMap) return;
 
-  const dep = depsMap.get(key);
-  if (!dep) return;
+  const effectsToRun = new Set<EffectFn>();
+  depsMap.get(key)?.forEach(effect => effectsToRun.add(effect));
 
-  const effectsToRun = new Set(dep);
+  // Array index additions change length, while shortening an array invalidates
+  // effects that read removed indexes. The implicit length write performed by
+  // push/splice is not consistently observable through a Proxy set trap.
+  if (Array.isArray(target)) {
+    if (isArrayIndex(key) && Number(key) >= (target as unknown[]).length - 1) {
+      depsMap.get('length')?.forEach(effect => effectsToRun.add(effect));
+    }
+    if (key === 'length' && typeof newValue === 'number') {
+      depsMap.forEach((effects, depKey) => {
+        if (isArrayIndex(depKey) && Number(depKey) >= newValue) {
+          effects.forEach(effect => effectsToRun.add(effect));
+        }
+      });
+    }
+  }
+
+  if (effectsToRun.size === 0) return;
   effectsToRun.forEach(effect => {
     if (effect.options?.scheduler) {
       effect.options.scheduler(effect);
@@ -298,13 +318,23 @@ export function watch(
   };
 }
 
-function traverse(value: unknown, deep: boolean = false): unknown {
-  if (!deep || typeof value !== 'object' || value === null) {
+function traverse(value: unknown, deep: boolean = false, seen = new Set<object>()): unknown {
+  if (!deep || typeof value !== 'object' || value === null || seen.has(value)) {
     return value;
   }
 
-  for (const key in value as object) {
-    traverse((value as any)[key], deep);
+  seen.add(value);
+  if (Array.isArray(value)) {
+    const array = value as unknown[];
+    // Read length explicitly so deep watchers observe push/pop/splice even
+    // when the mutation adds an index that did not exist during registration.
+    for (let index = 0; index < array.length; index += 1) {
+      traverse(array[index], true, seen);
+    }
+  } else {
+    for (const key of Object.keys(value as object)) {
+      traverse((value as Record<string, unknown>)[key], true, seen);
+    }
   }
 
   return value;

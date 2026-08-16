@@ -22,12 +22,27 @@ export interface OneKitVitePlugin {
   resolveId?: (source: string, importer?: string) => string | undefined;
   load?: (id: string) => { code: string; map: null } | undefined;
   transform?: (code: string, id: string) => { code: string; map: null } | undefined;
+  configResolved?: (config: { root: string }) => void;
   handleHotUpdate?: (context: { file: string; modules: unknown[]; server: { ws: { send: (message: unknown) => void } } }) => unknown[];
 }
 
 import { readFileSync } from 'node:fs';
 import { dirname, resolve as resolvePath } from 'node:path';
+import * as typescript from 'typescript';
 import { compileOkjs } from './okjs';
+
+function compileOkjsForVite(source: string, id: string): { code: string; map: null } {
+  const compiled = compileOkjs(source, id);
+  const transpiled = typescript.transpileModule(compiled.code, {
+    compilerOptions: {
+      module: typescript.ModuleKind.ESNext,
+      target: typescript.ScriptTarget.ES2020,
+      sourceMap: false,
+    },
+    fileName: id,
+  });
+  return { code: transpiled.outputText, map: null };
+}
 
 export interface OneKitHMRDisposable {
   dispose?: () => void;
@@ -42,24 +57,28 @@ export interface OneKitHMRDisposable {
 export function oneKitVitePlugin(options: OneKitVitePluginOptions = {}): OneKitVitePlugin {
   const include = options.include ?? /\.(ts|tsx|js|jsx|vue|okjs|html)$/;
   const exclude = options.exclude ?? /node_modules/;
+  let projectRoot = process.cwd();
   const isOkjs = (id: string) => id.split('?')[0].endsWith('.okjs') && !exclude.test(id);
   return {
     name: 'onekit-v3-hmr',
     enforce: 'pre',
+    configResolved(config) {
+      projectRoot = config.root;
+    },
     resolveId(source, importer) {
       if (!isOkjs(source)) return undefined;
       const cleanSource = source.split('?')[0];
-      if (cleanSource.startsWith('/') && !cleanSource.startsWith('//')) return resolvePath(process.cwd(), `.${cleanSource}`);
+      if (cleanSource.startsWith('/') && !cleanSource.startsWith('//')) return resolvePath(projectRoot, `.${cleanSource}`);
       if (cleanSource.startsWith('.') && importer) return resolvePath(dirname(importer.split('?')[0]), cleanSource);
       return undefined;
     },
     load(id) {
       if (!isOkjs(id)) return undefined;
-      return compileOkjs(readFileSync(id.split('?')[0], 'utf8'), id);
+      return compileOkjsForVite(readFileSync(id.split('?')[0], 'utf8'), id);
     },
     transform(code, id) {
       if (!isOkjs(id) || code.includes('const __okjsComponent = __okjsDefineComponent')) return undefined;
-      return compileOkjs(code, id);
+      return compileOkjsForVite(code, id);
     },
     handleHotUpdate({ file, modules, server }) {
       if (!include.test(file) || exclude.test(file)) return modules;

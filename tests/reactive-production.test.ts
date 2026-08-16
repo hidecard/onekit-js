@@ -48,6 +48,32 @@ describe('M1 reactive production contract', () => {
     expect(seen).toEqual([4, 12]);
   });
 
+  it('reacts to array length changes and removed indexes', () => {
+    const state = reactive({ items: [1, 2] });
+    const seen: string[] = [];
+    effect(() => {
+      seen.push(`${state.items.length}:${state.items[1] ?? 'missing'}`);
+    });
+
+    state.items.push(3);
+    state.items.length = 1;
+
+    expect(seen).toEqual(['2:2', '3:2', '1:missing']);
+  });
+
+  it('deep-watches array additions and nested mutations', () => {
+    const state = reactive({ items: [{ label: 'A' }] });
+    const changes: string[] = [];
+    const stopWatch = watch(state.items, () => changes.push(state.items.map(item => item.label).join(',')));
+
+    state.items.push({ label: 'B' });
+    state.items[1].label = 'C';
+    stopWatch();
+    state.items.push({ label: 'D' });
+
+    expect(changes).toEqual(['A,B', 'A,C']);
+  });
+
   it('watches nested object changes by default', () => {
     const state = reactive({ profile: { name: 'A' } });
     const changes: string[] = [];

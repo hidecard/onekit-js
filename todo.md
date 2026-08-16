@@ -28,7 +28,10 @@
 ## M1-M3 implementation
 
 - [ ] Define M1 reactive contract: effect cleanup, stoppable watchers, cleanup callbacks, deep watch, arrays, computed chains, batching, and scheduler semantics.
+  - [x] Implement and test proxy identity, conditional dependency cleanup, stoppable effects, computed chains, batching, array length/index invalidation, and deep array watch.
+  - [ ] Specify cleanup callbacks and the complete scheduler contract.
 - [ ] Add M1 regression tests for conditional dependencies, nested proxy identity, arrays, computed values, batch flushing, and stop behavior.
+  - [x] Added deterministic regression coverage for all listed items, including array additions and removed indexes.
 - [ ] Implement M2 Router 1.0 factory API with dynamic params, query parsing, history/hash navigation, guards, async loaders, 404 handling, and unsubscribe lifecycle.
 - [ ] Add M2 router tests for matching, params, navigation, guards, loaders, redirects, and browser history behavior.
 - [ ] Implement M3 renderer improvements for keyed reconciliation, fragments, props/events, refs, component lifecycle, and event cleanup.
@@ -39,10 +42,11 @@
 
 - [x] Run type-check, all Jest suites, production build, npm pack dry-run, isolated package verification, and clean git status checks.
 - [ ] Exercise reactive edge cases including arrays, computed invalidation, conditional dependencies, watch disposal, and batching.
+  - [x] Exercised arrays, computed invalidation, conditional dependencies, watch disposal, and batching in the M1 regression suite.
 - [ ] Exercise router edge cases including query/hash parsing, dynamic params, redirects, guards, loaders, memory mode, and browser-safe SSR behavior.
 - [ ] Exercise renderer edge cases including keyed reordering, fragments, event replacement, props removal, refs, and empty children.
 - [ ] Exercise SSR, CLI, and representative examples for runtime or packaging failures.
-- [ ] Fix confirmed defects and add regression coverage.
+- [x] Fix confirmed defects and add regression coverage for the confirmed OKJS duplicate-root, Vite TypeScript-transpile, root-resolution, and reactive-array defects.
 - [ ] Re-run all validation and record remaining non-blocking risks.
 
 ## Published package verification and next milestone

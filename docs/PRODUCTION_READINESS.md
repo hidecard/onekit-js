@@ -10,7 +10,7 @@ OneKit JS V3 is a usable compact browser framework and a credible foundation for
 
 | Area | Current state | Production assessment |
 |---|---|---|
-| Reactive state | Proxy-based `reactive`, `effect`, `computed`, `watch`, `batch`, and `nextTick` | Foundation is usable; dependency cleanup, cancellation, deep watch semantics, and scheduler behavior need a formal contract. |
+| Reactive state | Proxy-based `reactive`, `effect`, `computed`, `watch`, `batch`, and `nextTick` | Foundation is usable; deterministic tests now cover dependency cleanup, stoppable effects, computed chains, batching, array length/index changes, and deep array watch. Cleanup callbacks and a fully formal scheduler contract remain. |
 | Components | Options-style components, templates, lifecycle hooks, mount/unmount | Suitable for demos and small apps; update diffing, event listener ownership, prop updates, and composition APIs need hardening. |
 | VDOM/JSX | Basic VDOM and JSX helpers exist | Needs broader reconciliation, keyed lists, fragments, refs, controlled inputs, and hydration parity tests. |
 | SSR | String rendering, streaming utilities, request-scoped context, hydration helpers, metadata helpers | M4 baseline complete: escaping, nested context propagation, metadata safety, hydration mismatch diagnostics, listener disposal, and boundary primitives are tested. Streaming abort/error semantics and async scheduling remain future work. |
@@ -28,7 +28,7 @@ Every exported API needs a documented signature, return value, lifecycle rule, e
 
 ### 2. Harden reactivity
 
-The reactive engine needs deterministic effect cleanup, a documented scheduler, stoppable watchers, cleanup callbacks, deep traversal rules, array mutation coverage, and protection against stale dependencies. The current V3 work now adds proxy identity caching and dependency cleanup for reruns, plus an explicit `stop` helper. These changes must be followed by tests for conditional dependencies, nested objects, arrays, computed chains, batching, and stopped effects.
+The reactive engine needs deterministic effect cleanup, a documented scheduler, stoppable watchers, cleanup callbacks, deep traversal rules, array mutation coverage, and protection against stale dependencies. The current V3 work adds proxy identity caching, dependency cleanup for reruns, an explicit `stop` helper, array length/index invalidation, and deep-watch coverage for array additions and nested mutations. Cleanup callbacks and a fully formal scheduler contract remain follow-up work.
 
 ### 3. Replace the minimal router with an application router
 

@@ -274,13 +274,21 @@ export function create(name: string, props: ComponentProps = {}, slots: { [key: 
         const sanitized = sanitizeHTML(html);
         const newElement = document.createElement('div');
         newElement.innerHTML = sanitized;
-        if (this.element.firstChild) {
-          this.element.replaceChild(newElement.firstChild!, this.element.firstChild);
-        } else {
-          this.element.appendChild(newElement.firstChild!);
+        const nextElement = newElement.firstElementChild;
+        if (nextElement) {
+          const previousElement = this.element;
+          const parent = previousElement.parentNode;
+          if (parent) {
+            parent.replaceChild(nextElement, previousElement);
+            componentInstances.delete(previousElement);
+            componentInstances.set(nextElement, this);
+            this.element = nextElement;
+          } else {
+            previousElement.replaceChildren(...Array.from(nextElement.childNodes));
+          }
         }
-
         // Re-attach event listeners after update
+
         if (definition.methods && this.element) {
           Object.keys(definition.methods).forEach(method => {
           const events = this.element!.querySelectorAll(`[data-on-${method}]`);

@@ -1259,6 +1259,9 @@ function track(target, key) {
         recordDevToolsDependency(getDevToolsEffectId(activeEffect), getDevToolsTargetId(target), String(key));
     }
 }
+function isArrayIndex(key) {
+    return typeof key === 'string' && /^(0|[1-9]\d*)$/.test(key);
+}
 function trigger(target, key, oldValue, newValue) {
     emitDevToolsEvent({
         type: 'reactive:trigger',
@@ -1270,10 +1273,25 @@ function trigger(target, key, oldValue, newValue) {
     const depsMap = targetMap.get(target);
     if (!depsMap)
         return;
-    const dep = depsMap.get(key);
-    if (!dep)
+    const effectsToRun = new Set();
+    depsMap.get(key)?.forEach(effect => effectsToRun.add(effect));
+    // Array index additions change length, while shortening an array invalidates
+    // effects that read removed indexes. The implicit length write performed by
+    // push/splice is not consistently observable through a Proxy set trap.
+    if (Array.isArray(target)) {
+        if (isArrayIndex(key) && Number(key) >= target.length - 1) {
+            depsMap.get('length')?.forEach(effect => effectsToRun.add(effect));
+        }
+        if (key === 'length' && typeof newValue === 'number') {
+            depsMap.forEach((effects, depKey) => {
+                if (isArrayIndex(depKey) && Number(depKey) >= newValue) {
+                    effects.forEach(effect => effectsToRun.add(effect));
+                }
+            });
+        }
+    }
+    if (effectsToRun.size === 0)
         return;
-    const effectsToRun = new Set(dep);
     effectsToRun.forEach(effect => {
         if (effect.options?.scheduler) {
             effect.options.scheduler(effect);
@@ -1449,12 +1467,23 @@ function watch(source, callback, options = {}) {
         stop(runner);
     };
 }
-function traverse(value, deep = false) {
-    if (!deep || typeof value !== 'object' || value === null) {
+function traverse(value, deep = false, seen = new Set()) {
+    if (!deep || typeof value !== 'object' || value === null || seen.has(value)) {
         return value;
     }
-    for (const key in value) {
-        traverse(value[key], deep);
+    seen.add(value);
+    if (Array.isArray(value)) {
+        const array = value;
+        // Read length explicitly so deep watchers observe push/pop/splice even
+        // when the mutation adds an index that did not exist during registration.
+        for (let index = 0; index < array.length; index += 1) {
+            traverse(array[index], true, seen);
+        }
+    }
+    else {
+        for (const key of Object.keys(value)) {
+            traverse(value[key], true, seen);
+        }
     }
     return value;
 }
@@ -2316,11 +2345,19 @@ function create(name, props = {}, slots = {}) {
                 const sanitized = sanitizeHTML(html);
                 const newElement = document.createElement('div');
                 newElement.innerHTML = sanitized;
-                if (this.element.firstChild) {
-                    this.element.replaceChild(newElement.firstChild, this.element.firstChild);
-                }
-                else {
-                    this.element.appendChild(newElement.firstChild);
+                const nextElement = newElement.firstElementChild;
+                if (nextElement) {
+                    const previousElement = this.element;
+                    const parent = previousElement.parentNode;
+                    if (parent) {
+                        parent.replaceChild(nextElement, previousElement);
+                        componentInstances.delete(previousElement);
+                        componentInstances.set(nextElement, this);
+                        this.element = nextElement;
+                    }
+                    else {
+                        previousElement.replaceChildren(...Array.from(nextElement.childNodes));
+                    }
                 }
                 // Re-attach event listeners after update
                 if (definition.methods && this.element) {
