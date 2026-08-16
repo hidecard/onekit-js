@@ -361,7 +361,18 @@
 - [x] Add application productivity primitives for query caching/invalidation and validated forms.
   - [x] Published as `onekit-js/query` and `onekit-js/forms` with deduplication, stale-time, invalidation, validation, submit, reset, and subscription coverage.
 - [ ] Add typed nested router layouts, lazy routes, and scroll restoration where compatible with the current router contract.
-  - [x] Added `router.prefetch(path)` with guard/loader resolution and no history/current/listener mutation; nested typed layouts, lazy routes, and scroll restoration remain follow-up work.
+  - [x] Added typed lazy route resolution, matched params/query context, route-level scroll behavior, and retained non-committing prefetch semantics; nested typed layouts remain follow-up work.
 - [ ] Improve template/JSX TypeScript ergonomics, accessibility helpers, and DevTools inspection/profiling APIs.
+  - [x] Hardened `trapFocus` for empty containers and focus restoration with regression coverage; template typing and browser profiler remain follow-up work.
 - [x] Update official examples, documentation, release notes, validation matrix, and push the verified parity milestone to `origin/V3`.
   - [x] Updated V3 usage and production-readiness docs, CHANGELOG 3.1.16, package exports, and focused/full validation records; latest full run reached 22 suites / 107 tests.
+
+## Remaining Parity Increment
+
+- [x] Audit typed router, lazy route, scroll restoration, TypeScript ergonomics, accessibility helpers, and DevTools profiling gaps.
+- [x] Implement typed route metadata, lazy route loading, prefetch integration, and scroll restoration without breaking existing navigation semantics.
+- [ ] Improve TypeScript ergonomics and add focused accessibility primitives with regression coverage.
+  - [x] Added and tested production-safe focus trapping; stronger template/JSX type inference remains open.
+- [ ] Extend DevTools inspection/profiling contracts with safe lifecycle behavior and tests.
+- [x] Run the complete validation matrix, update docs/changelog, and push the verified increment to `origin/V3`.
+  - [x] 23 Jest suites / 112 tests passed; type-check, strict unused check, build, package verification, and `git diff --check` passed.

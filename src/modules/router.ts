@@ -23,10 +23,13 @@ export interface RouteContext {
 export type NavigationResult = void | boolean | string | RouteLocation;
 export type RouteGuard = (context: RouteContext) => NavigationResult | Promise<NavigationResult>;
 export type RouteLoader = (context: RouteContext) => unknown | Promise<unknown>;
+export type RouteComponentLoader = () => unknown | Promise<unknown>;
+export type ScrollBehavior = (to: RouteLocation, from: RouteLocation | null) => void | Promise<void>;
 
 export interface Route {
   path: string;
-  component?: any;
+  component?: unknown;
+  lazy?: RouteComponentLoader;
   handler?: (context?: RouteContext) => void | Promise<void>;
   beforeEnter?: RouteGuard;
   loader?: RouteLoader;
@@ -47,6 +50,7 @@ export interface RouterOptions {
   notFound?: Route;
   beforeEach?: RouteGuard;
   afterEach?: (context: RouteContext & { matched: MatchedRoute | null }) => void;
+  scrollBehavior?: ScrollBehavior;
   errorBoundary?: ErrorBoundary<unknown>;
 }
 
@@ -186,6 +190,7 @@ export class Router {
     if (globalGuard === false || typeof globalGuard === 'string') return null;
     const routeGuard = await this.runGuard(route.beforeEnter, context);
     if (routeGuard === false || typeof routeGuard === 'string') return null;
+    await this.ensureLazyComponent(route);
     const result: MatchedRoute = matched ?? { route, location: to };
     if (route.loader) {
       result.data = this.options.errorBoundary
@@ -201,8 +206,9 @@ export class Router {
   async resolve(input: string, push = false): Promise<MatchedRoute | null> {
     const navigationToken = ++this.navigationToken;
     const isCurrentNavigation = () => navigationToken === this.navigationToken;
-    const to = parseLocation(this.removeBase(input));
-    const matched = this.match(to);
+    const requested = parseLocation(this.removeBase(input));
+    const matched = this.match(requested);
+    const to = matched?.location ?? requested;
     const from = this.current;
     const context: RouteContext = { to, from };
     emitDevToolsEvent({ type: 'router:navigation', phase: 'start', to: to.fullPath, from: from?.fullPath ?? null });
@@ -232,6 +238,7 @@ export class Router {
       emitDevToolsEvent({ type: 'router:navigation', phase: 'cancel', to: to.fullPath, from: from?.fullPath ?? null, route: route.path });
       return this.resolve(routeGuard, true);
     }
+    await this.ensureLazyComponent(route);
     const result: MatchedRoute = matched ?? { route, location: to };
     if (route.loader) {
       try {
@@ -261,6 +268,7 @@ export class Router {
     if (push) this.commit(to);
     this.current = to;
     if (route.handler) await route.handler({ ...context, to });
+    await this.options.scrollBehavior?.(to, from);
     this.notify(to, from);
     this.options.afterEach?.({ ...context, matched: result });
     emitDevToolsEvent({ type: 'router:navigation', phase: 'success', to: to.fullPath, from: from?.fullPath ?? null, route: route.path });
@@ -294,6 +302,14 @@ export class Router {
 
   private async runGuard(guard: RouteGuard | undefined, context: RouteContext): Promise<NavigationResult> {
     return guard ? guard(context) : undefined;
+  }
+
+  private async ensureLazyComponent(route: Route): Promise<void> {
+    if (!route.lazy || route.component !== undefined) return;
+    const loaded = await route.lazy();
+    route.component = loaded && typeof loaded === 'object' && 'default' in loaded
+      ? (loaded as { default: unknown }).default
+      : loaded;
   }
 
   private notify(to: RouteLocation, from: RouteLocation | null): void {

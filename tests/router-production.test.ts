@@ -17,6 +17,30 @@ describe('M2 router production contract', () => {
     expect(router.getCurrentPath()).toBe('/');
     expect(listener).not.toHaveBeenCalled();
   });
+  it('loads lazy components once and preserves matched params in loader context', async () => {
+    const lazy = jest.fn(async () => ({ default: 'DocsPage' }));
+    const router = createRouter([{
+      path: '/docs/:id',
+      lazy,
+      loader: ({ to }) => ({ id: to.params.id }),
+    }], { mode: 'memory' });
+
+    const first = await router.navigate('/docs/7');
+    const second = await router.navigate('/docs/8');
+
+    expect(first?.route.component).toBe('DocsPage');
+    expect(first?.data).toEqual({ id: '7' });
+    expect(second?.data).toEqual({ id: '8' });
+    expect(lazy).toHaveBeenCalledTimes(1);
+  });
+
+  it('runs scroll behavior after a successful navigation', async () => {
+    const scroll = jest.fn();
+    const router = createRouter([{ path: '/next' }], { mode: 'memory', scrollBehavior: scroll });
+    await router.navigate('/next');
+    expect(scroll).toHaveBeenCalledWith(expect.objectContaining({ path: '/next' }), null);
+  });
+
   it('matches dynamic params and query values', async () => {
     const router = createRouter([{ path: '/users/:id' }], { mode: 'memory' });
     const result = await router.navigate('/users/42?tab=posts&tag=a&tag=b');

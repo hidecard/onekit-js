@@ -210,3 +210,6 @@ When contributing to OneKit, please:
 - `Removed` for now removed features
 - `Fixed` for any bug fixes
 - `Security` for vulnerability fixes
+
+- Add typed lazy route component resolution, matched params/query context, and route-level scroll behavior callbacks.
+- Harden `trapFocus` for empty containers and restore the previously focused element when released.

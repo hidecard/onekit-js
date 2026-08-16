@@ -686,3 +686,11 @@ await form.submit(values => saveUser(values));
 ```
 
 Hydration compares meaningful whitespace, case-insensitive attribute names, boolean properties, object styles, fragments, and nested component output without mutating server DOM. Mismatches remain observable through the returned `mismatches` array, and event listeners are removed by `dispose()`.
+
+## 7.1 Advanced router and accessibility contracts
+
+Routes may provide a typed `lazy` component loader. OneKit resolves the loader once before committing navigation and unwraps an ES module `default` export when present. `router.prefetch(path)` resolves guards, lazy components, and loader data without changing the current route, browser history, handlers, or subscribers.
+
+The router passes the matched location, including decoded params and query values, to guards, loaders, and handlers. Applications can provide `scrollBehavior(to, from)` in router options to restore or reposition scroll state after a successful navigation.
+
+`trapFocus(container)` safely handles empty containers and returns a cleanup function that removes the keyboard handler and restores the element that was focused before the trap was activated. This makes modal and drawer lifecycles safer for keyboard and assistive-technology users.

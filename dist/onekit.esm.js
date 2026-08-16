@@ -3349,6 +3349,7 @@ class Router {
         const routeGuard = await this.runGuard(route.beforeEnter, context);
         if (routeGuard === false || typeof routeGuard === 'string')
             return null;
+        await this.ensureLazyComponent(route);
         const result = matched ?? { route, location: to };
         if (route.loader) {
             result.data = this.options.errorBoundary
@@ -3364,8 +3365,9 @@ class Router {
     async resolve(input, push = false) {
         const navigationToken = ++this.navigationToken;
         const isCurrentNavigation = () => navigationToken === this.navigationToken;
-        const to = parseLocation(this.removeBase(input));
-        const matched = this.match(to);
+        const requested = parseLocation(this.removeBase(input));
+        const matched = this.match(requested);
+        const to = matched?.location ?? requested;
         const from = this.current;
         const context = { to, from };
         emitDevToolsEvent({ type: 'router:navigation', phase: 'start', to: to.fullPath, from: from?.fullPath ?? null });
@@ -3397,6 +3399,7 @@ class Router {
             emitDevToolsEvent({ type: 'router:navigation', phase: 'cancel', to: to.fullPath, from: from?.fullPath ?? null, route: route.path });
             return this.resolve(routeGuard, true);
         }
+        await this.ensureLazyComponent(route);
         const result = matched ?? { route, location: to };
         if (route.loader) {
             try {
@@ -3432,6 +3435,7 @@ class Router {
         this.current = to;
         if (route.handler)
             await route.handler({ ...context, to });
+        await this.options.scrollBehavior?.(to, from);
         this.notify(to, from);
         this.options.afterEach?.({ ...context, matched: result });
         emitDevToolsEvent({ type: 'router:navigation', phase: 'success', to: to.fullPath, from: from?.fullPath ?? null, route: route.path });
@@ -3464,6 +3468,14 @@ class Router {
     }
     async runGuard(guard, context) {
         return guard ? guard(context) : undefined;
+    }
+    async ensureLazyComponent(route) {
+        if (!route.lazy || route.component !== undefined)
+            return;
+        const loaded = await route.lazy();
+        route.component = loaded && typeof loaded === 'object' && 'default' in loaded
+            ? loaded.default
+            : loaded;
     }
     notify(to, from) {
         this.listeners.forEach(listener => listener(to, from));
@@ -3774,18 +3786,24 @@ function trapFocus(container) {
         const focusableElements = container.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
         const firstElement = focusableElements[0];
         const lastElement = focusableElements[focusableElements.length - 1];
+        const previouslyFocused = document.activeElement;
+        if (!firstElement || !lastElement) {
+            return () => previouslyFocused?.focus();
+        }
+        const firstFocusable = firstElement;
+        const lastFocusable = lastElement;
         function handleKeyDown(e) {
             if (e.key === 'Tab') {
                 if (e.shiftKey) {
-                    if (document.activeElement === firstElement) {
+                    if (document.activeElement === firstFocusable) {
                         e.preventDefault();
-                        lastElement.focus();
+                        lastFocusable.focus();
                     }
                 }
                 else {
-                    if (document.activeElement === lastElement) {
+                    if (document.activeElement === lastFocusable) {
                         e.preventDefault();
-                        firstElement.focus();
+                        firstFocusable.focus();
                     }
                 }
             }
@@ -3793,11 +3811,12 @@ function trapFocus(container) {
         container.addEventListener('keydown', handleKeyDown);
         // Focus first element
         if (firstElement) {
-            firstElement.focus();
+            firstFocusable.focus();
         }
         // Return cleanup function
         return () => {
             container.removeEventListener('keydown', handleKeyDown);
+            previouslyFocused?.focus();
         };
     }
     catch (error) {

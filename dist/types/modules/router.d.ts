@@ -15,9 +15,12 @@ export interface RouteContext {
 export type NavigationResult = void | boolean | string | RouteLocation;
 export type RouteGuard = (context: RouteContext) => NavigationResult | Promise<NavigationResult>;
 export type RouteLoader = (context: RouteContext) => unknown | Promise<unknown>;
+export type RouteComponentLoader = () => unknown | Promise<unknown>;
+export type ScrollBehavior = (to: RouteLocation, from: RouteLocation | null) => void | Promise<void>;
 export interface Route {
     path: string;
-    component?: any;
+    component?: unknown;
+    lazy?: RouteComponentLoader;
     handler?: (context?: RouteContext) => void | Promise<void>;
     beforeEnter?: RouteGuard;
     loader?: RouteLoader;
@@ -38,6 +41,7 @@ export interface RouterOptions {
     afterEach?: (context: RouteContext & {
         matched: MatchedRoute | null;
     }) => void;
+    scrollBehavior?: ScrollBehavior;
     errorBoundary?: ErrorBoundary<unknown>;
 }
 type Listener = (to: RouteLocation, from: RouteLocation | null) => void;
@@ -66,6 +70,7 @@ export declare class Router {
     resolve(input: string, push?: boolean): Promise<MatchedRoute | null>;
     private match;
     private runGuard;
+    private ensureLazyComponent;
     private notify;
     private applyBase;
     private removeBase;

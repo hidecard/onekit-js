@@ -84,20 +84,27 @@ export function trapFocus(container: Element): () => void {
       'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
     );
 
-    const firstElement = focusableElements[0] as HTMLElement;
-    const lastElement = focusableElements[focusableElements.length - 1] as HTMLElement;
+    const firstElement = focusableElements[0] as HTMLElement | undefined;
+    const lastElement = focusableElements[focusableElements.length - 1] as HTMLElement | undefined;
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+
+    if (!firstElement || !lastElement) {
+      return () => previouslyFocused?.focus();
+    }
+    const firstFocusable = firstElement;
+    const lastFocusable = lastElement;
 
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === 'Tab') {
         if (e.shiftKey) {
-          if (document.activeElement === firstElement) {
+          if (document.activeElement === firstFocusable) {
             e.preventDefault();
-            lastElement.focus();
+            lastFocusable.focus();
           }
         } else {
-          if (document.activeElement === lastElement) {
+          if (document.activeElement === lastFocusable) {
             e.preventDefault();
-            firstElement.focus();
+            firstFocusable.focus();
           }
         }
       }
@@ -107,12 +114,13 @@ export function trapFocus(container: Element): () => void {
 
     // Focus first element
     if (firstElement) {
-      firstElement.focus();
+      firstFocusable.focus();
     }
 
     // Return cleanup function
     return () => {
       container.removeEventListener('keydown', handleKeyDown as EventListener);
+      previouslyFocused?.focus();
     };
   } catch (error) {
     errorHandler(error, 'trapFocus');
