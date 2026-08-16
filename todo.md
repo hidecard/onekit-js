@@ -1,5 +1,17 @@
 # OneKit JS V3 Documentation Update
 
+## Fresh CLI Generated Project End-to-End Test
+
+- [x] Generate a fresh TypeScript project with the CLI and inspect its files and creator credit.
+  - [x] Generated `/tmp/onekit-cli-e2e`; files, package metadata, footer credit, and starter README were present.
+- [x] Install dependencies and run generated tests, type-check, and production build.
+  - [x] Public npm install first returned `ETARGET` because `onekit-js@3.1.17` is not currently available in the registry; local-package installation was used to validate the current source.
+  - [x] Found and fixed a real generated-TS issue by adding `src/vite-env.d.ts` for `import.meta.hot`; generated test, type-check, and Vite production build then passed.
+- [x] Run the generated dev server and verify the starter UI, credit, and counter interaction.
+  - [x] Browser rendered the starter page; credit was visible; counter moved `0 → 1`, step changed to `3`, and increment moved `1 → 4`.
+- [x] Clean up the temporary project and record the end-to-end test result.
+  - [x] Temporary project and dev server cleaned up after verification.
+
 ## CLI Starter Credit and UX Polish
 
 - [x] Inspect the `onekit create` generated templates, metadata, and CLI regression tests.

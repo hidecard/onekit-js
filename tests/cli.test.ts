@@ -25,6 +25,7 @@ describe('OneKit CLI', () => {
       expect(await readFile(path.join(appPath, 'src', 'App.okjs'), 'utf8')).toContain('<template>');
       expect(await readFile(path.join(appPath, 'src', 'App.okjs'), 'utf8')).toContain('Developed By Arkar Yan ( H!D3_C4rD )');
       expect(await readFile(path.join(appPath, 'index.html'), 'utf8')).toContain('OneKit JS V3 starter project');
+      expect(await readFile(path.join(appPath, 'src', 'vite-env.d.ts'), 'utf8')).toContain('vite/client');
       expect(await readFile(path.join(appPath, 'README.md'), 'utf8')).toContain('Developed By Arkar Yan ( H!D3_C4rD )');
       expect(await readFile(path.join(appPath, 'vite.config.ts'), 'utf8')).toContain('oneKitVitePlugin');
     } finally {
