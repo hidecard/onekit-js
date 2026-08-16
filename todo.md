@@ -226,4 +226,5 @@
   - [x] No runtime defect was confirmed; public contracts passed focused behavior tests and TypeScript validation.
 - [x] Re-run coverage and full validation matrix, including docs/build/package/HMR checks.
   - [x] 19 suites/83 tests passed; coverage increased for targeted modules, package verification passed with 0 vulnerabilities, HMR reported `HMR_SMOKE=PASS`, docs build passed, and `git diff --check` passed.
-- [ ] Commit and push the improved V3 maintenance release to `origin/V3`.
+- [x] Commit and push the improved V3 maintenance release to `origin/V3`.
+  - [x] Pushed commit `7c369c6` to `origin/V3`; working tree was clean after the push.
