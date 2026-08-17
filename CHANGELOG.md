@@ -1,5 +1,15 @@
 # Changelog
 
+## [3.1.18] - 2026-08-17
+
+### Added
+- Add the SSR route manifest release surface through `createRouteManifest()` and `Router.getManifest()` for preload planning and hydration optimization.
+- Refresh the generated starter application with a polished Vite/React-inspired responsive workspace, live reactive counter, quick-start guidance, and feature cards.
+
+### Changed
+- Update the generated starter dependency to `onekit-js@^3.1.18`.
+- Prepare the companion `create-onekit` package for version `1.0.8`.
+
 All notable changes to OneKit will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
@@ -23,7 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Ship the `query`, `forms`, and `testing` TypeScript declaration artifacts referenced by the package root exports.
 - Add declaration export verification to the publish validation workflow.
-- Update the README and starter CLI documentation for OneKit JS `3.1.17` and `create-onekit` `1.0.7`.
+- Update the README and starter CLI documentation for OneKit JS `3.1.18` and `create-onekit` `1.0.8`.
 
 ## [3.1.16] - 2026-08-16
 

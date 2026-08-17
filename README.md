@@ -2,14 +2,14 @@
 
 **OneKit JS V3** is a compact, TypeScript-first reactive framework for browser applications. It gives developers explicit building blocks for state, components, templates, JSX/VDOM, routing, stores, forms, data fetching, SSR/hydration, security, testing, and production tooling without forcing a large application architecture.
 
-> **Current release:** `3.1.17`
-> **Starter CLI:** `create-onekit@1.0.7`
+> **Current release:** `3.1.18`
+> **Starter CLI:** `create-onekit@1.0.8`
 > **License:** MIT
 > **Runtime:** Browser-first JavaScript and TypeScript
 
 OneKit is designed for developers who want a framework that is easy to learn but does not become restrictive as an application grows. You can begin with one reactive object and progressively adopt components, routes, stores, SSR, and typed tooling when the project needs them.
 
-[![TypeScript-first](https://img.shields.io/badge/TypeScript-first-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) [![Version](https://img.shields.io/badge/version-3.1.17-0f766e)](CHANGELOG.md)
+[![TypeScript-first](https://img.shields.io/badge/TypeScript-first-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) [![Version](https://img.shields.io/badge/version-3.1.18-0f766e)](CHANGELOG.md)
 
 ## Documentation navigation
 
@@ -53,10 +53,10 @@ V3 keeps these capabilities composable. An application can use only the reactive
 
 ### Option A: create a new project
 
-The current starter generator is version `1.0.7`:
+The current starter generator is version `1.0.8`:
 
 ```bash
-npm create onekit@1.0.7 my-app
+npm create onekit@1.0.8 my-app
 cd my-app
 npm install
 npm run dev
@@ -65,7 +65,7 @@ npm run dev
 You can also use the standalone package name:
 
 ```bash
-npx create-onekit@1.0.7 my-app
+npx create-onekit@1.0.8 my-app
 ```
 
 Create a JavaScript starter instead of TypeScript with either form:
@@ -629,7 +629,7 @@ Push the branch and open a pull request against `V3`. A useful pull request desc
 
 ## Versioning and release notes
 
-The current framework release is **OneKit JS `3.1.17`**. The current starter CLI release documented here is **`create-onekit@1.0.7`**. The framework package and starter CLI may release independently; always check the command and package name when pinning versions.
+The current framework release is **OneKit JS `3.1.18`**. The current starter CLI release documented here is **`create-onekit@1.0.8`**. The framework package and starter CLI may release independently; always check the command and package name when pinning versions.
 
 OneKit follows semantic versioning. Additive APIs and fixes should remain compatible within a major version. Breaking changes require migration notes, updated examples, regression coverage, and an explicit changelog entry.
 
