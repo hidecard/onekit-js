@@ -12,6 +12,15 @@ export interface QueryOptions<T> {
   initialData?: T;
 }
 
+export interface DehydratedQuery {
+  key: string;
+  state: QueryState<unknown>;
+}
+
+export interface DehydratedQueryState {
+  queries: readonly DehydratedQuery[];
+}
+
 function normalizeKey(key: QueryKey): string {
   return typeof key === 'string' ? key : JSON.stringify(key);
 }
@@ -96,6 +105,32 @@ export class QueryClient {
 
   clear(): void {
     this.records.clear();
+  }
+
+  /** Export settled query states for a trusted SSR-to-client handoff. */
+  dehydrate(): DehydratedQueryState {
+    return {
+      queries: Array.from(this.records.entries())
+        .filter(([, record]) => record.state.status === 'success' || record.state.status === 'error')
+        .map(([key, record]) => ({ key, state: { ...record.state } })),
+    };
+  }
+
+  /** Restore dehydrated states without executing loaders or notifying listeners. */
+  hydrate(snapshot: DehydratedQueryState): void {
+    if (!snapshot || !Array.isArray(snapshot.queries)) return;
+    for (const entry of snapshot.queries) {
+      if (!entry || typeof entry.key !== 'string' || !entry.state || typeof entry.state !== 'object') continue;
+      const state = entry.state as QueryState<unknown>;
+      if (!['idle', 'pending', 'success', 'error'].includes(state.status)) continue;
+      const record = this.records.get(entry.key) ?? {
+        state: { status: 'idle', updatedAt: 0 } as QueryState<unknown>,
+        listeners: new Set<(state: QueryState<unknown>) => void>(),
+      };
+      record.state = { ...state };
+      record.promise = undefined;
+      this.records.set(entry.key, record);
+    }
   }
 
   private notify<T>(record: QueryRecord<T>): void {

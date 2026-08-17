@@ -353,6 +353,19 @@ A production SSR checklist should include:
 - Hydration tests for attributes, events, booleans, styles, fragments, and nested components.
 - Error boundaries that preserve the original error and do not allow stale async work to overwrite a newer result.
 
+For server-to-client data handoff, create one `QueryClient` per SSR request, await the route queries, call `dehydrate()`, transport the resulting snapshot through your trusted escaped serialization layer, and call `hydrate()` on a fresh browser client before mounting the app. Only settled success/error states are exported; pending promises are never serialized and hydration does not run loaders.
+
+```ts
+// server request
+const serverQueries = createQueryClient();
+await serverQueries.fetch(['dashboard', 'summary'], loadDashboard);
+const payload = JSON.stringify(serverQueries.dehydrate());
+
+// browser bootstrap
+const clientQueries = createQueryClient();
+clientQueries.hydrate(JSON.parse(payload));
+```
+
 See the [V3 Usage Guide](docs/V3_USAGE.md) for streaming examples and advanced SSR contracts.
 
 ## Metadata, SEO, and document head

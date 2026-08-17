@@ -373,6 +373,25 @@ if (hydration.mismatches.length > 0) {
 // Call hydration.dispose() when the root is removed.
 ```
 
+For SSR data handoff, use one `QueryClient` per request on the server, dehydrate only after the relevant queries settle, serialize the snapshot through the application’s trusted transport, and hydrate a fresh client-side instance before rendering interactive views:
+
+```ts
+import { createQueryClient } from 'onekit-js';
+
+// Server request scope
+const serverQueries = createQueryClient();
+await serverQueries.fetch(['dashboard', 'summary'], loadDashboard);
+const dehydrated = serverQueries.dehydrate();
+const payload = JSON.stringify(dehydrated); // escape/transport using the application’s SSR policy
+
+// Browser application scope
+const clientQueries = createQueryClient();
+clientQueries.hydrate(JSON.parse(payload));
+const summary = clientQueries.getState<DashboardSummary>(['dashboard', 'summary']);
+```
+
+`dehydrate()` exports settled `success` and `error` states only; pending requests and active loader promises are never serialized. `hydrate()` does not run loaders or notify subscribers, so it can be called before subscriptions are mounted. Use request-scoped clients and validate/escape the transport payload rather than embedding untrusted JSON directly into executable markup.
+
 For recoverable synchronous and asynchronous failures, use the framework boundary primitives:
 
 ```ts

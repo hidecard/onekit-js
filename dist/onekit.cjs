@@ -4260,6 +4260,33 @@ class QueryClient {
     clear() {
         this.records.clear();
     }
+    /** Export settled query states for a trusted SSR-to-client handoff. */
+    dehydrate() {
+        return {
+            queries: Array.from(this.records.entries())
+                .filter(([, record]) => record.state.status === 'success' || record.state.status === 'error')
+                .map(([key, record]) => ({ key, state: { ...record.state } })),
+        };
+    }
+    /** Restore dehydrated states without executing loaders or notifying listeners. */
+    hydrate(snapshot) {
+        if (!snapshot || !Array.isArray(snapshot.queries))
+            return;
+        for (const entry of snapshot.queries) {
+            if (!entry || typeof entry.key !== 'string' || !entry.state || typeof entry.state !== 'object')
+                continue;
+            const state = entry.state;
+            if (!['idle', 'pending', 'success', 'error'].includes(state.status))
+                continue;
+            const record = this.records.get(entry.key) ?? {
+                state: { status: 'idle', updatedAt: 0 },
+                listeners: new Set(),
+            };
+            record.state = { ...state };
+            record.promise = undefined;
+            this.records.set(entry.key, record);
+        }
+    }
     notify(record) {
         for (const listener of record.listeners)
             listener(record.state);

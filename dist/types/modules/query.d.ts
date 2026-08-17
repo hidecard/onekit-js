@@ -9,6 +9,13 @@ export interface QueryOptions<T> {
     staleTime?: number;
     initialData?: T;
 }
+export interface DehydratedQuery {
+    key: string;
+    state: QueryState<unknown>;
+}
+export interface DehydratedQueryState {
+    queries: readonly DehydratedQuery[];
+}
 export declare class QueryClient {
     private records;
     private record;
@@ -19,6 +26,10 @@ export declare class QueryClient {
     invalidate(key?: QueryKey): void;
     remove(key: QueryKey): void;
     clear(): void;
+    /** Export settled query states for a trusted SSR-to-client handoff. */
+    dehydrate(): DehydratedQueryState;
+    /** Restore dehydrated states without executing loaders or notifying listeners. */
+    hydrate(snapshot: DehydratedQueryState): void;
     private notify;
 }
 export declare function createQueryClient(): QueryClient;

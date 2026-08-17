@@ -19,6 +19,26 @@ describe('query production contracts', () => {
     unsubscribe();
   });
 
+  it('dehydrates settled data and hydrates it without running loaders', async () => {
+    const server = createQueryClient();
+    await server.fetch(['dashboard', 1], async () => ({ title: 'Reports' }));
+
+    const snapshot = server.dehydrate();
+    expect(snapshot.queries).toHaveLength(1);
+    expect(snapshot.queries[0].state.status).toBe('success');
+
+    const client = createQueryClient();
+    const loader = jest.fn(async () => ({ title: 'network' }));
+    client.hydrate(JSON.parse(JSON.stringify(snapshot)));
+
+    expect(client.getState<{ title: string }>(['dashboard', 1])).toMatchObject({
+      status: 'success',
+      data: { title: 'Reports' },
+    });
+    await expect(client.fetch(['dashboard', 1], loader, { staleTime: 1000 })).resolves.toEqual({ title: 'Reports' });
+    expect(loader).not.toHaveBeenCalled();
+  });
+
   it('supports stale-time, invalidation, setData, and removal', async () => {
     const client = createQueryClient();
     const loader = jest.fn(async () => 'fresh');
