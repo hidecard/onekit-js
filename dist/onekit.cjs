@@ -3248,6 +3248,29 @@ class API {
 }
 
 /* OneKit style: explicit, browser-first navigation with small composable contracts and no hidden global state in application routers. */
+function createRouteManifest(routes = []) {
+    const entries = [];
+    const visit = (items, parentPath) => {
+        for (const route of items) {
+            const path = parentPath
+                ? `${parentPath.replace(/\/$/, '')}/${route.path.replace(/^\//, '')}`
+                : route.path;
+            const entry = {
+                path: normalizePath(path),
+                ...(parentPath ? { parentPath: normalizePath(parentPath) } : {}),
+                hasLoader: typeof route.loader === 'function',
+                hasLazyComponent: typeof route.lazy === 'function',
+                ...(route.queryKey !== undefined && typeof route.queryKey !== 'function' ? { queryKey: route.queryKey } : {}),
+                ...(route.meta ? { meta: { ...route.meta } } : {}),
+            };
+            entries.push(entry);
+            if (route.children?.length)
+                visit(route.children, path);
+        }
+    };
+    visit(routes);
+    return { version: 1, routes: entries };
+}
 function normalizePath(path) {
     const withoutHash = path.split('#')[0];
     const withoutQuery = withoutHash.split('?')[0] || '/';
@@ -3334,6 +3357,8 @@ class Router {
         return true;
     }
     get routesList() { return this.routes; }
+    /** Return a serializable manifest for SSR preload links and client route planning. */
+    getManifest() { return createRouteManifest(this.routes); }
     getCurrentPath() {
         return this.current?.path ?? (this.readBrowserPath().split(/[?#]/)[0] || '/');
     }
@@ -3390,12 +3415,7 @@ class Router {
                 data.push(undefined);
                 continue;
             }
-            const load = () => record.route.loader({ ...context, to: record.location });
-            const loaded = this.options.queryClient && record.route.queryKey !== undefined
-                ? await this.options.queryClient.fetch(this.resolveQueryKey(record.route.queryKey, { ...context, to: record.location }), load, record.route.queryOptions)
-                : this.options.errorBoundary
-                    ? await this.options.errorBoundary.renderAsync(async () => await load(), 'route-prefetch')
-                    : await load();
+            const loaded = await this.loadRoute(record, context, 'route-prefetch');
             data.push(loaded);
         }
         result.dataByRoute = data;
@@ -3454,12 +3474,7 @@ class Router {
                     data.push(undefined);
                     continue;
                 }
-                const load = () => record.route.loader({ ...context, to: record.location });
-                const loaded = this.options.queryClient && record.route.queryKey !== undefined
-                    ? await this.options.queryClient.fetch(this.resolveQueryKey(record.route.queryKey, { ...context, to: record.location }), load, record.route.queryOptions)
-                    : this.options.errorBoundary
-                        ? await this.options.errorBoundary.renderAsync(async () => await load(), 'route-loader')
-                        : await load();
+                const loaded = await this.loadRoute(record, context, 'route-loader');
                 data.push(loaded);
                 if (!isCurrentNavigation())
                     return null;
@@ -3532,6 +3547,20 @@ class Router {
     }
     recordsFor(matched, route, location) {
         return matched?.matched ? [...matched.matched] : [{ route, location }];
+    }
+    async loadRoute(record, context, boundaryContext) {
+        const load = async () => {
+            const runLoader = () => record.route.loader({ ...context, to: record.location });
+            return this.options.queryClient && record.route.queryKey !== undefined
+                ? await this.options.queryClient.fetch(this.resolveQueryKey(record.route.queryKey, { ...context, to: record.location }), runLoader, record.route.queryOptions)
+                : await runLoader();
+        };
+        const guarded = this.options.errorBoundary
+            ? this.options.errorBoundary.renderAsync(load, boundaryContext)
+            : load();
+        return this.options.loadingBoundary
+            ? await this.options.loadingBoundary.run(async () => await guarded)
+            : await guarded;
     }
     resolveQueryKey(key, context) {
         return typeof key === 'function' ? key(context) : key;
@@ -5299,6 +5328,7 @@ exports.createHeadManager = createHeadManager;
 exports.createLandmarks = createLandmarks;
 exports.createLoadingBoundary = createLoadingBoundary;
 exports.createQueryClient = createQueryClient;
+exports.createRouteManifest = createRouteManifest;
 exports.createRouter = createRouter;
 exports.createSSRContext = createSSRContext;
 exports.createSkipLink = createSkipLink;

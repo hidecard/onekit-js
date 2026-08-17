@@ -3246,6 +3246,29 @@ class API {
 }
 
 /* OneKit style: explicit, browser-first navigation with small composable contracts and no hidden global state in application routers. */
+function createRouteManifest(routes = []) {
+    const entries = [];
+    const visit = (items, parentPath) => {
+        for (const route of items) {
+            const path = parentPath
+                ? `${parentPath.replace(/\/$/, '')}/${route.path.replace(/^\//, '')}`
+                : route.path;
+            const entry = {
+                path: normalizePath(path),
+                ...(parentPath ? { parentPath: normalizePath(parentPath) } : {}),
+                hasLoader: typeof route.loader === 'function',
+                hasLazyComponent: typeof route.lazy === 'function',
+                ...(route.queryKey !== undefined && typeof route.queryKey !== 'function' ? { queryKey: route.queryKey } : {}),
+                ...(route.meta ? { meta: { ...route.meta } } : {}),
+            };
+            entries.push(entry);
+            if (route.children?.length)
+                visit(route.children, path);
+        }
+    };
+    visit(routes);
+    return { version: 1, routes: entries };
+}
 function normalizePath(path) {
     const withoutHash = path.split('#')[0];
     const withoutQuery = withoutHash.split('?')[0] || '/';
@@ -3332,6 +3355,8 @@ class Router {
         return true;
     }
     get routesList() { return this.routes; }
+    /** Return a serializable manifest for SSR preload links and client route planning. */
+    getManifest() { return createRouteManifest(this.routes); }
     getCurrentPath() {
         return this.current?.path ?? (this.readBrowserPath().split(/[?#]/)[0] || '/');
     }
@@ -3388,12 +3413,7 @@ class Router {
                 data.push(undefined);
                 continue;
             }
-            const load = () => record.route.loader({ ...context, to: record.location });
-            const loaded = this.options.queryClient && record.route.queryKey !== undefined
-                ? await this.options.queryClient.fetch(this.resolveQueryKey(record.route.queryKey, { ...context, to: record.location }), load, record.route.queryOptions)
-                : this.options.errorBoundary
-                    ? await this.options.errorBoundary.renderAsync(async () => await load(), 'route-prefetch')
-                    : await load();
+            const loaded = await this.loadRoute(record, context, 'route-prefetch');
             data.push(loaded);
         }
         result.dataByRoute = data;
@@ -3452,12 +3472,7 @@ class Router {
                     data.push(undefined);
                     continue;
                 }
-                const load = () => record.route.loader({ ...context, to: record.location });
-                const loaded = this.options.queryClient && record.route.queryKey !== undefined
-                    ? await this.options.queryClient.fetch(this.resolveQueryKey(record.route.queryKey, { ...context, to: record.location }), load, record.route.queryOptions)
-                    : this.options.errorBoundary
-                        ? await this.options.errorBoundary.renderAsync(async () => await load(), 'route-loader')
-                        : await load();
+                const loaded = await this.loadRoute(record, context, 'route-loader');
                 data.push(loaded);
                 if (!isCurrentNavigation())
                     return null;
@@ -3530,6 +3545,20 @@ class Router {
     }
     recordsFor(matched, route, location) {
         return matched?.matched ? [...matched.matched] : [{ route, location }];
+    }
+    async loadRoute(record, context, boundaryContext) {
+        const load = async () => {
+            const runLoader = () => record.route.loader({ ...context, to: record.location });
+            return this.options.queryClient && record.route.queryKey !== undefined
+                ? await this.options.queryClient.fetch(this.resolveQueryKey(record.route.queryKey, { ...context, to: record.location }), runLoader, record.route.queryOptions)
+                : await runLoader();
+        };
+        const guarded = this.options.errorBoundary
+            ? this.options.errorBoundary.renderAsync(load, boundaryContext)
+            : load();
+        return this.options.loadingBoundary
+            ? await this.options.loadingBoundary.run(async () => await guarded)
+            : await guarded;
     }
     resolveQueryKey(key, context) {
         return typeof key === 'function' ? key(context) : key;
@@ -5260,5 +5289,5 @@ const jsxDEV = jsx;
 // Version info
 const VERSION = '3.1.17';
 
-export { API, DependencyInjector, Fragment, OneKit, OneKitWebComponent, QueryClient, Router, StreamingRenderer, VERSION, addScript, addStorePlugin, addStyle, addToBody, addToHead, animations, announce, patch as apiPatch, applyHead, autorun, batch, bind, cache, cleanup, clearDevToolsDependencies, compileOkjs, compileTemplate, component, computed, create, createApp, createElement, createErrorBoundary, createForm, createHeadManager, createLandmarks, createLoadingBoundary, createQueryClient, createRouter, createSSRContext, createSkipLink, createStorage, createStore, debounce, deepClone, defineComponent, defineStore, del, derive, destroy, devToolsSnapshot, di, disableScopeLeakWarnings, disposeDevToolsResource, effect, effectScope, emitDevToolsEvent, enableDevTools, enableScopeLeakWarnings, errorHandler, fireEvent, flush, generateId, get, getActiveScopeDiagnostics, getAllStores, getCurrentScope, getDependencyGraph, getDevToolsEffectId, getDevToolsScopeId, getDevToolsTargetId, getInstance, getResourceGraph, h, hotUpdateComponent, hydrate, initTemplateEngine, isClient, isDevToolsEnabled, isServer, jsx$1 as jsx, jsxDEV$1 as jsxDEV, jsx as jsxRuntime, jsxDEV as jsxRuntimeDEV, jsxs, localStorage, makeFocusable, makeUnfocusable, manageTabOrder, measureDevTools, mount, nextTick, ok, okjs, onDestroyed, onDevToolsEvent, onMounted, onPropsChanged, onScopeDispose, onUpdated, parseOkjs, patch$1 as patch, pluginManager, post, preloadModule, preloadScript, preloadStyle, put, reactive, recordDevToolsDependency, register, registerDevToolsInspector, registerDevToolsResource, registerDirective, registerDisposable, registerWebComponent, removeStore, render, renderHead, renderMeta$1 as renderMeta, renderOpenGraph, renderTest, renderTitle, renderToString, request, router, safeMethod, sessionStorage, setAriaAttributes, setMeta, setupComponent, skipToContent, snapshot, state, stop, throttle, trapFocus, unmount, useStore, validateAccessibility, patch$1 as vdomPatch, waitFor, watch, watchEffect, withCache, withScope };
+export { API, DependencyInjector, Fragment, OneKit, OneKitWebComponent, QueryClient, Router, StreamingRenderer, VERSION, addScript, addStorePlugin, addStyle, addToBody, addToHead, animations, announce, patch as apiPatch, applyHead, autorun, batch, bind, cache, cleanup, clearDevToolsDependencies, compileOkjs, compileTemplate, component, computed, create, createApp, createElement, createErrorBoundary, createForm, createHeadManager, createLandmarks, createLoadingBoundary, createQueryClient, createRouteManifest, createRouter, createSSRContext, createSkipLink, createStorage, createStore, debounce, deepClone, defineComponent, defineStore, del, derive, destroy, devToolsSnapshot, di, disableScopeLeakWarnings, disposeDevToolsResource, effect, effectScope, emitDevToolsEvent, enableDevTools, enableScopeLeakWarnings, errorHandler, fireEvent, flush, generateId, get, getActiveScopeDiagnostics, getAllStores, getCurrentScope, getDependencyGraph, getDevToolsEffectId, getDevToolsScopeId, getDevToolsTargetId, getInstance, getResourceGraph, h, hotUpdateComponent, hydrate, initTemplateEngine, isClient, isDevToolsEnabled, isServer, jsx$1 as jsx, jsxDEV$1 as jsxDEV, jsx as jsxRuntime, jsxDEV as jsxRuntimeDEV, jsxs, localStorage, makeFocusable, makeUnfocusable, manageTabOrder, measureDevTools, mount, nextTick, ok, okjs, onDestroyed, onDevToolsEvent, onMounted, onPropsChanged, onScopeDispose, onUpdated, parseOkjs, patch$1 as patch, pluginManager, post, preloadModule, preloadScript, preloadStyle, put, reactive, recordDevToolsDependency, register, registerDevToolsInspector, registerDevToolsResource, registerDirective, registerDisposable, registerWebComponent, removeStore, render, renderHead, renderMeta$1 as renderMeta, renderOpenGraph, renderTest, renderTitle, renderToString, request, router, safeMethod, sessionStorage, setAriaAttributes, setMeta, setupComponent, skipToContent, snapshot, state, stop, throttle, trapFocus, unmount, useStore, validateAccessibility, patch$1 as vdomPatch, waitFor, watch, watchEffect, withCache, withScope };
 //# sourceMappingURL=onekit.esm.js.map

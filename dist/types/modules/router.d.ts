@@ -1,4 +1,4 @@
-import type { ErrorBoundary } from '../core/error-handler';
+import type { ErrorBoundary, LoadingBoundary } from '../core/error-handler';
 import type { HeadManager, HeadMetadata } from './head';
 import type { QueryClient, QueryKey, QueryOptions } from './query';
 export type RouteParams = Record<string, string>;
@@ -25,6 +25,20 @@ export type RouteLoader = (context: RouteContext) => unknown | Promise<unknown>;
 export type RouteQueryKey = QueryKey | ((context: RouteContext) => QueryKey);
 export type RouteComponentLoader = () => unknown | Promise<unknown>;
 export type ScrollBehavior = (to: RouteLocation, from: RouteLocation | null) => void | Promise<void>;
+/** JSON-safe route metadata emitted for SSR preload and client hydration planning. */
+export interface RouteManifestEntry {
+    path: string;
+    parentPath?: string;
+    hasLoader: boolean;
+    hasLazyComponent: boolean;
+    queryKey?: QueryKey;
+    meta?: Record<string, unknown>;
+}
+export interface RouteManifest {
+    version: 1;
+    routes: readonly RouteManifestEntry[];
+}
+export declare function createRouteManifest(routes?: readonly Route[]): RouteManifest;
 export interface Route {
     path: string;
     component?: unknown;
@@ -68,6 +82,8 @@ export interface RouterOptions {
     errorBoundary?: ErrorBoundary<unknown>;
     /** Optional QueryClient used by routes with `queryKey`. */
     queryClient?: QueryClient;
+    /** Optional loading boundary tracking route loader pending state. */
+    loadingBoundary?: LoadingBoundary<unknown>;
     /** Optional head manager updated after a navigation commits. */
     head?: HeadManager;
 }
@@ -84,6 +100,8 @@ export declare class Router {
     addRoute(route: Route): this;
     removeRoute(path: string): boolean;
     get routesList(): readonly Route[];
+    /** Return a serializable manifest for SSR preload links and client route planning. */
+    getManifest(): RouteManifest;
     getCurrentPath(): string;
     getCurrentLocation(): RouteLocation | null;
     subscribe(listener: Listener): () => void;
@@ -97,6 +115,7 @@ export declare class Router {
     resolve(input: string, push?: boolean): Promise<MatchedRoute | null>;
     private match;
     private recordsFor;
+    private loadRoute;
     private resolveQueryKey;
     private runGuard;
     private ensureLazyComponent;
