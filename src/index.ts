@@ -21,6 +21,7 @@ export * from './modules/store';
 export * from './modules/query';
 export * from './modules/forms';
 export * from './modules/ssr';
+export * from './modules/head';
 export * from './modules/template';
 export * from './testing';
 export * from './okjs';

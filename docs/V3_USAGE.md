@@ -493,7 +493,39 @@ registerWebComponent("user-badge", {
 
 Custom element names must contain a hyphen. Use the `options` argument to configure the Web Component behavior supported by the current release.
 
-## 16. Experimental DevTools foundation
+## 16. Metadata, SEO, and document head
+
+The V3 head module provides a small framework-level metadata contract for application shells. It is safe to use in SSR adapters because `renderHead()` is a pure function and does not access browser globals.
+
+```ts
+import { createHeadManager, renderHead } from 'onekit-js/head';
+
+const metadata = {
+  title: 'Project dashboard',
+  description: 'Track project activity and reports.',
+  keywords: ['projects', 'reports'],
+  robots: 'index,follow',
+  canonical: 'https://example.test/projects',
+  openGraph: { title: 'Project dashboard', type: 'website' },
+  twitter: { card: 'summary' },
+};
+
+const headHtml = renderHead(metadata);
+```
+
+In a browser application, create one manager for the application shell and dispose it when that shell is destroyed:
+
+```ts
+const head = createHeadManager(metadata);
+head.mount(document);
+head.update({ title: 'Project dashboard — Reports' });
+head.clear();
+head.dispose();
+```
+
+`renderHead()` escapes values and emits deterministic `<title>`, `<meta>`, and canonical `<link>` tags. `createHeadManager()` marks only the nodes it owns, so unrelated tags placed by the host application are preserved during updates and cleanup. Open Graph keys are emitted as `og:<key>` properties, while Twitter keys are emitted as `twitter:<key>` names. The module is also exported from the root package.
+
+## 17. Experimental DevTools foundation
 
 OneKit includes an **opt-in DevTools bridge** for framework inspection. It is disabled by default, safe to import during SSR, and must never be required for application execution. Enable it only in development or controlled diagnostics builds:
 
@@ -539,7 +571,7 @@ For TypeScript projects using automatic JSX transforms, import `jsx`, `jsxs`, an
 
 This API is **experimental**. Event names and payload fields may change before a stable DevTools release. Do not use it as an application data bus, and do not enable it in production unless the diagnostic overhead and information exposure have been reviewed. Event payloads can include changed values and loader errors, so avoid enabling it where those values would violate privacy or security requirements.
 
-## 17. Versioning and migration
+## 18. Versioning and migration
 
 V3 is the framework-grade API line. The most important V3 additions are `defineComponent`, `unmount`, `nextTick`, expanded public exports, CLI project generation/building, SSR helpers, stores, templates, JSX, and Web Components.
 
@@ -547,7 +579,7 @@ When migrating an older project, first replace internal module imports with publ
 
 Keep the package version, `VERSION` constant, README, CHANGELOG, examples, and website banner synchronized before publishing.
 
-## 18. Troubleshooting
+## 19. Troubleshooting
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
@@ -559,7 +591,7 @@ Keep the package version, `VERSION` constant, README, CHANGELOG, examples, and w
 | User HTML appears unsafe | External markup was rendered directly | Sanitize it and keep untrusted content out of executable attributes. |
 | Focus escapes a modal | Focus trap was not released or the container is not mounted | Call `trapFocus` after mount and invoke the returned cleanup function on teardown. |
 
-## 19. Release verification
+## 20. Release verification
 
 Run the complete release checks from the repository root:
 

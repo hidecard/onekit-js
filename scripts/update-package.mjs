@@ -35,6 +35,11 @@ pkg.exports = {
     import: './dist/onekit.esm.js',
     require: './dist/onekit.cjs.js'
   },
+  './head': {
+    types: './dist/types/modules/head.d.ts',
+    import: './dist/onekit.esm.js',
+    require: './dist/onekit.cjs.js'
+  },
   './package.json': './package.json'
 };
 pkg.files = ['dist', 'src', 'README.md', 'CHANGELOG.md', 'MIGRATION_GUIDE.md'];

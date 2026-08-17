@@ -19,6 +19,7 @@ try {
   execFileSync(process.execPath, ['--input-type=module', '-e', `
     import * as OneKit from 'onekit-js';
     import * as SSR from 'onekit-js/ssr';
+    import * as Head from 'onekit-js/head';
     import * as JSXRuntime from 'onekit-js/jsx-runtime';
     import * as Query from 'onekit-js/query';
     import * as Forms from 'onekit-js/forms';
@@ -32,6 +33,7 @@ try {
     import * as Vite from 'onekit-js/vite';
     if (typeof OneKit.reactive !== 'function') throw new Error('root reactive export missing');
     if (typeof SSR.renderToString !== 'function') throw new Error('SSR export missing');
+    if (typeof Head.createHeadManager !== 'function' || typeof Head.renderHead !== 'function') throw new Error('Head subpath export missing');
     if (typeof JSXRuntime.jsx !== 'function' || typeof JSXRuntime.jsxs !== 'function') throw new Error('JSX runtime export missing');
     if (typeof Query.QueryClient !== 'function') throw new Error('Query subpath export missing');
     if (typeof Forms.createForm !== 'function') throw new Error('Forms subpath export missing');
@@ -49,6 +51,7 @@ try {
   execFileSync(process.execPath, ['-e', `
     const OneKit = require('onekit-js');
     const CJSApi = require('onekit-js/api');
+    const CJSHead = require('onekit-js/head');
     const CJSJSXRuntime = require('onekit-js/jsx-runtime');
     const CJSQuery = require('onekit-js/query');
     const CJSForms = require('onekit-js/forms');
@@ -57,6 +60,7 @@ try {
     const CJSStorage = require('onekit-js/storage');
     const CJSErgonomics = require('onekit-js/ergonomics');
     if (typeof OneKit.reactive !== 'function') throw new Error('CJS reactive export missing');
+    if (typeof CJSHead.createHeadManager !== 'function' || typeof CJSHead.renderHead !== 'function') throw new Error('CJS head subpath export missing');
     if (typeof CJSJSXRuntime.jsx !== 'function' || typeof CJSJSXRuntime.jsxs !== 'function') throw new Error('CJS JSX runtime export missing');
     if (typeof CJSQuery.QueryClient !== 'function') throw new Error('CJS query subpath export missing');
     if (typeof CJSForms.createForm !== 'function') throw new Error('CJS forms subpath export missing');

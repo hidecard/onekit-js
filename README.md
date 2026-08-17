@@ -355,6 +355,33 @@ A production SSR checklist should include:
 
 See the [V3 Usage Guide](docs/V3_USAGE.md) for streaming examples and advanced SSR contracts.
 
+## Metadata, SEO, and document head
+
+V3 includes a small **SSR-safe head manager** for the application-shell responsibilities commonly handled by framework metadata APIs. It supports titles, descriptions, keywords, robots directives, canonical URLs, Open Graph fields, and Twitter card fields without requiring a browser during server rendering.
+
+```ts
+import { createHeadManager, renderHead } from "onekit-js/head";
+
+const metadata = {
+  title: "Dashboard",
+  description: "OneKit application dashboard",
+  canonical: "https://example.com/dashboard",
+  openGraph: { title: "Dashboard", type: "website" },
+  twitter: { card: "summary" },
+};
+
+// In an SSR adapter, put this into the document <head>.
+const headHtml = renderHead(metadata);
+
+// In the browser, only nodes owned by this manager are replaced.
+const head = createHeadManager(metadata);
+head.mount(document);
+head.update({ title: "Dashboard — Reports" });
+// Call head.dispose() when the application shell is destroyed.
+```
+
+`renderHead()` escapes metadata values before generating HTML. `createHeadManager()` preserves application-owned `<head>` nodes, replaces its own nodes atomically, supports `clear()` and `dispose()`, and can be used with route loaders or router `afterEach` hooks. The public subpath is `onekit-js/head`; all of the same helpers are also available from the root entrypoint.
+
 ## DevTools and profiling
 
 DevTools are **opt-in** and disabled by default. Enable them only in development or in a controlled diagnostics build. The bridge is safe to import in SSR code because browser-global installation occurs only when a browser `window` exists:
@@ -455,11 +482,12 @@ import { reactive } from "onekit-js";
 import { createRouter } from "onekit-js/router";
 import { QueryClient } from "onekit-js/query";
 import { createForm } from "onekit-js/forms";
+import { createHeadManager, renderHead } from "onekit-js/head";
 import { renderTest, waitFor } from "onekit-js/testing";
 import { oneKitVitePlugin } from "onekit-js/vite";
 ```
 
-The package also exposes `core`, `components`, `ssr`, `template`, `jsx`, `jsx-runtime`, `animation`, `api`, `a11y`, `storage`, `ergonomics`, `web-components`, `okjs`, `router`, `query`, `forms`, `testing`, and `vite` feature paths. Use only documented public exports; do not import internal files from `src/`.
+The package also exposes `core`, `components`, `ssr`, `head`, `template`, `jsx`, `jsx-runtime`, `animation`, `api`, `a11y`, `storage`, `ergonomics`, `web-components`, `okjs`, `router`, `query`, `forms`, `testing`, and `vite` feature paths. Use only documented public exports; do not import internal files from `src/`.
 
 A feature subpath normally shares the main browser bundle while exposing a focused declaration entrypoint. The `vite` subpath is the exception: it exposes the Vite plugin build and should be used only from Vite configuration files.
 

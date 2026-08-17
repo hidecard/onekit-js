@@ -4317,7 +4317,7 @@ function renderToString(vnode, context = {}) {
     const ctx = { ...context };
     function renderVNode(node) {
         if (typeof node === 'string') {
-            return escapeHtml(node);
+            return escapeHtml$1(node);
         }
         const { tag, props, children } = node;
         // Handle special tags
@@ -4358,7 +4358,7 @@ function renderHtmlTag(node, context) {
     let bodyContent = '';
     children.forEach(child => {
         if (typeof child === 'string') {
-            bodyContent += escapeHtml(child);
+            bodyContent += escapeHtml$1(child);
         }
         else if (child.tag === 'head') {
             headContent = renderHeadTag(child, context);
@@ -4378,7 +4378,7 @@ ${bodyContent}
 }
 function renderVNode(node, context = createSSRContext()) {
     if (typeof node === 'string') {
-        return escapeHtml(node);
+        return escapeHtml$1(node);
     }
     const { tag, props, children } = node;
     // Handle special tags
@@ -4411,7 +4411,7 @@ function renderHeadTag(node, context) {
     let content = '';
     children.forEach(child => {
         if (typeof child === 'string') {
-            content += escapeHtml(child);
+            content += escapeHtml$1(child);
         }
         else {
             content += renderVNode(child, context);
@@ -4424,7 +4424,7 @@ function renderHeadTag(node, context) {
     // Add meta tags from context
     if (context.meta) {
         Object.entries(context.meta).forEach(([name, value]) => {
-            content += `<meta name="${escapeHtml(name)}" content="${escapeHtml(value)}">\n`;
+            content += `<meta name="${escapeHtml$1(name)}" content="${escapeHtml$1(value)}">\n`;
         });
     }
     return `<head${attrs}>${content}</head>`;
@@ -4435,7 +4435,7 @@ function renderBodyTag(node, context) {
     let content = '';
     children.forEach(child => {
         if (typeof child === 'string') {
-            content += escapeHtml(child);
+            content += escapeHtml$1(child);
         }
         else {
             content += renderVNode(child, context);
@@ -4453,7 +4453,7 @@ function renderAttributes(props) {
         if (key === 'key' || key === 'children')
             continue;
         if (key === 'className') {
-            attrs.push(`class="${escapeHtml(String(value))}"`);
+            attrs.push(`class="${escapeHtml$1(String(value))}"`);
         }
         else if (key === 'style' && typeof value === 'object') {
             const styleStr = Object.entries(value)
@@ -4464,7 +4464,7 @@ function renderAttributes(props) {
                 .filter(Boolean)
                 .join(';');
             if (styleStr)
-                attrs.push(`style="${escapeHtml(styleStr)}"`);
+                attrs.push(`style="${escapeHtml$1(styleStr)}"`);
         }
         else if (/^on/i.test(key)) {
             // Never serialize event-handler props, including attacker-controlled strings.
@@ -4478,7 +4478,7 @@ function renderAttributes(props) {
                 attrs.push(key);
         }
         else if (value !== null && value !== undefined) {
-            attrs.push(`${key}="${escapeHtml(String(value))}"`);
+            attrs.push(`${key}="${escapeHtml$1(String(value))}"`);
         }
     }
     return attrs.length > 0 ? ' ' + attrs.join(' ') : '';
@@ -4490,7 +4490,7 @@ function isSelfClosingTag(tag) {
     ]);
     return selfClosingTags.has(tag);
 }
-function escapeHtml(text) {
+function escapeHtml$1(text) {
     const htmlEscapes = {
         '&': '&amp;',
         '<': '&lt;',
@@ -4676,7 +4676,7 @@ class StreamingRenderer {
                 throw createSSRAbortError();
             await writer.write('<!DOCTYPE html>\n');
             if (typeof vnode === 'string') {
-                await writer.write(escapeHtml(vnode));
+                await writer.write(escapeHtml$1(vnode));
             }
             else {
                 await this.renderVNodeAsync(vnode, writer, signal);
@@ -4694,7 +4694,7 @@ class StreamingRenderer {
             throw createSSRAbortError();
         const resolved = await vnode;
         if (typeof resolved === 'string') {
-            await writer.write(escapeHtml(resolved));
+            await writer.write(escapeHtml$1(resolved));
             return;
         }
         const { tag, props, children } = resolved;
@@ -4709,7 +4709,7 @@ class StreamingRenderer {
         // Render children
         for (const child of children) {
             if (typeof child === 'string') {
-                await writer.write(escapeHtml(child));
+                await writer.write(escapeHtml$1(child));
             }
             else {
                 await this.renderVNodeAsync(child, writer, signal);
@@ -4752,7 +4752,7 @@ function addScript(context, src, content) {
     if (!context.scripts)
         context.scripts = [];
     if (src) {
-        context.scripts.push(`<script src="${escapeHtml(src)}"></script>`);
+        context.scripts.push(`<script src="${escapeHtml$1(src)}"></script>`);
     }
     else if (content) {
         context.scripts.push(`<script>${content}</script>`);
@@ -4765,23 +4765,23 @@ function setMeta(context, name, content) {
 }
 // Preload utilities for performance
 function preloadModule(href) {
-    return `<link rel="modulepreload" href="${escapeHtml(href)}">`;
+    return `<link rel="modulepreload" href="${escapeHtml$1(href)}">`;
 }
 function preloadStyle(href) {
-    return `<link rel="preload" href="${escapeHtml(href)}" as="style">`;
+    return `<link rel="preload" href="${escapeHtml$1(href)}" as="style">`;
 }
 function preloadScript(href) {
-    return `<link rel="preload" href="${escapeHtml(href)}" as="script">`;
+    return `<link rel="preload" href="${escapeHtml$1(href)}" as="script">`;
 }
 // SEO utilities
 function renderTitle(title) {
-    return `<title>${escapeHtml(title)}</title>`;
+    return `<title>${escapeHtml$1(title)}</title>`;
 }
-function renderMeta(name, content) {
-    return `<meta name="${escapeHtml(name)}" content="${escapeHtml(content)}">`;
+function renderMeta$1(name, content) {
+    return `<meta name="${escapeHtml$1(name)}" content="${escapeHtml$1(content)}">`;
 }
 function renderOpenGraph(property, content) {
-    return `<meta property="og:${escapeHtml(property)}" content="${escapeHtml(content)}">`;
+    return `<meta property="og:${escapeHtml$1(property)}" content="${escapeHtml$1(content)}">`;
 }
 // Development helpers
 function isServer() {
@@ -4803,6 +4803,105 @@ function withCache(key, renderFn, ttl = 300000 // 5 minutes
     renderResult._timestamp = Date.now();
     ssrCache.set(key, renderResult);
     return result;
+}
+
+const MANAGED_ATTRIBUTE = 'data-onekit-head';
+function escapeHtml(value) {
+    return value
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+function normalizeKeywords(keywords) {
+    if (keywords === undefined)
+        return undefined;
+    return typeof keywords === 'string' ? keywords : keywords.join(', ');
+}
+function renderMeta(attribute, key, value) {
+    return `<meta ${attribute}="${escapeHtml(key)}" content="${escapeHtml(value)}">`;
+}
+function renderLink(rel, href) {
+    return `<link rel="${escapeHtml(rel)}" href="${escapeHtml(href)}">`;
+}
+/** Render metadata into deterministic, escaped HTML suitable for an SSR head slot. */
+function renderHead(metadata) {
+    const tags = [];
+    if (metadata.title)
+        tags.push(`<title>${escapeHtml(metadata.title)}</title>`);
+    if (metadata.description)
+        tags.push(renderMeta('name', 'description', metadata.description));
+    const keywords = normalizeKeywords(metadata.keywords);
+    if (keywords)
+        tags.push(renderMeta('name', 'keywords', keywords));
+    if (metadata.robots)
+        tags.push(renderMeta('name', 'robots', metadata.robots));
+    if (metadata.canonical)
+        tags.push(renderLink('canonical', metadata.canonical));
+    Object.entries(metadata.openGraph ?? {}).forEach(([key, value]) => tags.push(renderMeta('property', `og:${key}`, value)));
+    Object.entries(metadata.twitter ?? {}).forEach(([key, value]) => tags.push(renderMeta('name', `twitter:${key}`, value)));
+    return tags.join('');
+}
+function removeManagedNodes(target) {
+    target.head.querySelectorAll(`[${MANAGED_ATTRIBUTE}]`).forEach(node => node.remove());
+}
+/** Apply metadata to a browser document, replacing only nodes owned by this manager. */
+function applyHead(metadata, target = document) {
+    removeManagedNodes(target);
+    const template = target.createElement('template');
+    template.innerHTML = renderHead(metadata);
+    Array.from(template.content.childNodes).forEach(node => {
+        if (node.nodeType !== Node.ELEMENT_NODE)
+            return;
+        node.setAttribute(MANAGED_ATTRIBUTE, 'true');
+        target.head.appendChild(node);
+    });
+}
+function createHeadManager(initial = {}) {
+    let metadata = { ...initial };
+    let mountedDocument;
+    const manager = {
+        get: () => ({
+            ...metadata,
+            openGraph: metadata.openGraph ? { ...metadata.openGraph } : undefined,
+            twitter: metadata.twitter ? { ...metadata.twitter } : undefined,
+        }),
+        set(next) {
+            metadata = {
+                ...next,
+                openGraph: next.openGraph ? { ...next.openGraph } : undefined,
+                twitter: next.twitter ? { ...next.twitter } : undefined,
+            };
+            if (mountedDocument)
+                applyHead(metadata, mountedDocument);
+        },
+        update(next) {
+            manager.set({
+                ...metadata,
+                ...next,
+                openGraph: { ...metadata.openGraph, ...next.openGraph },
+                twitter: { ...metadata.twitter, ...next.twitter },
+            });
+        },
+        render: () => renderHead(metadata),
+        mount(target = document) {
+            mountedDocument = target;
+            applyHead(metadata, target);
+        },
+        clear() {
+            metadata = {};
+            if (mountedDocument)
+                removeManagedNodes(mountedDocument);
+        },
+        dispose() {
+            if (mountedDocument)
+                removeManagedNodes(mountedDocument);
+            mountedDocument = undefined;
+            metadata = {};
+        },
+    };
+    return manager;
 }
 
 /**
@@ -5125,6 +5224,7 @@ exports.addToHead = addToHead;
 exports.animations = animations;
 exports.announce = announce;
 exports.apiPatch = patch;
+exports.applyHead = applyHead;
 exports.autorun = autorun;
 exports.batch = batch;
 exports.bind = bind;
@@ -5140,6 +5240,7 @@ exports.createApp = createApp;
 exports.createElement = createElement;
 exports.createErrorBoundary = createErrorBoundary;
 exports.createForm = createForm;
+exports.createHeadManager = createHeadManager;
 exports.createLandmarks = createLandmarks;
 exports.createLoadingBoundary = createLoadingBoundary;
 exports.createQueryClient = createQueryClient;
@@ -5223,7 +5324,8 @@ exports.registerDisposable = registerDisposable;
 exports.registerWebComponent = registerWebComponent;
 exports.removeStore = removeStore;
 exports.render = render;
-exports.renderMeta = renderMeta;
+exports.renderHead = renderHead;
+exports.renderMeta = renderMeta$1;
 exports.renderOpenGraph = renderOpenGraph;
 exports.renderTest = renderTest;
 exports.renderTitle = renderTitle;
