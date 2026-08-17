@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add the TypeScript automatic JSX runtime subpath at `onekit-js/jsx-runtime` with `jsx`, `jsxs`, `jsxDEV`, and `Fragment` helpers.
 - Add opt-in DevTools performance measurements for synchronous and asynchronous tasks with success/error events.
 - Extend clean packed-package verification to cover the ESM and CommonJS `jsx-runtime`, query, forms, testing, and router subpath exports.
+- Expand V3 CI with strict TypeScript, declaration export, full dependency audit, and whitespace validation checks across the Node 18/20/22 matrix.
 
 ### Fixed
 - Ship the `query`, `forms`, and `testing` TypeScript declaration artifacts referenced by the package root exports.

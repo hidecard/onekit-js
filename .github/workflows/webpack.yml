@@ -39,6 +39,9 @@ jobs:
       - name: Type-check
         run: npm run type-check
 
+      - name: Strict TypeScript check
+        run: npx tsc --noEmit --noUnusedLocals --noUnusedParameters
+
       - name: Test with coverage
         run: npm test -- --runInBand --coverage
 
@@ -48,8 +51,17 @@ jobs:
       - name: Build documentation
         run: npm run docs:build
 
+      - name: Verify declaration exports
+        run: npm run verify:declarations
+
+      - name: Full dependency audit
+        run: npm audit --audit-level=high
+
       - name: Production dependency audit
         run: npm audit --omit=dev
+
+      - name: Check diff whitespace
+        run: git diff --check
 
   package:
     name: Verify packed package
@@ -70,6 +82,9 @@ jobs:
 
       - name: Verify clean package installation
         run: npm run verify:package
+
+      - name: Verify declaration exports from the package checkout
+        run: npm run verify:declarations
 
       - name: Verify Vite HMR lifecycle
         run: npm run verify:hmr
