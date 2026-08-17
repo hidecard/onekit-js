@@ -1,6 +1,5 @@
 import { createRouter } from '../src/index';
-import { createErrorBoundary } from '../src/index';
-import { createHeadManager } from '../src/index';
+import { createErrorBoundary, createHeadManager, createQueryClient } from '../src/index';
 describe('M2 router production contract', () => {
 
   it('prefetches route data without committing navigation state', async () => {
@@ -129,6 +128,26 @@ describe('M2 router production contract', () => {
 
     expect(result?.data).toEqual({ ready: true });
     expect(events).toEqual(['none>/dashboard']);
+  });
+
+  it('caches route loaders through an optional QueryClient and derives keys from route context', async () => {
+    const queryClient = createQueryClient();
+    const loader = jest.fn(async ({ to }) => ({ id: to.params.id }));
+    const router = createRouter([{
+      path: '/users/:id',
+      loader,
+      queryKey: ({ to }) => ['user', to.params.id],
+      queryOptions: { staleTime: Infinity },
+    }], { mode: 'memory', queryClient });
+
+    const first = await router.navigate('/users/42');
+    const second = await router.navigate('/users/42');
+    const prefetched = await router.prefetch('/users/42');
+
+    expect(first?.data).toEqual({ id: '42' });
+    expect(second?.data).toEqual({ id: '42' });
+    expect(prefetched?.data).toEqual({ id: '42' });
+    expect(loader).toHaveBeenCalledTimes(1);
   });
 
   it('uses an error boundary fallback for failed route loaders', async () => {

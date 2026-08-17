@@ -366,6 +366,20 @@ const clientQueries = createQueryClient();
 clientQueries.hydrate(JSON.parse(payload));
 ```
 
+With a router, give data-owning routes a stable `queryKey` and pass the same client to the router. The loader is then deduplicated and can reuse hydrated data on the client; set `queryOptions.staleTime` according to the freshness policy of that resource.
+
+```ts
+const queries = createQueryClient();
+const router = createRouter([
+  {
+    path: '/dashboard',
+    queryKey: ['dashboard', 'summary'],
+    queryOptions: { staleTime: 30_000 },
+    loader: () => loadDashboard(),
+  },
+], { mode: 'memory', queryClient: queries });
+```
+
 See the [V3 Usage Guide](docs/V3_USAGE.md) for streaming examples and advanced SSR contracts.
 
 ## Metadata, SEO, and document head

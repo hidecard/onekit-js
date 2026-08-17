@@ -3390,9 +3390,12 @@ class Router {
                 data.push(undefined);
                 continue;
             }
-            const loaded = this.options.errorBoundary
-                ? await this.options.errorBoundary.renderAsync(async () => await record.route.loader({ ...context, to: record.location }), 'route-prefetch')
-                : await record.route.loader({ ...context, to: record.location });
+            const load = () => record.route.loader({ ...context, to: record.location });
+            const loaded = this.options.queryClient && record.route.queryKey !== undefined
+                ? await this.options.queryClient.fetch(this.resolveQueryKey(record.route.queryKey, { ...context, to: record.location }), load, record.route.queryOptions)
+                : this.options.errorBoundary
+                    ? await this.options.errorBoundary.renderAsync(async () => await load(), 'route-prefetch')
+                    : await load();
             data.push(loaded);
         }
         result.dataByRoute = data;
@@ -3451,9 +3454,12 @@ class Router {
                     data.push(undefined);
                     continue;
                 }
-                const loaded = this.options.errorBoundary
-                    ? await this.options.errorBoundary.renderAsync(async () => await record.route.loader({ ...context, to: record.location }), 'route-loader')
-                    : await record.route.loader({ ...context, to: record.location });
+                const load = () => record.route.loader({ ...context, to: record.location });
+                const loaded = this.options.queryClient && record.route.queryKey !== undefined
+                    ? await this.options.queryClient.fetch(this.resolveQueryKey(record.route.queryKey, { ...context, to: record.location }), load, record.route.queryOptions)
+                    : this.options.errorBoundary
+                        ? await this.options.errorBoundary.renderAsync(async () => await load(), 'route-loader')
+                        : await load();
                 data.push(loaded);
                 if (!isCurrentNavigation())
                     return null;
@@ -3526,6 +3532,9 @@ class Router {
     }
     recordsFor(matched, route, location) {
         return matched?.matched ? [...matched.matched] : [{ route, location }];
+    }
+    resolveQueryKey(key, context) {
+        return typeof key === 'function' ? key(context) : key;
     }
     async runGuard(guard, context) {
         return guard ? guard(context) : undefined;

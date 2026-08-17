@@ -390,6 +390,19 @@ clientQueries.hydrate(JSON.parse(payload));
 const summary = clientQueries.getState<DashboardSummary>(['dashboard', 'summary']);
 ```
 
+For route-driven data, pass the same client to `createRouter` and give each data-owning route a stable `queryKey`. The router uses `queryOptions.staleTime` to decide whether a hydrated or previously loaded result can be reused; a route without `queryKey` keeps the original uncached loader behavior.
+
+```ts
+const router = createRouter([
+  {
+    path: '/dashboard',
+    queryKey: ['dashboard', 'summary'],
+    queryOptions: { staleTime: 30_000 },
+    loader: () => loadDashboard(),
+  },
+], { mode: 'memory', queryClient: clientQueries });
+```
+
 `dehydrate()` exports settled `success` and `error` states only; pending requests and active loader promises are never serialized. `hydrate()` does not run loaders or notify subscribers, so it can be called before subscriptions are mounted. Use request-scoped clients and validate/escape the transport payload rather than embedding untrusted JSON directly into executable markup.
 
 For recoverable synchronous and asynchronous failures, use the framework boundary primitives:

@@ -4,6 +4,7 @@ import { emitDevToolsEvent } from '../core/devtools';
 import { onScopeDispose } from '../core/scope';
 import type { ErrorBoundary } from '../core/error-handler';
 import type { HeadManager, HeadMetadata } from './head';
+import type { QueryClient, QueryKey, QueryOptions } from './query';
 
 export type RouteParams = Record<string, string>;
 export type QueryParams = Record<string, string | string[]>;
@@ -30,6 +31,7 @@ export interface RouteContext {
 export type NavigationResult = void | boolean | string | RouteLocation;
 export type RouteGuard = (context: RouteContext) => NavigationResult | Promise<NavigationResult>;
 export type RouteLoader = (context: RouteContext) => unknown | Promise<unknown>;
+export type RouteQueryKey = QueryKey | ((context: RouteContext) => QueryKey);
 export type RouteComponentLoader = () => unknown | Promise<unknown>;
 export type ScrollBehavior = (to: RouteLocation, from: RouteLocation | null) => void | Promise<void>;
 
@@ -42,6 +44,10 @@ export interface Route {
   handler?: (context?: RouteContext) => void | Promise<void>;
   beforeEnter?: RouteGuard;
   loader?: RouteLoader;
+  /** Optional QueryClient cache key for the route loader. */
+  queryKey?: RouteQueryKey;
+  /** Query freshness options used when `queryKey` and a router QueryClient are configured. */
+  queryOptions?: QueryOptions<unknown>;
   children?: Route[];
   meta?: Record<string, unknown>;
   /** Route-level document metadata composed from parent to leaf. */
@@ -69,6 +75,8 @@ export interface RouterOptions {
   afterEach?: (context: Omit<RouteContext, 'matched'> & { matched: MatchedRoute | null; routeMatches?: readonly RouteMatch[] }) => void;
   scrollBehavior?: ScrollBehavior;
   errorBoundary?: ErrorBoundary<unknown>;
+  /** Optional QueryClient used by routes with `queryKey`. */
+  queryClient?: QueryClient;
   /** Optional head manager updated after a navigation commits. */
   head?: HeadManager;
 }
@@ -219,9 +227,12 @@ export class Router {
     const data: unknown[] = [];
     for (const record of records) {
       if (!record.route.loader) { data.push(undefined); continue; }
-      const loaded = this.options.errorBoundary
-        ? await this.options.errorBoundary.renderAsync(async () => await record.route.loader!({ ...context, to: record.location }), 'route-prefetch')
-        : await record.route.loader({ ...context, to: record.location });
+      const load = () => record.route.loader!({ ...context, to: record.location });
+      const loaded = this.options.queryClient && record.route.queryKey !== undefined
+        ? await this.options.queryClient.fetch(this.resolveQueryKey(record.route.queryKey, { ...context, to: record.location }), load, record.route.queryOptions)
+        : this.options.errorBoundary
+          ? await this.options.errorBoundary.renderAsync(async () => await load(), 'route-prefetch')
+          : await load();
       data.push(loaded);
     }
     result.dataByRoute = data;
@@ -270,9 +281,12 @@ export class Router {
     try {
       for (const record of records) {
         if (!record.route.loader) { data.push(undefined); continue; }
-        const loaded = this.options.errorBoundary
-          ? await this.options.errorBoundary.renderAsync(async () => await record.route.loader!({ ...context, to: record.location }), 'route-loader')
-          : await record.route.loader({ ...context, to: record.location });
+        const load = () => record.route.loader!({ ...context, to: record.location });
+        const loaded = this.options.queryClient && record.route.queryKey !== undefined
+          ? await this.options.queryClient.fetch(this.resolveQueryKey(record.route.queryKey, { ...context, to: record.location }), load, record.route.queryOptions)
+          : this.options.errorBoundary
+            ? await this.options.errorBoundary.renderAsync(async () => await load(), 'route-loader')
+            : await load();
         data.push(loaded);
         if (!isCurrentNavigation()) return null;
       }
@@ -339,6 +353,10 @@ export class Router {
 
   private recordsFor(matched: MatchedRoute | null, route: Route, location: RouteLocation): RouteMatch[] {
     return matched?.matched ? [...matched.matched] : [{ route, location }];
+  }
+
+  private resolveQueryKey(key: RouteQueryKey, context: RouteContext): QueryKey {
+    return typeof key === 'function' ? key(context) : key;
   }
 
   private async runGuard(guard: RouteGuard | undefined, context: RouteContext): Promise<NavigationResult> {

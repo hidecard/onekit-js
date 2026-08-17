@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add SSR-safe metadata/head helpers with escaped title, description, canonical, Open Graph, and Twitter rendering plus browser lifecycle management.
 - Extend packed-package verification to cover the `onekit-js/head` ESM and CommonJS subpath exports.
 - Add typed `QueryClient.dehydrate()` and `hydrate()` APIs for request-scoped SSR data handoff without serializing pending loader promises.
+- Add optional router `queryKey`, `queryOptions`, and `queryClient` integration so route loaders can reuse hydrated and stale-time-controlled query data while preserving uncached loader behavior by default.
 
 ### Fixed
 - Ship the `query`, `forms`, and `testing` TypeScript declaration artifacts referenced by the package root exports.

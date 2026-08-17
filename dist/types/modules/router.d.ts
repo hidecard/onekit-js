@@ -1,5 +1,6 @@
 import type { ErrorBoundary } from '../core/error-handler';
 import type { HeadManager, HeadMetadata } from './head';
+import type { QueryClient, QueryKey, QueryOptions } from './query';
 export type RouteParams = Record<string, string>;
 export type QueryParams = Record<string, string | string[]>;
 export interface RouteLocation {
@@ -21,6 +22,7 @@ export interface RouteContext {
 export type NavigationResult = void | boolean | string | RouteLocation;
 export type RouteGuard = (context: RouteContext) => NavigationResult | Promise<NavigationResult>;
 export type RouteLoader = (context: RouteContext) => unknown | Promise<unknown>;
+export type RouteQueryKey = QueryKey | ((context: RouteContext) => QueryKey);
 export type RouteComponentLoader = () => unknown | Promise<unknown>;
 export type ScrollBehavior = (to: RouteLocation, from: RouteLocation | null) => void | Promise<void>;
 export interface Route {
@@ -32,6 +34,10 @@ export interface Route {
     handler?: (context?: RouteContext) => void | Promise<void>;
     beforeEnter?: RouteGuard;
     loader?: RouteLoader;
+    /** Optional QueryClient cache key for the route loader. */
+    queryKey?: RouteQueryKey;
+    /** Query freshness options used when `queryKey` and a router QueryClient are configured. */
+    queryOptions?: QueryOptions<unknown>;
     children?: Route[];
     meta?: Record<string, unknown>;
     /** Route-level document metadata composed from parent to leaf. */
@@ -60,6 +66,8 @@ export interface RouterOptions {
     }) => void;
     scrollBehavior?: ScrollBehavior;
     errorBoundary?: ErrorBoundary<unknown>;
+    /** Optional QueryClient used by routes with `queryKey`. */
+    queryClient?: QueryClient;
     /** Optional head manager updated after a navigation commits. */
     head?: HeadManager;
 }
@@ -89,6 +97,7 @@ export declare class Router {
     resolve(input: string, push?: boolean): Promise<MatchedRoute | null>;
     private match;
     private recordsFor;
+    private resolveQueryKey;
     private runGuard;
     private ensureLazyComponent;
     private updateHead;
