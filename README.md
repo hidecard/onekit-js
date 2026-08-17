@@ -316,6 +316,39 @@ const result = await queries.fetch(["projects"], () =>
 
 Use stable query keys. Do not create a fresh object or array as a query input on every render unless the client intentionally treats it as a new request.
 
+### Route loading and boundaries
+
+Router loaders can share the QueryClient cache and optionally report pending work through a `LoadingBoundary`. Pair it with an `ErrorBoundary` when the route needs a controlled fallback instead of a rejected navigation:
+
+```ts
+import { createErrorBoundary, createLoadingBoundary } from "onekit-js";
+import { createRouter } from "onekit-js/router";
+
+const loading = createLoadingBoundary<unknown>();
+const errors = createErrorBoundary({
+  fallback: (error, reset) => ({ kind: "error", message: error.message, reset }),
+});
+
+const router = createRouter([
+  {
+    path: "/reports",
+    loader: () => loadReports(),
+    queryKey: ["reports"],
+    queryOptions: { staleTime: 30_000 },
+  },
+], {
+  queryClient: queries,
+  loadingBoundary: loading,
+  errorBoundary: errors,
+});
+
+const navigation = router.navigate("/reports");
+// Render loading.render(loadingView, readyView) while the route loader is pending.
+await navigation;
+```
+
+The loading boundary tracks the latest route-loader attempt and ignores stale completion state. A route with no `queryKey` keeps the normal uncached loader behavior. Query-backed loaders use the same deduplication and freshness rules as direct `QueryClient.fetch()` calls, so prefetched or hydrated data can be reused during navigation.
+
 ### Typed forms
 
 ```ts

@@ -1,5 +1,5 @@
 import { createRouter } from '../src/index';
-import { createErrorBoundary, createHeadManager, createQueryClient } from '../src/index';
+import { createErrorBoundary, createHeadManager, createLoadingBoundary, createQueryClient, createRouteManifest } from '../src/index';
 describe('M2 router production contract', () => {
 
   it('prefetches route data without committing navigation state', async () => {
@@ -17,6 +17,25 @@ describe('M2 router production contract', () => {
     expect(router.getCurrentPath()).toBe('/');
     expect(listener).not.toHaveBeenCalled();
   });
+  it('creates a JSON-safe manifest for nested routes and excludes dynamic query keys', () => {
+    const loader = () => ({ ready: true });
+    const lazy = async () => ({ default: 'ReportsPage' });
+    const manifest = createRouteManifest([{
+      path: '/app',
+      meta: { shell: 'dashboard' },
+      children: [{ path: '/reports/:id', loader, lazy, queryKey: ({ to }) => ['report', to.params.id] }],
+    }]);
+
+    expect(manifest).toEqual({
+      version: 1,
+      routes: [
+        { path: '/app', hasLoader: false, hasLazyComponent: false, meta: { shell: 'dashboard' } },
+        { path: '/app/reports/:id', parentPath: '/app', hasLoader: true, hasLazyComponent: true },
+      ],
+    });
+    expect(JSON.parse(JSON.stringify(manifest))).toEqual(manifest);
+  });
+
   it('composes parent and leaf route metadata after navigation commits', async () => {
     const head = createHeadManager();
     const router = createRouter([{
@@ -148,6 +167,23 @@ describe('M2 router production contract', () => {
     expect(second?.data).toEqual({ id: '42' });
     expect(prefetched?.data).toEqual({ id: '42' });
     expect(loader).toHaveBeenCalledTimes(1);
+  });
+
+  it('tracks route loader pending state with an optional loading boundary', async () => {
+    let release!: (value: { ready: boolean }) => void;
+    const loading = createLoadingBoundary<unknown>();
+    const router = createRouter([{ path: '/reports', loader: () => new Promise(resolve => { release = resolve; }) }], {
+      mode: 'memory',
+      loadingBoundary: loading,
+    });
+
+    const navigation = router.navigate('/reports');
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(loading.state.pending).toBe(true);
+    release({ ready: true });
+    expect((await navigation)?.data).toEqual({ ready: true });
+    expect(loading.state.pending).toBe(false);
+    expect(loading.render({ loading: true }, { ready: false })).toEqual({ ready: true });
   });
 
   it('uses an error boundary fallback for failed route loaders', async () => {

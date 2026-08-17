@@ -297,6 +297,47 @@ unsubscribe();
 
 The router resolves navigation and data but does not automatically render route components. Applications should subscribe to matches and connect them to their renderer or component layer. `router.prefetch(path)` runs applicable guards and the route loader without changing the current route, browser history, handlers, or subscribers; use it for hover/focus or viewport-based data warming. Stop a router with `router.stop()` when its application scope is destroyed.
 
+Route loaders can use the same `QueryClient` as the rest of the application. Add `queryKey` and optional `queryOptions` to a route and pass `queryClient` to the router; prefetched, hydrated, and previously loaded data can then be reused according to the query freshness policy. A router-level `loadingBoundary` tracks the latest loader attempt, while `errorBoundary` can convert a loader failure into a controlled fallback:
+
+```ts
+import { createErrorBoundary, createLoadingBoundary, createQueryClient } from 'onekit-js';
+import { createRouter } from 'onekit-js/router';
+
+const queries = createQueryClient();
+const loading = createLoadingBoundary<unknown>();
+const errors = createErrorBoundary({
+  fallback: (error, reset) => ({ kind: 'error', message: error.message, reset }),
+});
+
+const router = createRouter([
+  {
+    path: '/reports',
+    queryKey: ['reports'],
+    queryOptions: { staleTime: 30_000 },
+    loader: () => loadReports(),
+  },
+], { queryClient: queries, loadingBoundary: loading, errorBoundary: errors });
+
+const navigation = router.navigate('/reports');
+// Bind loading.render(loadingView, readyView) to the application renderer.
+await navigation;
+```
+
+The loading boundary only tracks the latest completion state, so stale loader completions do not replace current data. Routes without `queryKey` retain their normal uncached loader behavior. `errorBoundary` receives the loader error and can expose its `reset()` callback to retry the view.
+
+For SSR preload planning, generate a JSON-safe route manifest from the same route tree on the server and make it available to the client bootstrap. The manifest contains normalized paths, parent relationships, loader/lazy-component flags, static query keys, and route metadata; function-valued query keys, loaders, guards, and component implementations are intentionally omitted:
+
+```ts
+import { createRouteManifest } from 'onekit-js/router';
+
+const manifest = router.getManifest();
+// Equivalent for a route definition before creating the router:
+const initialManifest = createRouteManifest(routes);
+const payload = JSON.stringify(manifest);
+```
+
+Use the manifest to select preload candidates or avoid eagerly importing routes that are not part of the initial request. Treat it as an optimization hint rather than an authorization mechanism, and regenerate it whenever the route tree changes.
+
 ## 8. Stores and plugins
 
 ### Stores

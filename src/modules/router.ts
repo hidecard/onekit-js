@@ -2,7 +2,7 @@
 
 import { emitDevToolsEvent } from '../core/devtools';
 import { onScopeDispose } from '../core/scope';
-import type { ErrorBoundary } from '../core/error-handler';
+import type { ErrorBoundary, LoadingBoundary } from '../core/error-handler';
 import type { HeadManager, HeadMetadata } from './head';
 import type { QueryClient, QueryKey, QueryOptions } from './query';
 
@@ -34,6 +34,44 @@ export type RouteLoader = (context: RouteContext) => unknown | Promise<unknown>;
 export type RouteQueryKey = QueryKey | ((context: RouteContext) => QueryKey);
 export type RouteComponentLoader = () => unknown | Promise<unknown>;
 export type ScrollBehavior = (to: RouteLocation, from: RouteLocation | null) => void | Promise<void>;
+
+/** JSON-safe route metadata emitted for SSR preload and client hydration planning. */
+export interface RouteManifestEntry {
+  path: string;
+  parentPath?: string;
+  hasLoader: boolean;
+  hasLazyComponent: boolean;
+  queryKey?: QueryKey;
+  meta?: Record<string, unknown>;
+}
+
+export interface RouteManifest {
+  version: 1;
+  routes: readonly RouteManifestEntry[];
+}
+
+export function createRouteManifest(routes: readonly Route[] = []): RouteManifest {
+  const entries: RouteManifestEntry[] = [];
+  const visit = (items: readonly Route[], parentPath?: string): void => {
+    for (const route of items) {
+      const path = parentPath
+        ? `${parentPath.replace(/\/$/, '')}/${route.path.replace(/^\//, '')}`
+        : route.path;
+      const entry: RouteManifestEntry = {
+        path: normalizePath(path),
+        ...(parentPath ? { parentPath: normalizePath(parentPath) } : {}),
+        hasLoader: typeof route.loader === 'function',
+        hasLazyComponent: typeof route.lazy === 'function',
+        ...(route.queryKey !== undefined && typeof route.queryKey !== 'function' ? { queryKey: route.queryKey } : {}),
+        ...(route.meta ? { meta: { ...route.meta } } : {}),
+      };
+      entries.push(entry);
+      if (route.children?.length) visit(route.children, path);
+    }
+  };
+  visit(routes);
+  return { version: 1, routes: entries };
+}
 
 export interface Route {
   path: string;
@@ -77,6 +115,8 @@ export interface RouterOptions {
   errorBoundary?: ErrorBoundary<unknown>;
   /** Optional QueryClient used by routes with `queryKey`. */
   queryClient?: QueryClient;
+  /** Optional loading boundary tracking route loader pending state. */
+  loadingBoundary?: LoadingBoundary<unknown>;
   /** Optional head manager updated after a navigation commits. */
   head?: HeadManager;
 }
@@ -175,6 +215,9 @@ export class Router {
 
   get routesList(): readonly Route[] { return this.routes; }
 
+  /** Return a serializable manifest for SSR preload links and client route planning. */
+  getManifest(): RouteManifest { return createRouteManifest(this.routes); }
+
   getCurrentPath(): string {
     return this.current?.path ?? (this.readBrowserPath().split(/[?#]/)[0] || '/');
   }
@@ -227,12 +270,7 @@ export class Router {
     const data: unknown[] = [];
     for (const record of records) {
       if (!record.route.loader) { data.push(undefined); continue; }
-      const load = () => record.route.loader!({ ...context, to: record.location });
-      const loaded = this.options.queryClient && record.route.queryKey !== undefined
-        ? await this.options.queryClient.fetch(this.resolveQueryKey(record.route.queryKey, { ...context, to: record.location }), load, record.route.queryOptions)
-        : this.options.errorBoundary
-          ? await this.options.errorBoundary.renderAsync(async () => await load(), 'route-prefetch')
-          : await load();
+      const loaded = await this.loadRoute(record, context, 'route-prefetch');
       data.push(loaded);
     }
     result.dataByRoute = data;
@@ -281,12 +319,7 @@ export class Router {
     try {
       for (const record of records) {
         if (!record.route.loader) { data.push(undefined); continue; }
-        const load = () => record.route.loader!({ ...context, to: record.location });
-        const loaded = this.options.queryClient && record.route.queryKey !== undefined
-          ? await this.options.queryClient.fetch(this.resolveQueryKey(record.route.queryKey, { ...context, to: record.location }), load, record.route.queryOptions)
-          : this.options.errorBoundary
-            ? await this.options.errorBoundary.renderAsync(async () => await load(), 'route-loader')
-            : await load();
+        const loaded = await this.loadRoute(record, context, 'route-loader');
         data.push(loaded);
         if (!isCurrentNavigation()) return null;
       }
@@ -353,6 +386,21 @@ export class Router {
 
   private recordsFor(matched: MatchedRoute | null, route: Route, location: RouteLocation): RouteMatch[] {
     return matched?.matched ? [...matched.matched] : [{ route, location }];
+  }
+
+  private async loadRoute(record: RouteMatch, context: RouteContext, boundaryContext: string): Promise<unknown> {
+    const load = async (): Promise<unknown> => {
+      const runLoader = () => record.route.loader!({ ...context, to: record.location });
+      return this.options.queryClient && record.route.queryKey !== undefined
+        ? await this.options.queryClient.fetch(this.resolveQueryKey(record.route.queryKey, { ...context, to: record.location }), runLoader, record.route.queryOptions)
+        : await runLoader();
+    };
+    const guarded = this.options.errorBoundary
+      ? this.options.errorBoundary.renderAsync(load, boundaryContext)
+      : load();
+    return this.options.loadingBoundary
+      ? await this.options.loadingBoundary.run(async () => await guarded)
+      : await guarded;
   }
 
   private resolveQueryKey(key: RouteQueryKey, context: RouteContext): QueryKey {
