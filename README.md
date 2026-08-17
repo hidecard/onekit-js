@@ -11,6 +11,16 @@ OneKit is designed for developers who want a framework that is easy to learn but
 
 [![TypeScript-first](https://img.shields.io/badge/TypeScript-first-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) [![Version](https://img.shields.io/badge/version-3.1.17-0f766e)](CHANGELOG.md)
 
+## Documentation navigation
+
+| Start here | Go deeper |
+|---|---|
+| [Quick start](#quick-start-in-five-minutes) | [Full V3 usage guide](docs/V3_USAGE.md) |
+| [Mental model](#the-onekit-mental-model) | [Framework architecture](docs/FRAMEWORK_GUIDE.md) |
+| [Feature map](#v3-feature-map) | [Production readiness](docs/PRODUCTION_READINESS.md) |
+| [CLI reference](#cli-reference) | [Migration guide](MIGRATION_GUIDE.md) |
+| [Contributing](#contributing-to-onekit) | [Changelog](CHANGELOG.md) |
+
 ## Why developers choose OneKit
 
 | Need | OneKit approach |
@@ -22,6 +32,22 @@ OneKit is designed for developers who want a framework that is easy to learn but
 | Contribute confidently | The source is modular, the validation commands are documented, and focused tests make changes reviewable. |
 
 OneKit does not try to hide the browser. DOM elements, events, selectors, request lifecycles, and cleanup remain understandable. That makes the framework suitable for small products, internal tools, documentation sites, and larger component-based applications.
+
+## V3 feature map
+
+| Area | V3 capability | Recommended entrypoint |
+|---|---|---|
+| State | `reactive`, `computed`, `effect`, `watch`, batching, snapshots, cleanup | `onekit-js` |
+| Components | Typed props, component lifecycle, registration, mount/unmount, dependency injection | `onekit-js` |
+| Rendering | Templates, directives, JSX, automatic JSX runtime, VDOM patching, fragments | `onekit-js/jsx`, `onekit-js/jsx-runtime` |
+| Routing | History/hash/memory modes, typed nested routes, guards, loaders, lazy components, prefetch, scroll restoration | `onekit-js/router` |
+| Server rendering | Request-scoped SSR, streaming, async rendering, hydration, mismatch diagnostics, boundaries | `onekit-js/ssr` |
+| Data and forms | HTTP helpers, retry/timeout/cancellation, query deduplication, typed forms, validation | `onekit-js/api`, `onekit-js/query`, `onekit-js/forms` |
+| Browser integration | Storage, accessibility helpers, animations, Web Components | `onekit-js/storage`, `onekit-js/a11y`, `onekit-js/web-components` |
+| Tooling | Vite plugin, `.okjs` support, CLI, HMR checks, DOM-first testing helpers | `onekit-js/vite`, `onekit-js/testing` |
+| Diagnostics | Opt-in inspectors, lifecycle events, bounded history, profiling measurements | `onekit-js` |
+
+V3 keeps these capabilities composable. An application can use only the reactive core, or combine components, routes, stores, SSR, testing, and tooling as it grows.
 
 ## Quick start in five minutes
 
@@ -214,6 +240,30 @@ render(view, document.querySelector("#app")!);
 
 The JSX entrypoint is available through `onekit-js/jsx`, and `.okjs` single-file components are supported through the OneKit Vite plugin. Do not insert untrusted strings as HTML. Prefer text nodes, escaped interpolation, and validated data.
 
+### Automatic JSX runtime
+
+TypeScript projects using the automatic JSX transform can use the dedicated `onekit-js/jsx-runtime` subpath. The runtime provides `jsx`, `jsxs`, `jsxDEV`, and `Fragment` helpers, removes the JSX `children` field from DOM props, and preserves an optional JSX key in the generated VNode:
+
+```tsx
+/** @jsxImportSource onekit-js */
+import { jsx, jsxs, Fragment } from "onekit-js/jsx-runtime";
+
+export function Dashboard() {
+  return jsxs("section", {
+    className: "dashboard",
+    children: [
+      jsx("h1", { children: "Dashboard" }),
+      jsx(Fragment, { children: [
+        jsx("p", { children: "Rendered with the V3 runtime." }),
+        jsx("button", { type: "button", children: "Continue" }),
+      ] }),
+    ],
+  });
+}
+```
+
+For classic JSX transforms, import `jsx`, `jsxDEV`, `h`, and `Fragment` from `onekit-js/jsx` or the root package. Use the automatic runtime when the compiler emits calls to `jsx` and `jsxs` directly.
+
 ## Routing and nested layouts
 
 The router supports memory, browser, and hash-oriented navigation patterns, dynamic parameters, query parsing, guards, async loaders, redirects, lazy components, prefetching, and nested typed route records.
@@ -305,6 +355,37 @@ A production SSR checklist should include:
 
 See the [V3 Usage Guide](docs/V3_USAGE.md) for streaming examples and advanced SSR contracts.
 
+## DevTools and profiling
+
+DevTools are **opt-in** and disabled by default. Enable them only in development or in a controlled diagnostics build. The bridge is safe to import in SSR code because browser-global installation occurs only when a browser `window` exists:
+
+```ts
+import { enableDevTools, measureDevTools } from "onekit-js";
+
+const bridge = enableDevTools({
+  historySize: 100,
+  installGlobal: false,
+});
+
+const unsubscribe = bridge.subscribe((event) => {
+  if (event.type === "router:navigation") {
+    console.debug(event.phase, event.to);
+  }
+  if (event.type === "performance:measure") {
+    console.debug(event.name, `${event.duration.toFixed(1)}ms`, event.status);
+  }
+});
+
+const result = bridge.measure("load-dashboard", () => loadDashboard());
+const standalone = await measureDevTools("fetch-projects", async () => fetchProjects());
+
+// Feature teardown:
+unsubscribe();
+bridge.dispose();
+```
+
+The bridge exposes bounded history through `getHistory()`, metadata through `getMetadata()`, inspectors through `getInspectors()`, and resource/dependency graphs through `getResourceGraph()` and `getDependencyGraph()`. `measureDevTools()` and `bridge.measure()` preserve the task result, record a non-negative duration, emit `performance:measure`, and rethrow task errors after recording an `error` measurement. Avoid enabling diagnostics where event payloads could expose private application data.
+
 ## Security rules for application developers
 
 OneKit includes filtering and regression coverage for common renderer and SSR attack surfaces, but application code must still treat external data as untrusted.
@@ -378,7 +459,9 @@ import { renderTest, waitFor } from "onekit-js/testing";
 import { oneKitVitePlugin } from "onekit-js/vite";
 ```
 
-The package also exposes `ssr`, `template`, `jsx`, `animation`, `api`, `a11y`, `storage`, `ergonomics`, `web-components`, and `okjs` feature paths. Use only documented public exports; do not import internal files from `src/`.
+The package also exposes `core`, `components`, `ssr`, `template`, `jsx`, `jsx-runtime`, `animation`, `api`, `a11y`, `storage`, `ergonomics`, `web-components`, `okjs`, `router`, `query`, `forms`, `testing`, and `vite` feature paths. Use only documented public exports; do not import internal files from `src/`.
+
+A feature subpath normally shares the main browser bundle while exposing a focused declaration entrypoint. The `vite` subpath is the exception: it exposes the Vite plugin build and should be used only from Vite configuration files.
 
 ## Troubleshooting
 
@@ -387,6 +470,9 @@ The package also exposes `ssr`, `template`, `jsx`, `animation`, `api`, `a11y`, `
 | TypeScript cannot find a declaration | Run `npm run build`, then `npm run verify:declarations`; restart the editor TypeScript server. |
 | CLI says `INVALID_PROJECT` | Confirm the target directory and required `package.json` scripts. |
 | Preview does not start | Run a production build first and confirm that `dist/` exists. |
+| Automatic JSX import fails | Install `onekit-js`, use `onekit-js/jsx-runtime` for the automatic transform, and confirm that the package declarations have been generated. |
+| DevTools has no events | Call `enableDevTools()` before creating the reactive/router work you want to inspect; it is disabled by default. |
+| Profiling does not finish | Await `bridge.measure()` or `measureDevTools()` when the task returns a Promise; errors are rethrown after the error event is recorded. |
 | State appears not to update | Confirm the read occurs inside an effect/computed/watch and that the reactive object was not replaced with a plain clone. |
 | A route shows stale data | Abort or invalidate loaders and ensure the latest navigation owns the result. |
 | Hydration differs | Compare server/client attributes, whitespace, boolean values, styles, fragments, and conditional output. |
