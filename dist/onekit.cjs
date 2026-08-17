@@ -3447,7 +3447,11 @@ class Router {
         this.current = to;
         if (route.handler)
             await route.handler({ ...context, to });
+        if (!isCurrentNavigation())
+            return null;
         await this.options.scrollBehavior?.(to, from);
+        if (!isCurrentNavigation())
+            return null;
         this.notify(to, from);
         this.options.afterEach?.({ to: context.to, from: context.from, matched: result, routeMatches: records });
         emitDevToolsEvent({ type: 'router:navigation', phase: 'success', to: to.fullPath, from: from?.fullPath ?? null, route: route.path });

@@ -187,6 +187,26 @@ describe('M2 router production contract', () => {
     expect(events).toEqual(['/fast']);
   });
 
+  it('ignores stale post-commit handler completion', async () => {
+    let releaseHandler!: () => void;
+    const handlerReady = new Promise<void>(resolve => { releaseHandler = resolve; });
+    const events: string[] = [];
+    const router = createRouter([
+      { path: '/slow', handler: () => handlerReady },
+      { path: '/fast' },
+    ], { mode: 'memory' });
+    router.subscribe(to => events.push(to.path));
+
+    const slowNavigation = router.navigate('/slow');
+    await Promise.resolve();
+    const fastNavigation = router.navigate('/fast');
+    expect((await fastNavigation)?.route.path).toBe('/fast');
+    releaseHandler();
+
+    expect(await slowNavigation).toBeNull();
+    expect(events).toEqual(['/fast']);
+  });
+
   it('stops notifying subscribers after unsubscribe', async () => {
     const events: string[] = [];
     const router = createRouter([{ path: '/one' }, { path: '/two' }], { mode: 'memory' });
