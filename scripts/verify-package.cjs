@@ -19,6 +19,11 @@ try {
   execFileSync(process.execPath, ['--input-type=module', '-e', `
     import * as OneKit from 'onekit-js';
     import * as SSR from 'onekit-js/ssr';
+    import * as JSXRuntime from 'onekit-js/jsx-runtime';
+    import * as Query from 'onekit-js/query';
+    import * as Forms from 'onekit-js/forms';
+    import * as Testing from 'onekit-js/testing';
+    import * as Router from 'onekit-js/router';
     import * as API from 'onekit-js/api';
     import * as Storage from 'onekit-js/storage';
     import * as A11y from 'onekit-js/a11y';
@@ -27,6 +32,11 @@ try {
     import * as Vite from 'onekit-js/vite';
     if (typeof OneKit.reactive !== 'function') throw new Error('root reactive export missing');
     if (typeof SSR.renderToString !== 'function') throw new Error('SSR export missing');
+    if (typeof JSXRuntime.jsx !== 'function' || typeof JSXRuntime.jsxs !== 'function') throw new Error('JSX runtime export missing');
+    if (typeof Query.QueryClient !== 'function') throw new Error('Query subpath export missing');
+    if (typeof Forms.createForm !== 'function') throw new Error('Forms subpath export missing');
+    if (typeof Testing.renderTest !== 'function') throw new Error('Testing subpath export missing');
+    if (typeof Router.createRouter !== 'function') throw new Error('Router subpath export missing');
     if (typeof API.request !== 'function') throw new Error('API subpath export missing');
     if (typeof Storage.createStorage !== 'function') throw new Error('Storage subpath export missing');
     if (typeof A11y.announce !== 'function') throw new Error('A11y subpath export missing');
@@ -39,9 +49,19 @@ try {
   execFileSync(process.execPath, ['-e', `
     const OneKit = require('onekit-js');
     const CJSApi = require('onekit-js/api');
+    const CJSJSXRuntime = require('onekit-js/jsx-runtime');
+    const CJSQuery = require('onekit-js/query');
+    const CJSForms = require('onekit-js/forms');
+    const CJSTesting = require('onekit-js/testing');
+    const CJSRouter = require('onekit-js/router');
     const CJSStorage = require('onekit-js/storage');
     const CJSErgonomics = require('onekit-js/ergonomics');
     if (typeof OneKit.reactive !== 'function') throw new Error('CJS reactive export missing');
+    if (typeof CJSJSXRuntime.jsx !== 'function' || typeof CJSJSXRuntime.jsxs !== 'function') throw new Error('CJS JSX runtime export missing');
+    if (typeof CJSQuery.QueryClient !== 'function') throw new Error('CJS query subpath export missing');
+    if (typeof CJSForms.createForm !== 'function') throw new Error('CJS forms subpath export missing');
+    if (typeof CJSTesting.renderTest !== 'function') throw new Error('CJS testing subpath export missing');
+    if (typeof CJSRouter.createRouter !== 'function') throw new Error('CJS router subpath export missing');
     if (typeof CJSApi.request !== 'function') throw new Error('CJS API subpath export missing');
     if (typeof CJSStorage.createStorage !== 'function') throw new Error('CJS storage subpath export missing');
     if (typeof CJSErgonomics.state !== 'function') throw new Error('CJS ergonomics subpath export missing');
