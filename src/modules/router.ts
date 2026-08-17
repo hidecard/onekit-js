@@ -3,6 +3,7 @@
 import { emitDevToolsEvent } from '../core/devtools';
 import { onScopeDispose } from '../core/scope';
 import type { ErrorBoundary } from '../core/error-handler';
+import type { HeadManager, HeadMetadata } from './head';
 
 export type RouteParams = Record<string, string>;
 export type QueryParams = Record<string, string | string[]>;
@@ -43,6 +44,8 @@ export interface Route {
   loader?: RouteLoader;
   children?: Route[];
   meta?: Record<string, unknown>;
+  /** Route-level document metadata composed from parent to leaf. */
+  head?: HeadMetadata;
 }
 
 export interface MatchedRoute {
@@ -66,6 +69,8 @@ export interface RouterOptions {
   afterEach?: (context: Omit<RouteContext, 'matched'> & { matched: MatchedRoute | null; routeMatches?: readonly RouteMatch[] }) => void;
   scrollBehavior?: ScrollBehavior;
   errorBoundary?: ErrorBoundary<unknown>;
+  /** Optional head manager updated after a navigation commits. */
+  head?: HeadManager;
 }
 
 type Listener = (to: RouteLocation, from: RouteLocation | null) => void;
@@ -280,6 +285,7 @@ export class Router {
     if (!isCurrentNavigation()) return null;
     if (push) this.commit(to);
     this.current = to;
+    this.updateHead(records);
     if (route.handler) await route.handler({ ...context, to });
     if (!isCurrentNavigation()) return null;
     await this.options.scrollBehavior?.(to, from);
@@ -345,6 +351,21 @@ export class Router {
     route.component = loaded && typeof loaded === 'object' && 'default' in loaded
       ? (loaded as { default: unknown }).default
       : loaded;
+  }
+
+  private updateHead(records: readonly RouteMatch[]): void {
+    if (!this.options.head) return;
+    const metadata: HeadMetadata = {};
+    for (const record of records) {
+      const next = record.route.head;
+      if (!next) continue;
+      const previousOpenGraph = metadata.openGraph;
+      const previousTwitter = metadata.twitter;
+      Object.assign(metadata, next);
+      if (next.openGraph) metadata.openGraph = { ...previousOpenGraph, ...next.openGraph };
+      if (next.twitter) metadata.twitter = { ...previousTwitter, ...next.twitter };
+    }
+    this.options.head.set(metadata);
   }
 
   private notify(to: RouteLocation, from: RouteLocation | null): void {

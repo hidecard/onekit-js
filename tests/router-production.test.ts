@@ -1,7 +1,8 @@
 import { createRouter } from '../src/index';
 import { createErrorBoundary } from '../src/index';
-
+import { createHeadManager } from '../src/index';
 describe('M2 router production contract', () => {
+
   it('prefetches route data without committing navigation state', async () => {
     const router = createRouter([
       { path: '/', handler: jest.fn() },
@@ -17,6 +18,24 @@ describe('M2 router production contract', () => {
     expect(router.getCurrentPath()).toBe('/');
     expect(listener).not.toHaveBeenCalled();
   });
+  it('composes parent and leaf route metadata after navigation commits', async () => {
+    const head = createHeadManager();
+    const router = createRouter([{
+      path: '/app',
+      head: { title: 'App', openGraph: { siteName: 'OneKit' } },
+      children: [{
+        path: '/dashboard',
+        head: { title: 'Dashboard', description: 'Reports', openGraph: { title: 'Dashboard' } },
+      }],
+    }], { mode: 'memory', head });
+
+    await router.navigate('/app/dashboard');
+
+    expect(head.get()).toMatchObject({ title: 'Dashboard', description: 'Reports' });
+    expect(head.get().openGraph).toEqual({ siteName: 'OneKit', title: 'Dashboard' });
+    head.dispose();
+  });
+
   it('loads lazy components once and preserves matched params in loader context', async () => {
     const lazy = jest.fn(async () => ({ default: 'DocsPage' }));
     const router = createRouter([{

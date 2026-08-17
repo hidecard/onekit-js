@@ -3470,6 +3470,7 @@ class Router {
         if (push)
             this.commit(to);
         this.current = to;
+        this.updateHead(records);
         if (route.handler)
             await route.handler({ ...context, to });
         if (!isCurrentNavigation())
@@ -3536,6 +3537,24 @@ class Router {
         route.component = loaded && typeof loaded === 'object' && 'default' in loaded
             ? loaded.default
             : loaded;
+    }
+    updateHead(records) {
+        if (!this.options.head)
+            return;
+        const metadata = {};
+        for (const record of records) {
+            const next = record.route.head;
+            if (!next)
+                continue;
+            const previousOpenGraph = metadata.openGraph;
+            const previousTwitter = metadata.twitter;
+            Object.assign(metadata, next);
+            if (next.openGraph)
+                metadata.openGraph = { ...previousOpenGraph, ...next.openGraph };
+            if (next.twitter)
+                metadata.twitter = { ...previousTwitter, ...next.twitter };
+        }
+        this.options.head.set(metadata);
     }
     notify(to, from) {
         this.listeners.forEach(listener => listener(to, from));

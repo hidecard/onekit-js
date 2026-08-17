@@ -525,6 +525,30 @@ head.dispose();
 
 `renderHead()` escapes values and emits deterministic `<title>`, `<meta>`, and canonical `<link>` tags. `createHeadManager()` marks only the nodes it owns, so unrelated tags placed by the host application are preserved during updates and cleanup. Open Graph keys are emitted as `og:<key>` properties, while Twitter keys are emitted as `twitter:<key>` names. The module is also exported from the root package.
 
+For route-driven applications, pass the manager to the router and define `head` on route records. Parent and leaf metadata are composed from parent to leaf; scalar values use the leaf value, while Open Graph and Twitter maps are shallow-merged:
+
+```ts
+import { createHeadManager, createRouter } from 'onekit-js';
+
+const head = createHeadManager();
+const router = createRouter([
+  {
+    path: '/app',
+    head: { title: 'App', openGraph: { siteName: 'OneKit' } },
+    children: [{
+      path: '/dashboard',
+      head: { title: 'Dashboard', description: 'Reports', openGraph: { title: 'Dashboard' } },
+    }],
+  },
+], { head });
+
+await router.navigate('/app/dashboard');
+// head.get() => { title: 'Dashboard', description: 'Reports',
+//   openGraph: { siteName: 'OneKit', title: 'Dashboard' } }
+```
+
+The router updates the manager only after guards and loaders succeed, so failed or cancelled navigations do not replace the active document metadata. Call `head.dispose()` together with router/application teardown.
+
 ## 17. Experimental DevTools foundation
 
 OneKit includes an **opt-in DevTools bridge** for framework inspection. It is disabled by default, safe to import during SSR, and must never be required for application execution. Enable it only in development or controlled diagnostics builds:

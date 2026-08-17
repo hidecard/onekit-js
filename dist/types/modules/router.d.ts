@@ -1,4 +1,5 @@
 import type { ErrorBoundary } from '../core/error-handler';
+import type { HeadManager, HeadMetadata } from './head';
 export type RouteParams = Record<string, string>;
 export type QueryParams = Record<string, string | string[]>;
 export interface RouteLocation {
@@ -33,6 +34,8 @@ export interface Route {
     loader?: RouteLoader;
     children?: Route[];
     meta?: Record<string, unknown>;
+    /** Route-level document metadata composed from parent to leaf. */
+    head?: HeadMetadata;
 }
 export interface MatchedRoute {
     route: Route;
@@ -57,6 +60,8 @@ export interface RouterOptions {
     }) => void;
     scrollBehavior?: ScrollBehavior;
     errorBoundary?: ErrorBoundary<unknown>;
+    /** Optional head manager updated after a navigation commits. */
+    head?: HeadManager;
 }
 type Listener = (to: RouteLocation, from: RouteLocation | null) => void;
 export declare class Router {
@@ -86,6 +91,7 @@ export declare class Router {
     private recordsFor;
     private runGuard;
     private ensureLazyComponent;
+    private updateHead;
     private notify;
     private applyBase;
     private removeBase;

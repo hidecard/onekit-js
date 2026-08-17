@@ -14,7 +14,7 @@ OneKit JS V3 is a usable compact browser framework and a credible foundation for
 | Components | Options-style components, templates, lifecycle hooks, mount/unmount | Suitable for demos and small apps; update diffing, event listener ownership, prop updates, and composition APIs need hardening. |
 | VDOM/JSX | Basic VDOM and JSX helpers exist | Needs broader reconciliation, keyed lists, fragments, refs, controlled inputs, and hydration parity tests. |
 | SSR | String rendering, streaming utilities, request-scoped context, hydration helpers, metadata helpers | M4 baseline complete: escaping, nested context propagation, metadata safety, hydration mismatch diagnostics, listener disposal, and boundary primitives are tested. Streaming now schedules Promise roots/children in source order, preserves original async render errors, supports AbortSignal cancellation, and avoids double-abort masking; advanced async concurrency remains future work. |
-| Router | Minimal `Router` class with exact path lookup and handlers | Not yet comparable to a production router; needs route matching, params, history integration, guards, nested layouts, 404 handling, and SSR URL resolution. |
+| Router | `Router` with dynamic params, query parsing, history/hash/memory modes, guards, nested layouts, lazy components, loaders, prefetch, scroll behavior, cancellation guards, and route-level head metadata composition | M2 browser/memory baseline is substantially covered; remaining work includes broader browser compatibility coverage, streamed SSR route manifests, and application-specific data cache dehydration/hydration. |
 | Stores | Named stores and actions are available | Needs lifecycle, reset, subscriptions, dev inspection, persistence policy, and SSR request isolation. |
 | CLI | `create`, `build`, `dev`, `preview`, and `test` commands work | Core workflow has acceptance coverage for delegated exit codes, cwd/argument passthrough, missing preview output, inline `--cwd=`/`--out-dir=` syntax, absolute output paths, structured error codes, and actionable hints. Plugin hooks and richer diagnostics remain future work. |
 | Package/release | TypeScript declarations, subpath exports, build checks, tests, and npm metadata exist | Release foundation is present; package export matrix, Node/browser compatibility, changelog discipline, and npm publish verification remain. |
@@ -32,7 +32,7 @@ The reactive engine needs deterministic effect cleanup, a documented scheduler, 
 
 ### 3. Replace the minimal router with an application router
 
-A production router should support exact and dynamic paths, query strings, params, nested route composition, browser history, hash fallback, navigation guards, async loaders, cancellation, scroll restoration, 404 routes, and server-side URL matching. The API should expose a `createRouter` factory instead of relying on a single global router instance. This is one of the largest remaining gaps relative to application frameworks.
+The V3 router now supports exact and dynamic paths, query strings, params, nested route composition, browser history, hash and memory modes, navigation guards, async loaders, cancellation, scroll behavior, prefetch, lazy components, route-level metadata composition, and a `createRouter` factory. The remaining framework-level work is broader browser compatibility coverage, route-manifest generation for SSR adapters, and application-specific data cache dehydration/hydration. It is not a drop-in replacement for Next.js routing.
 
 ### 4. Establish SSR and hydration parity
 
