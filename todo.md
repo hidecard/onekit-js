@@ -1,4 +1,18 @@
-# OneKit JS V3 Documentation Update
+# OneKit JS V3 — Current Release Status
+
+> **Current local release candidate:** `onekit-js@3.1.18` and `create-onekit@1.0.8`.
+>
+> **Branch:** `V3` — source, documentation, generated distribution artifacts, tests, and publish workflows are committed and pushed.
+>
+> **Remaining operational blocker:** npm registry publication and post-publish clean-install verification. Do not mark registry checks complete until `onekit-js@3.1.18` and `create-onekit@1.0.8` are confirmed on npm.
+
+- [x] Synchronize package versions, lockfiles, public `VERSION`, README, guides, and changelog.
+- [x] Add the main-package provenance workflow for `v3.1.18`.
+- [x] Add or update the creator-package provenance workflow for `create-onekit-v1.0.8`.
+- [x] Validate type-check, Jest, production build, declarations, package contents, documentation links, and generated starter build.
+- [ ] Publish `onekit-js@3.1.18` from the `v3.1.18` tag and verify the npm registry tarball.
+- [ ] Publish `create-onekit@1.0.8` from the `create-onekit-v1.0.8` tag after the framework package is available.
+- [ ] Run post-publish clean-install checks against the registry packages and record the result.
 
 ## Fresh CLI Generated Project End-to-End Test
 
