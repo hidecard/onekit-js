@@ -44,6 +44,12 @@ export type DevToolsEvent =
       ownerId: number | null;
       resourceType: 'effect' | 'watch' | 'listener' | 'async';
       phase: 'create' | 'dispose' | 'leak';
+    }
+  | {
+      type: 'performance:measure';
+      name: string;
+      duration: number;
+      status: 'success' | 'error';
     };
 
 export type DevToolsListener = (event: DevToolsEvent) => void;
@@ -83,6 +89,8 @@ export interface DevToolsBridge {
   getInspectors(): Record<string, unknown>;
   getResourceGraph(): readonly DevToolsResource[];
   getDependencyGraph(): readonly DevToolsDependency[];
+  measure<T>(name: string, task: () => T): T;
+  measure<T>(name: string, task: () => Promise<T>): Promise<T>;
   dispose(): void;
 }
 
@@ -147,6 +155,9 @@ export function enableDevTools(options: DevToolsOptions = {}): DevToolsBridge {
     getDependencyGraph() {
       return getDependencyGraph();
     },
+    measure<T>(name: string, task: () => T | Promise<T>): T | Promise<T> {
+      return measureDevTools(name, task);
+    },
     dispose() {
       enabled = false;
       listeners.clear();
@@ -167,6 +178,33 @@ export function enableDevTools(options: DevToolsOptions = {}): DevToolsBridge {
   }
 
   return bridge;
+}
+
+export function measureDevTools<T>(name: string, task: () => T): T;
+export function measureDevTools<T>(name: string, task: () => Promise<T>): Promise<T>;
+export function measureDevTools<T>(name: string, task: () => T | Promise<T>): T | Promise<T> {
+  const now = () => typeof performance !== 'undefined' ? performance.now() : Date.now();
+  const startedAt = now();
+  try {
+    const result = task();
+    if (result && typeof (result as Promise<T>).then === 'function') {
+      return Promise.resolve(result).then(
+        value => {
+          emitDevToolsEvent({ type: 'performance:measure', name, duration: Math.max(0, now() - startedAt), status: 'success' });
+          return value;
+        },
+        error => {
+          emitDevToolsEvent({ type: 'performance:measure', name, duration: Math.max(0, now() - startedAt), status: 'error' });
+          throw error;
+        }
+      );
+    }
+    emitDevToolsEvent({ type: 'performance:measure', name, duration: Math.max(0, now() - startedAt), status: 'success' });
+    return result;
+  } catch (error) {
+    emitDevToolsEvent({ type: 'performance:measure', name, duration: Math.max(0, now() - startedAt), status: 'error' });
+    throw error;
+  }
 }
 
 export function onDevToolsEvent(listener: DevToolsListener): () => void {

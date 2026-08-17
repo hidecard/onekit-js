@@ -518,7 +518,7 @@ unsubscribe();
 bridge.dispose();
 ```
 
-The current experimental events are `reactive:trigger`, `reactive:effect`, and `router:navigation`. Reactive events expose stable numeric target/effect identifiers rather than private proxy objects. Router events report `start`, `success`, `cancel`, or `error` phases with destination, origin, route, and loader error metadata where available. Event listeners are isolated: an exception inside a DevTools listener is ignored and cannot break the application.
+The current experimental events include `reactive:trigger`, `reactive:effect`, `router:navigation`, lifecycle events, and `performance:measure`. Reactive events expose stable numeric target/effect identifiers rather than private proxy objects. Router events report `start`, `success`, `cancel`, or `error` phases with destination, origin, route, and loader error metadata where available. Performance events report a measurement name, non-negative duration, and `success` or `error` status. Event listeners are isolated: an exception inside a DevTools listener is ignored and cannot break the application.
 
 The bridge stores a bounded, detached event history for diagnostics. Use `getHistory()` to inspect recent events, `getMetadata()` to inspect the active history size and listener count, and `clearHistory()` to reset the buffer:
 
@@ -526,9 +526,16 @@ The bridge stores a bounded, detached event history for diagnostics. Use `getHis
 const recent = bridge.getHistory();
 const metadata = bridge.getMetadata();
 bridge.clearHistory();
+
+const value = bridge.measure('render-dashboard', () => renderDashboard());
+const asyncValue = await bridge.measure('load-dashboard', async () => loadDashboard());
 ```
 
 For browser-only tooling, pass `installGlobal: true` and an optional `globalName`. OneKit installs the bridge on `window` only when a browser `window` exists; it does not create or mutate browser globals during SSR. The default history capacity is 100 events and can be lowered to limit diagnostic memory use.
+
+`measureDevTools(name, task)` is also available as a standalone helper for code that does not retain a bridge. It returns the task result unchanged, supports synchronous and asynchronous tasks, emits a `performance:measure` event, and rethrows task errors after recording an `error` measurement.
+
+For TypeScript projects using automatic JSX transforms, import `jsx`, `jsxs`, and `Fragment` from `onekit-js/jsx-runtime` or configure the compiler's JSX import source to that subpath. The runtime removes the JSX `children` field from element props and preserves the optional JSX key in the generated VNode.
 
 This API is **experimental**. Event names and payload fields may change before a stable DevTools release. Do not use it as an application data bus, and do not enable it in production unless the diagnostic overhead and information exposure have been reviewed. Event payloads can include changed values and loader errors, so avoid enabling it where those values would violate privacy or security requirements.
 

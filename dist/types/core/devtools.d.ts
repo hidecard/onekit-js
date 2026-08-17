@@ -35,6 +35,11 @@ export type DevToolsEvent = {
     ownerId: number | null;
     resourceType: 'effect' | 'watch' | 'listener' | 'async';
     phase: 'create' | 'dispose' | 'leak';
+} | {
+    type: 'performance:measure';
+    name: string;
+    duration: number;
+    status: 'success' | 'error';
 };
 export type DevToolsListener = (event: DevToolsEvent) => void;
 export interface DevToolsOptions {
@@ -68,10 +73,14 @@ export interface DevToolsBridge {
     getInspectors(): Record<string, unknown>;
     getResourceGraph(): readonly DevToolsResource[];
     getDependencyGraph(): readonly DevToolsDependency[];
+    measure<T>(name: string, task: () => T): T;
+    measure<T>(name: string, task: () => Promise<T>): Promise<T>;
     dispose(): void;
 }
 export declare function isDevToolsEnabled(): boolean;
 export declare function enableDevTools(options?: DevToolsOptions): DevToolsBridge;
+export declare function measureDevTools<T>(name: string, task: () => T): T;
+export declare function measureDevTools<T>(name: string, task: () => Promise<T>): Promise<T>;
 export declare function onDevToolsEvent(listener: DevToolsListener): () => void;
 export declare function getDevToolsTargetId(target: object): number;
 export declare function getDevToolsScopeId(scope: object): number;

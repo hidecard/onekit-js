@@ -415,9 +415,10 @@
 
 - [x] Audit typed router, lazy route, scroll restoration, TypeScript ergonomics, accessibility helpers, and DevTools profiling gaps.
 - [x] Implement typed route metadata, lazy route loading, prefetch integration, and scroll restoration without breaking existing navigation semantics.
-- [ ] Improve TypeScript ergonomics and add focused accessibility primitives with regression coverage.
-  - [x] Added and tested production-safe focus trapping; stronger template/JSX type inference remains open.
-- [ ] Extend DevTools inspection/profiling contracts with safe lifecycle behavior and tests.
+- [x] Improve TypeScript ergonomics and add focused accessibility primitives with regression coverage.
+  - [x] Added and tested production-safe focus trapping and automatic JSX runtime exports with single/multiple child and key regression coverage.
+- [x] Extend DevTools inspection/profiling contracts with safe lifecycle behavior and tests.
+  - [x] Added synchronous/asynchronous `measureDevTools` profiling with success/error events and bridge coverage.
 - [x] Run the complete validation matrix, update docs/changelog, and push the verified increment to `origin/V3`.
   - [x] 23 Jest suites / 112 tests passed; type-check, strict unused check, build, package verification, and `git diff --check` passed.
 

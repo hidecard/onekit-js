@@ -183,6 +183,9 @@ function enableDevTools(options = {}) {
         getDependencyGraph() {
             return getDependencyGraph();
         },
+        measure(name, task) {
+            return measureDevTools(name, task);
+        },
         dispose() {
             enabled = false;
             listeners.clear();
@@ -201,6 +204,28 @@ function enableDevTools(options = {}) {
         installedGlobalName = globalName;
     }
     return bridge;
+}
+function measureDevTools(name, task) {
+    const now = () => typeof performance !== 'undefined' ? performance.now() : Date.now();
+    const startedAt = now();
+    try {
+        const result = task();
+        if (result && typeof result.then === 'function') {
+            return Promise.resolve(result).then(value => {
+                emitDevToolsEvent({ type: 'performance:measure', name, duration: Math.max(0, now() - startedAt), status: 'success' });
+                return value;
+            }, error => {
+                emitDevToolsEvent({ type: 'performance:measure', name, duration: Math.max(0, now() - startedAt), status: 'error' });
+                throw error;
+            });
+        }
+        emitDevToolsEvent({ type: 'performance:measure', name, duration: Math.max(0, now() - startedAt), status: 'success' });
+        return result;
+    }
+    catch (error) {
+        emitDevToolsEvent({ type: 'performance:measure', name, duration: Math.max(0, now() - startedAt), status: 'error' });
+        throw error;
+    }
 }
 function onDevToolsEvent(listener) {
     listeners.add(listener);
@@ -5061,8 +5086,21 @@ function h(tagOrTemplate, propsOrValue, ...children) {
     }
     return createElement(tagOrTemplate, (propsOrValue && typeof propsOrValue === 'object' && !Array.isArray(propsOrValue) ? propsOrValue : {}), ...(propsOrValue && typeof propsOrValue !== 'object' ? [propsOrValue] : []), ...children);
 }
-const jsx = h;
-const jsxDEV = h;
+const jsx$1 = h;
+const jsxDEV$1 = h;
+
+function createJSXElement(type, props, key) {
+    const { children, ...rest } = props ?? {};
+    if (key !== undefined)
+        rest.key = key;
+    const childList = children === undefined ? [] : Array.isArray(children) ? children : [children];
+    return createElement(type, rest, ...childList);
+}
+function jsx(type, props, key) {
+    return createJSXElement(type, props, key);
+}
+const jsxs = jsx;
+const jsxDEV = jsx;
 
 // OneKit - Modern JavaScript Framework
 // Main entry point with tree-shaking friendly exports
@@ -5147,12 +5185,16 @@ exports.initTemplateEngine = initTemplateEngine;
 exports.isClient = isClient;
 exports.isDevToolsEnabled = isDevToolsEnabled;
 exports.isServer = isServer;
-exports.jsx = jsx;
-exports.jsxDEV = jsxDEV;
+exports.jsx = jsx$1;
+exports.jsxDEV = jsxDEV$1;
+exports.jsxRuntime = jsx;
+exports.jsxRuntimeDEV = jsxDEV;
+exports.jsxs = jsxs;
 exports.localStorage = localStorage;
 exports.makeFocusable = makeFocusable;
 exports.makeUnfocusable = makeUnfocusable;
 exports.manageTabOrder = manageTabOrder;
+exports.measureDevTools = measureDevTools;
 exports.mount = mount;
 exports.nextTick = nextTick;
 exports.ok = ok;

@@ -1,4 +1,5 @@
 import { createElement, patch, render } from '../src/index';
+import { Fragment, jsx, jsxs } from '../src/jsx-runtime';
 
 describe('M3 renderer production contract', () => {
   it('creates and updates DOM props and text', () => {
@@ -101,6 +102,18 @@ describe('M3 renderer production contract', () => {
     patch(root, next, first);
 
     expect(root.innerHTML).toBe('<section><b>new</b><em>tail</em></section>');
+  });
+
+  it('supports the automatic JSX runtime contract for single and multiple children', () => {
+    const single = jsx('button', { type: 'button', children: 'Save' }, 'save');
+    const multiple = jsxs('div', {
+      children: [jsx('span', { children: 'A' }), jsx('span', { children: 'B' })],
+    });
+    const fragment = jsx(Fragment, { children: [single, multiple] });
+
+    expect(single).toMatchObject({ tag: 'button', key: 'save', props: { type: 'button' }, children: ['Save'] });
+    expect(multiple.children).toHaveLength(2);
+    expect(fragment.tag).toBe(Fragment);
   });
 
   it('assigns refs to rendered elements', () => {

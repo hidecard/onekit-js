@@ -72,6 +72,11 @@
       "import": "./dist/onekit.esm.js",
       "require": "./dist/onekit.cjs"
     },
+    "./jsx-runtime": {
+      "types": "./dist/types/jsx-runtime.d.ts",
+      "import": "./dist/onekit.esm.js",
+      "require": "./dist/onekit.cjs"
+    },
     "./router": {
       "types": "./dist/types/modules/router.d.ts",
       "import": "./dist/onekit.esm.js",

@@ -1,4 +1,4 @@
-import { createRouter, effect, effectScope, enableDevTools, reactive, stop } from '../src/index';
+import { createRouter, effect, effectScope, enableDevTools, measureDevTools, reactive, stop } from '../src/index';
 
 describe('DevTools foundation', () => {
   it('is opt-in and reports reactive triggers, effect runs, and stop events', async () => {
@@ -47,6 +47,28 @@ describe('DevTools foundation', () => {
     if (typeof window !== 'undefined') {
       expect((window as unknown as Record<string, unknown>).__ONEKIT_TEST_DEVTOOLS__).toBeUndefined();
     }
+  });
+
+  it('records synchronous and asynchronous profiling results without changing task behavior', async () => {
+    const bridge = enableDevTools();
+    const events: Array<{ name: string; status: string; duration: number }> = [];
+    const unsubscribe = bridge.subscribe(event => {
+      if (event.type === 'performance:measure') events.push(event);
+    });
+
+    expect(measureDevTools('sync-work', () => 42)).toBe(42);
+    await expect(bridge.measure('async-work', async () => 'ready')).resolves.toBe('ready');
+    expect(events).toHaveLength(2);
+    expect(events).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: 'sync-work', status: 'success' }),
+      expect.objectContaining({ name: 'async-work', status: 'success' }),
+    ]));
+    expect(events.every(event => event.duration >= 0)).toBe(true);
+
+    expect(() => bridge.measure('failed-work', () => { throw new Error('failed'); })).toThrow('failed');
+    expect(events).toContainEqual(expect.objectContaining({ name: 'failed-work', status: 'error' }));
+    unsubscribe();
+    bridge.dispose();
   });
 
   it('reports router navigation lifecycle and can be disposed', async () => {

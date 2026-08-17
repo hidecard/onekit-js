@@ -181,6 +181,9 @@ function enableDevTools(options = {}) {
         getDependencyGraph() {
             return getDependencyGraph();
         },
+        measure(name, task) {
+            return measureDevTools(name, task);
+        },
         dispose() {
             enabled = false;
             listeners.clear();
@@ -199,6 +202,28 @@ function enableDevTools(options = {}) {
         installedGlobalName = globalName;
     }
     return bridge;
+}
+function measureDevTools(name, task) {
+    const now = () => typeof performance !== 'undefined' ? performance.now() : Date.now();
+    const startedAt = now();
+    try {
+        const result = task();
+        if (result && typeof result.then === 'function') {
+            return Promise.resolve(result).then(value => {
+                emitDevToolsEvent({ type: 'performance:measure', name, duration: Math.max(0, now() - startedAt), status: 'success' });
+                return value;
+            }, error => {
+                emitDevToolsEvent({ type: 'performance:measure', name, duration: Math.max(0, now() - startedAt), status: 'error' });
+                throw error;
+            });
+        }
+        emitDevToolsEvent({ type: 'performance:measure', name, duration: Math.max(0, now() - startedAt), status: 'success' });
+        return result;
+    }
+    catch (error) {
+        emitDevToolsEvent({ type: 'performance:measure', name, duration: Math.max(0, now() - startedAt), status: 'error' });
+        throw error;
+    }
 }
 function onDevToolsEvent(listener) {
     listeners.add(listener);
@@ -5059,8 +5084,21 @@ function h(tagOrTemplate, propsOrValue, ...children) {
     }
     return createElement(tagOrTemplate, (propsOrValue && typeof propsOrValue === 'object' && !Array.isArray(propsOrValue) ? propsOrValue : {}), ...(propsOrValue && typeof propsOrValue !== 'object' ? [propsOrValue] : []), ...children);
 }
-const jsx = h;
-const jsxDEV = h;
+const jsx$1 = h;
+const jsxDEV$1 = h;
+
+function createJSXElement(type, props, key) {
+    const { children, ...rest } = props ?? {};
+    if (key !== undefined)
+        rest.key = key;
+    const childList = children === undefined ? [] : Array.isArray(children) ? children : [children];
+    return createElement(type, rest, ...childList);
+}
+function jsx(type, props, key) {
+    return createJSXElement(type, props, key);
+}
+const jsxs = jsx;
+const jsxDEV = jsx;
 
 // OneKit - Modern JavaScript Framework
 // Main entry point with tree-shaking friendly exports
@@ -5068,5 +5106,5 @@ const jsxDEV = h;
 // Version info
 const VERSION = '3.1.17';
 
-export { API, DependencyInjector, Fragment, OneKit, OneKitWebComponent, QueryClient, Router, StreamingRenderer, VERSION, addScript, addStorePlugin, addStyle, addToBody, addToHead, animations, announce, patch as apiPatch, autorun, batch, bind, cache, cleanup, clearDevToolsDependencies, compileOkjs, compileTemplate, component, computed, create, createApp, createElement, createErrorBoundary, createForm, createLandmarks, createLoadingBoundary, createQueryClient, createRouter, createSSRContext, createSkipLink, createStorage, createStore, debounce, deepClone, defineComponent, defineStore, del, derive, destroy, devToolsSnapshot, di, disableScopeLeakWarnings, disposeDevToolsResource, effect, effectScope, emitDevToolsEvent, enableDevTools, enableScopeLeakWarnings, errorHandler, fireEvent, flush, generateId, get, getActiveScopeDiagnostics, getAllStores, getCurrentScope, getDependencyGraph, getDevToolsEffectId, getDevToolsScopeId, getDevToolsTargetId, getInstance, getResourceGraph, h, hotUpdateComponent, hydrate, initTemplateEngine, isClient, isDevToolsEnabled, isServer, jsx, jsxDEV, localStorage, makeFocusable, makeUnfocusable, manageTabOrder, mount, nextTick, ok, okjs, onDestroyed, onDevToolsEvent, onMounted, onPropsChanged, onScopeDispose, onUpdated, parseOkjs, patch$1 as patch, pluginManager, post, preloadModule, preloadScript, preloadStyle, put, reactive, recordDevToolsDependency, register, registerDevToolsInspector, registerDevToolsResource, registerDirective, registerDisposable, registerWebComponent, removeStore, render, renderMeta, renderOpenGraph, renderTest, renderTitle, renderToString, request, router, safeMethod, sessionStorage, setAriaAttributes, setMeta, setupComponent, skipToContent, snapshot, state, stop, throttle, trapFocus, unmount, useStore, validateAccessibility, patch$1 as vdomPatch, waitFor, watch, watchEffect, withCache, withScope };
+export { API, DependencyInjector, Fragment, OneKit, OneKitWebComponent, QueryClient, Router, StreamingRenderer, VERSION, addScript, addStorePlugin, addStyle, addToBody, addToHead, animations, announce, patch as apiPatch, autorun, batch, bind, cache, cleanup, clearDevToolsDependencies, compileOkjs, compileTemplate, component, computed, create, createApp, createElement, createErrorBoundary, createForm, createLandmarks, createLoadingBoundary, createQueryClient, createRouter, createSSRContext, createSkipLink, createStorage, createStore, debounce, deepClone, defineComponent, defineStore, del, derive, destroy, devToolsSnapshot, di, disableScopeLeakWarnings, disposeDevToolsResource, effect, effectScope, emitDevToolsEvent, enableDevTools, enableScopeLeakWarnings, errorHandler, fireEvent, flush, generateId, get, getActiveScopeDiagnostics, getAllStores, getCurrentScope, getDependencyGraph, getDevToolsEffectId, getDevToolsScopeId, getDevToolsTargetId, getInstance, getResourceGraph, h, hotUpdateComponent, hydrate, initTemplateEngine, isClient, isDevToolsEnabled, isServer, jsx$1 as jsx, jsxDEV$1 as jsxDEV, jsx as jsxRuntime, jsxDEV as jsxRuntimeDEV, jsxs, localStorage, makeFocusable, makeUnfocusable, manageTabOrder, measureDevTools, mount, nextTick, ok, okjs, onDestroyed, onDevToolsEvent, onMounted, onPropsChanged, onScopeDispose, onUpdated, parseOkjs, patch$1 as patch, pluginManager, post, preloadModule, preloadScript, preloadStyle, put, reactive, recordDevToolsDependency, register, registerDevToolsInspector, registerDevToolsResource, registerDirective, registerDisposable, registerWebComponent, removeStore, render, renderMeta, renderOpenGraph, renderTest, renderTitle, renderToString, request, router, safeMethod, sessionStorage, setAriaAttributes, setMeta, setupComponent, skipToContent, snapshot, state, stop, throttle, trapFocus, unmount, useStore, validateAccessibility, patch$1 as vdomPatch, waitFor, watch, watchEffect, withCache, withScope };
 //# sourceMappingURL=onekit.esm.js.map

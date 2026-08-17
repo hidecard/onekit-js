@@ -26,6 +26,7 @@ export * from './testing';
 export * from './okjs';
 export { OneKitWebComponent, registerWebComponent } from './modules/web-components';
 export { okjs, component, h, jsx, jsxDEV, Fragment } from './modules/jsx';
+export { jsx as jsxRuntime, jsxs, jsxDEV as jsxRuntimeDEV } from './jsx-runtime';
 
 // Version info
 export const VERSION = '3.1.17';
