@@ -701,12 +701,18 @@ npm audit --omit=dev
 npm pack --dry-run
 ```
 
-`npm run verify:package` creates an isolated temporary project, installs the packed tarball, and checks the root, ESM, CJS, SSR, and CLI entrypoints. Then inspect the tarball contents and verify that the package version, declaration paths, CLI files, README, documentation, and license are present. Pull requests and pushes to the `V3` branch also run the same checks through GitHub Actions. Actual publication requires an authenticated npm session:
+`npm run verify:package` creates an isolated temporary project, installs the packed tarball, and checks the root, ESM, CJS, SSR, and CLI entrypoints. Then inspect the tarball contents and verify that the package version, declaration paths, CLI files, README, documentation, and license are present. Pull requests and pushes to the `V3` branch also run the same checks through GitHub Actions. For the main package, publication is handled by `.github/workflows/publish-onekit.yml`. After validation passes, bump the package version, commit the release metadata, and push a matching tag:
 
 ```bash
-npm login
-npm publish --access public
+npm version 3.1.18 --no-git-tag-version
+git add package.json package-lock.json src/index.ts CHANGELOG.md README.md docs
+git commit -m "chore(release): prepare onekit 3.1.18"
+git push origin V3
+git tag v3.1.18
+git push origin v3.1.18
 ```
+
+The creator package is published independently through `create-onekit-v1.0.8`; publish `onekit-js` first so the creator's `^3.1.18` dependency is available. A manual `npm publish --access public` remains possible for an authenticated npm session, but the tag workflow is preferred because it provides repeatable validation and npm provenance.
 
 Never place an npm access token in source files, commit history, chat messages, or public documentation.
 
@@ -794,6 +800,7 @@ The existing `reactive`, `effect`, `watch`, `register`, `create`, and `mount` AP
 OneKit 3.1.18 includes a small DOM-first testing foundation from `onekit-js/testing`. `renderTest()` mounts a VNode into an isolated container and provides `rerender()` and `unmount()`; `cleanup()` removes containers registered by the helper; `fireEvent()`, `flush()`, and `waitFor()` support common synchronous and asynchronous component tests.
 
 ```ts
+import { h } from "onekit-js";
 import { cleanup, fireEvent, renderTest, waitFor } from "onekit-js/testing";
 
 const view = renderTest(h("button", { onClick: save }, "Save"));
