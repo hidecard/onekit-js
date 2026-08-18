@@ -68,6 +68,19 @@ describe('M3 renderer production contract', () => {
     expect(root.firstElementChild?.hasAttribute('title')).toBe(false);
   });
 
+  it('disposes event listeners when a subtree is replaced', () => {
+    const root = document.createElement('div');
+    const calls: string[] = [];
+    const old = createElement('button', { onClick: () => calls.push('stale') }, 'Old');
+    patch(root, old);
+    const oldElement = root.firstElementChild as HTMLButtonElement;
+
+    patch(root, createElement('span', {}, 'New'), old);
+    oldElement.click();
+
+    expect(calls).toEqual([]);
+  });
+
   it('updates fragments without leaving stale or misplaced nodes', () => {
     const root = document.createElement('div');
     const first = createElement('fragment', {},

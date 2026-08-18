@@ -46,9 +46,15 @@ OneKit does not try to hide the browser. DOM elements, events, selectors, reques
 | Runtime boundaries | Explicit server/client detection and guarded callbacks for shared modules | `onekit-js` |
 | Browser integration | Storage, accessibility helpers, animations, Web Components | `onekit-js/storage`, `onekit-js/a11y`, `onekit-js/web-components` |
 | Tooling | Vite plugin, `.okjs` support, CLI, HMR checks, DOM-first testing helpers | `onekit-js/vite`, `onekit-js/testing` |
-| Diagnostics | Opt-in inspectors, lifecycle events, bounded history, profiling measurements | `onekit-js` |
+| Diagnostics | Opt-in inspectors, lifecycle events, bounded history, profiling measurements, normalized runtime errors, application reporters | `onekit-js` |
 
 V3 keeps these capabilities composable. An application can use only the reactive core, or combine components, routes, stores, SSR, testing, and tooling as it grows.
+
+### Latest production-parity additions
+
+The current V3 branch also hardens failure handling and teardown behavior for production applications. `createErrorReport(error, context)` converts unknown failures into a normalized `{ context, error: { name, message, stack? } }` payload. Applications can register an optional reporter with `setErrorReporter(reporter)`; reporter failures are isolated and cannot interrupt the application. When the opt-in DevTools bridge is enabled, runtime failures appear as `runtime:error` events. The browser `onekit-error` event remains available for integrations, but applications should review and redact their own messages and stack traces before sending them to an external service.
+
+VDOM subtree replacement now disposes registered event listeners in addition to clearing refs, including listeners on descendant nodes. This makes long-lived applications safer during keyed updates and subtree replacement. These behaviors are covered by the production test matrix.
 
 ### Verified V3.1.19 contract
 
@@ -237,7 +243,7 @@ const instance = create("Counter", { step: 2 });
 if (instance) mount(instance, "#app");
 ```
 
-The public component lifecycle includes creation, mounting, updating, and destruction. Prefer explicit teardown for subscriptions and resources. `unmount`/`destroy` should be called when an instance is no longer needed.
+The public component lifecycle includes creation, mounting, updating, and destruction. Prefer explicit teardown for subscriptions and resources. `unmount`/`destroy` should be called when an instance is no longer needed. VDOM replacement also disposes event listeners and refs owned by the replaced subtree.
 
 ## Templates, JSX, and VDOM
 

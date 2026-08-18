@@ -15,6 +15,8 @@ export interface VNode {
 
 interface VElement extends Element { _vnode?: VNode; }
 
+const eventListeners = new WeakMap<Element, Map<string, EventListener>>();
+
 type RenderNode = Element | Text | DocumentFragment;
 
 export function createElement(tag: string | Function, props: VNodeProps = {}, ...children: unknown[]): VNode {
@@ -42,8 +44,20 @@ function setProp(element: Element, prop: string, value: unknown, oldValue?: unkn
   }
   if (/^on/i.test(prop)) {
     const event = prop.slice(2).toLowerCase();
-    if (oldValue && typeof oldValue === 'function' && oldValue !== value) element.removeEventListener(event, oldValue as EventListener);
-    if (typeof value === 'function' && value !== oldValue) element.addEventListener(event, value as EventListener);
+    const registered = eventListeners.get(element);
+    const previousListener = registered?.get(event);
+    if (previousListener && previousListener !== value) {
+      element.removeEventListener(event, previousListener);
+      registered?.delete(event);
+    } else if (oldValue && typeof oldValue === 'function' && oldValue !== value) {
+      element.removeEventListener(event, oldValue as EventListener);
+    }
+    if (typeof value === 'function' && value !== oldValue) {
+      element.addEventListener(event, value as EventListener);
+      const listeners = registered ?? new Map<string, EventListener>();
+      listeners.set(event, value as EventListener);
+      eventListeners.set(element, listeners);
+    }
     return;
   }
   if (prop === 'className') {
@@ -188,6 +202,12 @@ function patchChildren(parent: Node, nextChildren: (VNode | string)[], previousC
 
 function cleanupVNode(vnode: VNode | string, domNode: Node): void {
   if (typeof vnode === 'string') return;
+  const element = domNode.nodeType === Node.ELEMENT_NODE ? domNode as Element : null;
+  if (element) {
+    const listeners = eventListeners.get(element);
+    listeners?.forEach((listener, event) => element.removeEventListener(event, listener));
+    eventListeners.delete(element);
+  }
   if (vnode.props.ref) setProp(domNode as Element, 'ref', undefined, vnode.props.ref);
   vnode.children.forEach((child, index) => {
     const childNode = domNode.childNodes[index];

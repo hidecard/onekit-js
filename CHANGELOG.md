@@ -1,5 +1,25 @@
 # Changelog
 
+## [Unreleased]
+
+The V3 branch continues production hardening after `3.1.19` without changing the published version contract.
+
+### Added
+
+- Add normalized runtime error reports through `createErrorReport(error, context)` and an opt-in `setErrorReporter()` hook for application-owned telemetry.
+- Add the DevTools `runtime:error` event with bounded, detached diagnostic snapshots when the opt-in bridge is enabled.
+- Dispose VDOM event listeners across replaced subtrees, including descendant nodes, alongside existing ref cleanup.
+- Add regression coverage for reporter isolation, error normalization, DevTools runtime errors, and stale listener disposal.
+
+### Documentation
+
+- Update the README feature map and production-parity guidance for runtime diagnostics and VDOM teardown behavior.
+- Keep production-readiness guidance explicit about reviewing and redacting error messages and stack traces before external forwarding.
+
+### Validation
+
+- The focused observability and VDOM suites pass, together with strict TypeScript checking and the full Jest matrix.
+
 ## [3.1.19] - 2026-08-18
 
 OneKit JS `3.1.19` is a **V3 production-parity patch release** that adds progressive SSR boundaries, client continuation, persisted query cache state, and automatic focus/reconnect revalidation while preserving the existing V3.1.18 contracts.
