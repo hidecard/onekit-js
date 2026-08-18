@@ -40,7 +40,7 @@ OneKit does not try to hide the browser. DOM elements, events, selectors, reques
 | State | `reactive`, `computed`, `effect`, `watch`, batching, snapshots, cleanup | `onekit-js` |
 | Components | Typed props, component lifecycle, registration, mount/unmount, dependency injection | `onekit-js` |
 | Rendering | Templates, directives, JSX, automatic JSX runtime, VDOM patching, fragments | `onekit-js/jsx`, `onekit-js/jsx-runtime` |
-| Routing | History/hash/memory modes, typed params, file discovery, nested layouts, guards, loaders, manifests, prefetch, scroll restoration | `onekit-js/router` |
+| Routing | History/hash/memory modes, typed params, file discovery, nested layouts, guards, loaders, manifests, prefetch, scroll restoration | `onekit-js` and `onekit-js/router` |
 | Server rendering | Request-scoped SSR, streaming, async rendering, hydration diagnostics, error/loading boundaries, safe route manifests | `onekit-js/ssr` |
 | Data and forms | HTTP helpers, retry/timeout/cancellation, query invalidation, mutations, optimistic updates, SSR handoff, typed forms, validation | `onekit-js/api`, `onekit-js/query`, `onekit-js/forms` |
 | Runtime boundaries | Explicit server/client detection and guarded callbacks for shared modules | `onekit-js` |
@@ -49,6 +49,21 @@ OneKit does not try to hide the browser. DOM elements, events, selectors, reques
 | Diagnostics | Opt-in inspectors, lifecycle events, bounded history, profiling measurements | `onekit-js` |
 
 V3 keeps these capabilities composable. An application can use only the reactive core, or combine components, routes, stores, SSR, testing, and tooling as it grows.
+
+### Verified V3.1.18 contract
+
+The examples in this README are written against the published V3.1.18 package surface. The following table maps the main documented commands and entrypoints to the repository checks that verify them:
+
+| Concern | Documented command or import | Verification source |
+|---|---|---|
+| TypeScript contract | `npm run type-check` | `tsconfig.json` and the full `src/` declaration graph |
+| Production package | `npm run build` | `scripts/build-library.mjs` and `scripts/build-vite-plugin.mjs` |
+| Package exports | `onekit-js`, `onekit-js/router`, `onekit-js/query`, `onekit-js/ssr` | `package.json#exports` and `scripts/verify-package.cjs` |
+| CLI workflow | `onekit create`, `onekit dev`, `onekit build`, `onekit preview`, `onekit test` | `bin/onekit.js` and CLI tests |
+| Runtime validation | `npm test -- --runInBand` | Jest configuration and repository test suites |
+| Published declarations | `npm run verify:declarations` | `scripts/verify-declarations.mjs` |
+
+If an example is copied into an application, replace placeholder values such as `HomePage`, `loadReports`, and `createProject` with application-owned implementations. The framework APIs and signatures shown here are the verified part of each example.
 
 ## Quick start in five minutes
 
@@ -351,7 +366,11 @@ import { createRouter } from "onekit-js/router";
 
 const loading = createLoadingBoundary<unknown>();
 const errors = createErrorBoundary({
-  fallback: (error, reset) => ({ kind: "error", message: error.message, reset }),
+  fallback: (error, reset) => ({
+    kind: "error",
+    message: error instanceof Error ? error.message : String(error),
+    reset,
+  }),
 });
 
 const router = createRouter([
@@ -415,6 +434,10 @@ For server-to-client data handoff, create one `QueryClient` per SSR request, awa
 
 ```ts
 // server request
+import { createQueryClient } from "onekit-js/query";
+import { createRouter } from "onekit-js/router";
+
+declare function loadDashboard(context?: { signal: AbortSignal }): Promise<{ total: number }>;
 const serverQueries = createQueryClient();
 await serverQueries.fetch(['dashboard', 'summary'], loadDashboard);
 const payload = JSON.stringify(serverQueries.dehydrate());
@@ -444,7 +467,8 @@ Use `isServerRuntime()` and `isClientRuntime()` for explicit checks. Wrap browse
 import { clientOnly, isServerRuntime, serverOnly } from "onekit-js";
 
 const readViewport = clientOnly(() => window.innerWidth);
-const getRequestId = serverOnly((request: Request) => request.headers.get("x-request-id"));
+const getRequestId = serverOnly(() => "request-scoped-value");
+void getRequestId;
 
 if (isServerRuntime()) {
   console.log("Rendering on the server");
