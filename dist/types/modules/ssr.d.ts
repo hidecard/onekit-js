@@ -18,17 +18,32 @@ export interface HydrationMismatch {
     expected: string;
     actual: string;
 }
+export interface HydrationOptions {
+    /** Receive each mismatch as soon as the hydration walk completes. */
+    onMismatch?: (mismatch: HydrationMismatch) => void;
+    /** Throw after collecting mismatches instead of continuing silently. */
+    throwOnMismatch?: boolean;
+}
+export declare class HydrationMismatchError extends Error {
+    readonly mismatches: readonly HydrationMismatch[];
+    constructor(mismatches: readonly HydrationMismatch[]);
+}
 export interface HydrationResult {
     mismatches: HydrationMismatch[];
+    hasMismatch: boolean;
+    firstMismatch?: HydrationMismatch;
     dispose: () => void;
 }
-export declare function hydrate(rootElement: Element, vnode: VNode): HydrationResult;
+export declare function hydrate(rootElement: Element, vnode: VNode, options?: HydrationOptions): HydrationResult;
+export interface StreamingRenderOptions {
+    signal?: AbortSignal;
+    /** Receive the original rendering error before the stream is aborted. */
+    onError?: (error: unknown) => void;
+}
 export declare class StreamingRenderer {
     private context;
     constructor(context?: SSRContext);
-    renderToStream(vnode: AsyncVNode, options?: {
-        signal?: AbortSignal;
-    }): Promise<ReadableStream<string>>;
+    renderToStream(vnode: AsyncVNode, options?: StreamingRenderOptions): Promise<ReadableStream<string>>;
     private renderAsync;
     private renderVNodeAsync;
     getContext(): SSRContext;

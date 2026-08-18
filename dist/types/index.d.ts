@@ -8,6 +8,7 @@ export { createElement, render, patch, patch as vdomPatch } from './modules/vdom
 export * from './modules/animation';
 export { request, get, post, put, del, API, patch as apiPatch } from './modules/api';
 export * from './modules/router';
+export * from './modules/file-routes';
 export * from './modules/storage';
 export * from './modules/utils';
 export * from './modules/a11y';
@@ -15,6 +16,7 @@ export * from './modules/store';
 export * from './modules/query';
 export * from './modules/forms';
 export * from './modules/ssr';
+export * from './modules/environment';
 export * from './modules/head';
 export * from './modules/template';
 export * from './testing';
