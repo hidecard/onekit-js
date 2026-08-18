@@ -40,9 +40,10 @@ OneKit does not try to hide the browser. DOM elements, events, selectors, reques
 | State | `reactive`, `computed`, `effect`, `watch`, batching, snapshots, cleanup | `onekit-js` |
 | Components | Typed props, component lifecycle, registration, mount/unmount, dependency injection | `onekit-js` |
 | Rendering | Templates, directives, JSX, automatic JSX runtime, VDOM patching, fragments | `onekit-js/jsx`, `onekit-js/jsx-runtime` |
-| Routing | History/hash/memory modes, typed nested routes, guards, loaders, lazy components, prefetch, scroll restoration | `onekit-js/router` |
-| Server rendering | Request-scoped SSR, streaming, async rendering, hydration, mismatch diagnostics, boundaries | `onekit-js/ssr` |
-| Data and forms | HTTP helpers, retry/timeout/cancellation, query deduplication, typed forms, validation | `onekit-js/api`, `onekit-js/query`, `onekit-js/forms` |
+| Routing | History/hash/memory modes, typed params, file discovery, nested layouts, guards, loaders, manifests, prefetch, scroll restoration | `onekit-js/router` |
+| Server rendering | Request-scoped SSR, streaming, async rendering, hydration diagnostics, error/loading boundaries, safe route manifests | `onekit-js/ssr` |
+| Data and forms | HTTP helpers, retry/timeout/cancellation, query invalidation, mutations, optimistic updates, SSR handoff, typed forms, validation | `onekit-js/api`, `onekit-js/query`, `onekit-js/forms` |
+| Runtime boundaries | Explicit server/client detection and guarded callbacks for shared modules | `onekit-js` |
 | Browser integration | Storage, accessibility helpers, animations, Web Components | `onekit-js/storage`, `onekit-js/a11y`, `onekit-js/web-components` |
 | Tooling | Vite plugin, `.okjs` support, CLI, HMR checks, DOM-first testing helpers | `onekit-js/vite`, `onekit-js/testing` |
 | Diagnostics | Opt-in inspectors, lifecycle events, bounded history, profiling measurements | `onekit-js` |
@@ -266,34 +267,45 @@ For classic JSX transforms, import `jsx`, `jsxDEV`, `h`, and `Fragment` from `on
 
 ## Routing and nested layouts
 
-The router supports memory, browser, and hash-oriented navigation patterns, dynamic parameters, query parsing, guards, async loaders, redirects, lazy components, prefetching, and nested typed route records.
+The router supports memory, browser, and hash navigation modes, dynamic parameters, query parsing, guards, async loaders, redirects, lazy components, prefetching, JSON-safe manifests, typed route contexts, and nested layout records. It resolves navigation and data; your application remains responsible for rendering the matched route.
 
 ```ts
-import { createRouter } from "onekit-js";
+import {
+  createRouter,
+  defineRoute,
+  type RouteContextFor,
+  type RouteLoaderData,
+} from "onekit-js";
 
-const router = createRouter({
+type Services = {
+  api: { getProject(id: string): Promise<{ id: string; name: string }> };
+};
+declare const services: Services;
+
+const loadProject = ({ to, context }: RouteContextFor<"/projects/:projectId", Services>) =>
+  context.api.getProject(to.params.projectId);
+type ProjectData = RouteLoaderData<typeof loadProject>;
+
+const router = createRouter([
+  defineRoute("/", { component: HomePage }),
+  defineRoute("/projects/:projectId", {
+    layout: ProjectLayout,
+    loader: loadProject,
+    children: [
+      { path: "", component: ProjectOverview },
+      { path: "/settings", component: ProjectSettings },
+    ],
+  }),
+], {
   mode: "history",
-  routes: [
-    {
-      path: "/",
-      component: HomePage,
-    },
-    {
-      path: "/projects/:projectId",
-      component: ProjectLayout,
-      children: [
-        { path: "", component: ProjectOverview },
-        { path: "/settings", component: ProjectSettings },
-      ],
-    },
-  ],
+  context: services,
 });
 
-router.start();
+await router.start();
 await router.navigate("/projects/onekit/settings");
 ```
 
-Keep route loaders and guards abortable. OneKit protects the application from stale asynchronous navigation committing after a newer navigation wins. Use `prefetch()` to warm route data without changing the current URL or committed route state.
+Use `RouteParamsFor<Path>` and `routeHref()` when constructing typed links, `createFileRoutes()` when discovering routes from a bundler module map, and `createRouteManifest()` or `router.getManifest()` for SSR preload and hydration planning. Keep route loaders and guards abortable. OneKit protects the application from stale asynchronous navigation committing after a newer navigation wins. Use `prefetch()` to warm route data without changing the current URL or committed route state.
 
 ## Stores, query data, and forms
 
@@ -303,7 +315,7 @@ Use stores for shared application state with explicit actions and subscriptions.
 
 ### Query client
 
-`onekit-js/query` provides a small query foundation with deduplication and stale-time behavior:
+`onekit-js/query` provides a compact query foundation with deduplication, stale-time behavior, invalidation, retries, cancellation, mutations, optimistic updates, and SSR dehydrate/hydrate handoff:
 
 ```ts
 import { QueryClient } from "onekit-js/query";
@@ -311,6 +323,19 @@ import { QueryClient } from "onekit-js/query";
 const queries = new QueryClient({ staleTime: 30_000 });
 const result = await queries.fetch(["projects"], () =>
   fetch("/api/projects").then((response) => response.json()),
+);
+
+queries.invalidate(["projects"]);
+declare function createProject(input: { name: string }): Promise<{ id: string; name: string }>;
+const mutation = await queries.mutate(
+  { name: "New project" },
+  {
+    mutationFn: (input) => createProject(input),
+    optimistic: {
+      key: ["projects"],
+      update: (current, input) => [...((current as Array<{ name: string }>) ?? []), input],
+    },
+  },
 );
 ```
 
@@ -413,7 +438,20 @@ const router = createRouter([
 ], { mode: 'memory', queryClient: queries });
 ```
 
-See the [V3 Usage Guide](docs/V3_USAGE.md) for streaming examples and advanced SSR contracts.
+Use `isServerRuntime()` and `isClientRuntime()` for explicit checks. Wrap browser-only or server-only callbacks with `clientOnly()` and `serverOnly()` when an incorrect runtime should fail clearly instead of being silently skipped:
+
+```ts
+import { clientOnly, isServerRuntime, serverOnly } from "onekit-js";
+
+const readViewport = clientOnly(() => window.innerWidth);
+const getRequestId = serverOnly((request: Request) => request.headers.get("x-request-id"));
+
+if (isServerRuntime()) {
+  console.log("Rendering on the server");
+}
+```
+
+See the [V3 Usage Guide](docs/V3_USAGE.md), [Migration Guide](MIGRATION_GUIDE.md), and [V3 Release Notes](docs/V3_RELEASE_NOTES.md) for streaming examples, typed loader contracts, and advanced SSR guidance.
 
 ## Metadata, SEO, and document head
 
@@ -630,7 +668,7 @@ Push the branch and open a pull request against `V3`. A useful pull request desc
 
 ## Versioning and release notes
 
-The current framework release is **OneKit JS `3.1.18`**. The current starter CLI release documented here is **`create-onekit@1.0.8`**. The framework package and starter CLI may release independently; always check the command and package name when pinning versions.
+The current framework release is **OneKit JS `3.1.18`**. The current starter CLI release documented here is **`create-onekit@1.0.8`**. The framework package and starter CLI may release independently; always check the command and package name when pinning versions. For upgrade steps and compatibility notes, read the [V3 Migration Guide](MIGRATION_GUIDE.md) and [V3.1.18 Release Notes](docs/V3_RELEASE_NOTES.md).
 
 OneKit follows semantic versioning. Additive APIs and fixes should remain compatible within a major version. Breaking changes require migration notes, updated examples, regression coverage, and an explicit changelog entry.
 
