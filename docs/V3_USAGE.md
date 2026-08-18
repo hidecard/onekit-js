@@ -362,6 +362,30 @@ const reports = defineRoute('/reports/:id', {
 
 The helper only discovers and normalizes route definitions; it does not import modules itself, enforce authorization, or replace a framework-specific build plugin. This keeps the API compatible with Vite, Rollup, Webpack, and custom code generators.
 
+Loader callbacks receive a typed `RouteContext`. For a route literal, `to.params` is derived from the path, and the awaited loader return value is retained by the typed route definition. `RouteLoaderData<typeof loader>` extracts the awaited result of an existing loader function, while `RouteContextFor<Path, AppContext>` gives service-heavy applications an explicit context contract:
+
+```ts
+import {
+  createRouter,
+  defineRoute,
+  type RouteContextFor,
+  type RouteLoaderData,
+} from 'onekit-js';
+
+type Services = { api: { getUser(id: string): Promise<{ id: string }> } };
+const loadUser = async ({ to, context }: RouteContextFor<'/users/:id', Services>) =>
+  context.api.getUser(to.params.id);
+type UserData = RouteLoaderData<typeof loadUser>; // { id: string }
+
+const userRoute = defineRoute('/users/:id', { loader: loadUser });
+const router = createRouter([userRoute], {
+  mode: 'memory',
+  context: { api },
+});
+```
+
+`RouterOptions.context` is passed unchanged to `beforeEach`, `beforeEnter`, `loader`, `queryKey`, `handler`, and `afterEach`. This makes dependency injection explicit for both browser navigation and SSR without relying on module-level mutable state.
+
 For typed route parameters, use `RouteParamsFor<Path>` with a route literal. Static paths require no parameters, named segments such as `:id` become required string properties, optional segments such as `:tab?` become optional properties, and catch-all segments use the `wildcard` property:
 
 ```ts

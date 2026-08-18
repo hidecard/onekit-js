@@ -149,6 +149,21 @@ describe('M2 router production contract', () => {
     expect(events).toEqual(['none>/dashboard']);
   });
 
+  it('passes application context to guards and loaders and preserves loader data', async () => {
+    const context = { apiBase: 'https://api.example.test', userId: 'u-1' };
+    const loader = jest.fn(async ({ to, context: services }) => ({
+      id: to.params.id,
+      endpoint: `${services.apiBase}/users/${services.userId}`,
+    }));
+    const router = createRouter([
+      { path: '/users/:id', beforeEnter: ({ context: services }) => services.userId === 'u-1', loader },
+    ], { mode: 'memory', context });
+
+    const result = await router.navigate('/users/42');
+
+    expect(result?.data).toEqual({ id: '42', endpoint: 'https://api.example.test/users/u-1' });
+    expect(loader).toHaveBeenCalledTimes(1);
+  });
   it('caches route loaders through an optional QueryClient and derives keys from route context', async () => {
     const queryClient = createQueryClient();
     const loader = jest.fn(async ({ to }) => ({ id: to.params.id }));

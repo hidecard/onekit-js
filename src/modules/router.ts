@@ -9,29 +9,34 @@ import type { QueryClient, QueryKey, QueryOptions } from './query';
 export type RouteParams = Record<string, string>;
 export type QueryParams = Record<string, string | string[]>;
 
-export interface RouteLocation {
+export interface RouteLocation<Params extends RouteParams = RouteParams> {
   path: string;
   fullPath: string;
-  params: RouteParams;
+  params: Params;
   query: QueryParams;
   hash: string;
 }
 
-export interface RouteMatch {
+export interface RouteMatch<Params extends RouteParams = RouteParams> {
   route: Route;
-  location: RouteLocation;
+  location: RouteLocation<Params>;
 }
 
-export interface RouteContext {
-  to: RouteLocation;
+/** Context shared by guards, loaders, handlers, and query-key factories. */
+export interface RouteContext<Params extends RouteParams = RouteParams, AppContext = unknown> {
+  to: RouteLocation<Params>;
   from: RouteLocation | null;
   matched?: readonly RouteMatch[];
+  /** Optional application context supplied through RouterOptions.context. */
+  context: AppContext;
 }
 
+export type Awaitable<T> = T | Promise<T>;
 export type NavigationResult = void | boolean | string | RouteLocation;
-export type RouteGuard = (context: RouteContext) => NavigationResult | Promise<NavigationResult>;
-export type RouteLoader = (context: RouteContext) => unknown | Promise<unknown>;
-export type RouteQueryKey = QueryKey | ((context: RouteContext) => QueryKey);
+export type RouteGuard<Params extends RouteParams = RouteParams, AppContext = unknown> = (context: RouteContext<Params, AppContext>) => Awaitable<NavigationResult>;
+export type RouteLoader<Params extends RouteParams = RouteParams, Data = unknown, AppContext = unknown> = (context: RouteContext<Params, AppContext>) => Awaitable<Data>;
+export type RouteLoaderData<Loader extends RouteLoader> = Awaited<ReturnType<Loader>>;
+export type RouteQueryKey<AppContext = unknown> = QueryKey | ((context: RouteContext<RouteParams, AppContext>) => QueryKey);
 export type RouteComponentLoader = () => unknown | Promise<unknown>;
 export type ScrollBehavior = (to: RouteLocation, from: RouteLocation | null) => void | Promise<void>;
 
@@ -73,20 +78,20 @@ export function createRouteManifest(routes: readonly Route[] = []): RouteManifes
   return { version: 1, routes: entries };
 }
 
-export interface Route {
+export interface Route<Params extends RouteParams = RouteParams, Data = unknown, AppContext = unknown> {
   path: string;
   component?: unknown;
   /** Parent route component used as a layout when this route has children. */
   layout?: unknown;
   lazy?: RouteComponentLoader;
-  handler?: (context?: RouteContext) => void | Promise<void>;
-  beforeEnter?: RouteGuard;
-  loader?: RouteLoader;
+  handler?: (context?: RouteContext<Params, AppContext>) => Awaitable<void>;
+  beforeEnter?: RouteGuard<Params, AppContext>;
+  loader?: RouteLoader<Params, Data, AppContext>;
   /** Optional QueryClient cache key for the route loader. */
-  queryKey?: RouteQueryKey;
+  queryKey?: RouteQueryKey<AppContext>;
   /** Query freshness options used when `queryKey` and a router QueryClient are configured. */
-  queryOptions?: QueryOptions<unknown>;
-  children?: Route[];
+  queryOptions?: QueryOptions<Data>;
+  children?: readonly Route[];
   meta?: Record<string, unknown>;
   /** Route-level document metadata composed from parent to leaf. */
   head?: HeadMetadata;
@@ -104,7 +109,9 @@ export interface MatchedRoute {
   components?: readonly unknown[];
 }
 
-export interface RouterOptions {
+export interface RouterOptions<AppContext = unknown> {
+  /** Optional application services/context exposed to route callbacks. */
+  context?: AppContext;
   mode?: 'history' | 'hash' | 'memory';
   base?: string;
   initialPath?: string;
@@ -187,16 +194,16 @@ function matchRoutePrefix(route: Route, location: RouteLocation): RouteParams | 
   return matchRoute(route, prefixLocation);
 }
 
-export class Router {
+export class Router<AppContext = unknown> {
   private routes: Route[] = [];
   private listeners = new Set<Listener>();
   private current: RouteLocation | null = null;
   private started = false;
   private navigationToken = 0;
-  private readonly options: RouterOptions;
+  private readonly options: RouterOptions<AppContext>;
   private readonly popstateHandler = () => { void this.resolve(this.readBrowserPath(), false); };
 
-  constructor(routes: Route[] = [], options: RouterOptions = {}) {
+  constructor(routes: readonly Route[] = [], options: RouterOptions<AppContext> = {}) {
     this.routes = [...routes];
     this.options = options;
   }
@@ -256,7 +263,7 @@ export class Router {
     const route = matched?.route ?? this.options.notFound;
     if (!route) return null;
     const records = this.recordsFor(matched, route, to);
-    const context: RouteContext = { to, from: this.current, matched: records };
+    const context: RouteContext = { to, from: this.current, matched: records, context: this.options.context as AppContext };
     const globalGuard = await this.runGuard(this.options.beforeEach, context);
     if (globalGuard === false || typeof globalGuard === 'string') return null;
     for (const record of records) {
@@ -290,7 +297,7 @@ export class Router {
     const from = this.current;
     const route = matched?.route ?? this.options.notFound;
     emitDevToolsEvent({ type: 'router:navigation', phase: 'start', to: to.fullPath, from: from?.fullPath ?? null });
-    const baseContext: RouteContext = { to, from };
+    const baseContext: RouteContext = { to, from, context: this.options.context as AppContext };
     const guardResult = await this.runGuard(this.options.beforeEach, baseContext);
     if (!isCurrentNavigation()) return null;
     if (guardResult === false) return null;
@@ -338,14 +345,14 @@ export class Router {
     await this.options.scrollBehavior?.(to, from);
     if (!isCurrentNavigation()) return null;
     this.notify(to, from);
-    this.options.afterEach?.({ to: context.to, from: context.from, matched: result, routeMatches: records });
+    this.options.afterEach?.({ to: context.to, from: context.from, context: context.context, matched: result, routeMatches: records });
     emitDevToolsEvent({ type: 'router:navigation', phase: 'success', to: to.fullPath, from: from?.fullPath ?? null, route: route.path });
     return result;
   }
 
   private match(location: RouteLocation): MatchedRoute | null {
     type SearchResult = { route: Route; location: RouteLocation; matched: RouteMatch[] };
-    const search = (routes: Route[], parentPath = '', parentMatches: RouteMatch[] = []): SearchResult | null => {
+    const search = (routes: readonly Route[], parentPath = '', parentMatches: RouteMatch[] = []): SearchResult | null => {
       for (const route of routes) {
         const fullPattern = parentPath
           ? `${parentPath.replace(/\/$/, '')}/${route.path.replace(/^\//, '')}`
@@ -468,8 +475,8 @@ export class Router {
   }
 }
 
-export function createRouter(routes: Route[] = [], options: RouterOptions = {}): Router {
-  return new Router(routes, options);
+export function createRouter<AppContext = unknown>(routes: readonly Route[] = [], options: RouterOptions<AppContext> = {}): Router<AppContext> {
+  return new Router<AppContext>(routes, options);
 }
 
 export const router = new Router();
