@@ -433,6 +433,33 @@ The generated `server.mjs` exposes `GET /api/health`, includes graceful shutdown
 
 This backend layer is intentionally additive and does not replace the existing client router, SSR helpers, QueryClient, or component APIs. It now includes a small Node HTTP bridge, explicit security middleware contracts, and typed adapter contracts for database access and identity providers, but remains a foundation rather than a promise of full NestJS decorators, a built-in ORM, managed sessions, or a distributed persistence layer. Applications must verify tokens or sessions with their own trusted server-only logic, implement provider-specific credential handling, use a distributed rate-limit store when running multiple instances, and keep secrets out of client bundles. Applications should keep database drivers, authentication, authorization, and secrets in server-only modules and choose the adapter appropriate to their deployment target.
 
+## Server data and cache boundaries
+
+For server-side loaders that should work in Node, serverless, and edge runtimes without coupling route code to a database or cache vendor, use `createServerData()`. It deduplicates concurrent loads by key, supports an optional TTL, accepts request and abort context, and can use an injected cache such as Redis or a database-backed implementation. The resource is intentionally small: use it for server data orchestration, then pass the result to the existing `QueryClient` with `setData()` or `dehydrate()` when the browser needs a hydrated client cache.
+
+```ts
+import { createMemoryServerDataCache, createServerData } from "onekit-js";
+
+const projects = createServerData({
+  cache: createMemoryServerDataCache(),
+  staleTime: 30_000,
+  key: (input: { accountId: string }) => `projects:${input.accountId}`,
+  load: async ({ accountId }, { signal, request }) => {
+    const response = await fetch(`https://api.example.test/accounts/${accountId}/projects`, { signal });
+    if (!response.ok) throw new Error("Project service unavailable");
+    return response.json() as Promise<Array<{ id: string; name: string }>>;
+  },
+});
+
+app.get("/api/projects", async (context) =>
+  context.ok(await projects.load({ accountId: String(context.query.get("accountId") ?? "") }, {
+    request: context.request,
+  })),
+);
+```
+
+`createServerData()` does not persist secrets, manage authentication, or replace an ORM. Inject a production cache with bounded TTLs, invalidate it after mutations, and keep credentials in server-only modules. For browser state, use the existing `QueryClient` rather than sharing a server cache instance across requests.
+
 ## Stores, query data, and forms
 
 ### Stores
