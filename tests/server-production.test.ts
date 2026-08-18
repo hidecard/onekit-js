@@ -7,6 +7,7 @@ import {
   jsonResponse,
   createApi,
   securityMiddleware,
+  type DatabaseAdapter,
   serverMiddleware,
   validateBody
 } from '../src';
@@ -149,5 +150,33 @@ describe('full-stack server production contract', () => {
     const response = await app.handle(new Request('http://localhost/meta'));
     expect(response.headers.get('access-control-allow-origin')).toBe('https://example.test');
     expect((await response.json()).id).toEqual(expect.any(String));
+  });
+
+  it('exposes the typed database adapter through request context', async () => {
+    const calls: string[] = [];
+    const database: DatabaseAdapter = {
+      async query<T>(statement: string) { calls.push(`query:${statement}`); return [{ id: 'p1' } as T]; },
+      async execute(statement: string) { calls.push(`execute:${statement}`); return { affectedRows: 1 }; },
+      async transaction<T>(work) { return work(this); }
+    };
+    const app = createApi({ database });
+    app.get('/projects', async ({ database: db, ok }) => ok({ rows: await db?.query<{ id: string }>('select projects') }));
+    const response = await app.handle(new Request('http://localhost/projects'));
+    expect(await response.json()).toEqual({ rows: [{ id: 'p1' }] });
+    expect(calls).toEqual(['query:select projects']);
+  });
+
+  it('supports session and token provider middleware contracts', async () => {
+    const sessionApp = createApi();
+    sessionApp.get('/me', securityMiddleware.session({ getUser: () => ({ id: 'session-user' }) }), ({ state, ok }) => ok({ user: state.user }));
+    const sessionResponse = await sessionApp.handle(new Request('http://localhost/me'));
+    expect(await sessionResponse.json()).toEqual({ user: { id: 'session-user' } });
+
+    const tokenApp = createApi();
+    tokenApp.get('/me', securityMiddleware.token({ verify: (request) => request.headers.get('authorization') === 'Bearer valid' ? { id: 'token-user' } : null }), ({ state, ok }) => ok({ user: state.user }));
+    const rejected = await tokenApp.handle(new Request('http://localhost/me'));
+    const accepted = await tokenApp.handle(new Request('http://localhost/me', { headers: { authorization: 'Bearer valid' } }));
+    expect(rejected.status).toBe(401);
+    expect(await accepted.json()).toEqual({ user: { id: 'token-user' } });
   });
 });

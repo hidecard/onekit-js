@@ -18,6 +18,8 @@ The V3 branch continues production hardening after `3.1.19` without changing the
 - Add `createNodeHandler()` to bridge Node HTTP request/response objects to the Fetch-compatible `ServerApp` without importing Node modules into browser-oriented code.
 - Add Node adapter regression coverage for request-body streaming, response status/headers, and JSON payload serialization.
 - Add beginner-friendly `securityMiddleware.authenticate()` and `securityMiddleware.authorize()` contracts that keep verified application users in request state and return safe `401`/`403` responses.
+- Add `securityMiddleware.session(provider)` and `securityMiddleware.token(provider)` adapters for application-owned session and token verification logic.
+- Add a typed `DatabaseAdapter`/`DatabaseTransaction` contract and expose an optional request-scoped `context.database` without bundling an ORM or database driver.
 - Add bounded in-memory `securityMiddleware.rateLimit()` with configurable keying, `429` responses, retry hints, and standard rate-limit headers.
 - Forward custom `onekit build --out-dir <directory>` values to delegated Vite-style project build scripts while preserving default build-script compatibility.
 
@@ -27,12 +29,12 @@ The V3 branch continues production hardening after `3.1.19` without changing the
 - Keep production-readiness guidance explicit about reviewing and redacting error messages and stack traces before external forwarding.
 - Document the all-in-one backend workflow, adapter boundary, server-only responsibilities, and current limits in the README.
 - Make the shortest backend learning path the default README example, while retaining the lower-level API for advanced applications.
-- Document the Node HTTP adapter and security middleware examples while keeping token verification, distributed stores, database, and decorator-module boundaries explicit.
+- Document the Node HTTP adapter, security middleware, typed database adapter, and session/token provider examples while keeping provider verification, distributed stores, and decorator-module boundaries explicit.
 
 ### Validation
 
 - The focused observability, VDOM, CLI, and server suites pass, together with strict TypeScript checking and the full Jest matrix; the CLI suite covers ten tests and the server regression suite covers eight tests.
-- The latest framework audit passes `type-check`, **30 Jest suites / 156 tests**, production build, declaration verification across 27 relative exports, package verification with a clean install and zero reported vulnerabilities, and `git diff --check`. The generated TypeScript starter also passes npm install, type-check, its smoke test, and Vite production build.
+- The latest framework audit passes `type-check`, **30 Jest suites / 158 tests**, production build, declaration verification across 27 relative exports, package verification with a clean install and zero reported vulnerabilities, and `git diff --check`. The generated TypeScript starter also passes npm install, type-check, its smoke test, and Vite production build.
 - The Vite plugin build still prints expected non-fatal externalization notices for `node:fs`, `node:path`, and `typescript`; these are intentional server/tooling externals and do not fail the build.
 
 ## [3.1.19] - 2026-08-18

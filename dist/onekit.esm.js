@@ -5433,6 +5433,7 @@ function createServerApp(options = {}) {
                 query: url.searchParams,
                 state: {},
                 services: injector,
+                database: options.database,
                 json: jsonResponse,
                 text: textResponse,
                 ok: (data) => jsonResponse(data),
@@ -5542,6 +5543,12 @@ const securityMiddleware = {
                 return context.fail('Forbidden', 403);
             return next();
         };
+    },
+    session(provider) {
+        return securityMiddleware.authenticate((context) => provider.getUser(context.request));
+    },
+    token(provider) {
+        return securityMiddleware.authenticate((context) => provider.verify(context.request));
     },
     rateLimit(options) {
         const counters = new Map();

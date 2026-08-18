@@ -10,6 +10,7 @@ export interface ServerRequestContext {
   query: URLSearchParams;
   state: Record<string, unknown>;
   services: DependencyInjector;
+  database?: DatabaseAdapter;
   json(data: unknown, init?: ResponseInit): Response;
   text(data: string, init?: ResponseInit): Response;
   ok(data: unknown): Response;
@@ -29,8 +30,33 @@ export interface ServerRouteDefinition {
   handlers: readonly ServerHandler[];
 }
 
+export interface DatabaseExecutionResult {
+  affectedRows: number;
+  insertId?: string | number;
+}
+
+export interface DatabaseTransaction {
+  query<T>(statement: string, parameters?: readonly unknown[]): Promise<readonly T[]>;
+  execute(statement: string, parameters?: readonly unknown[]): Promise<DatabaseExecutionResult>;
+}
+
+/** Adapter contract only; OneKit does not choose or bundle an ORM/database driver. */
+export interface DatabaseAdapter extends DatabaseTransaction {
+  transaction<T>(work: (transaction: DatabaseTransaction) => Promise<T>): Promise<T>;
+  close?(): Promise<void>;
+}
+
+export interface SessionProvider<TUser extends AuthenticatedUser = AuthenticatedUser> {
+  getUser(request: Request): TUser | null | undefined | Promise<TUser | null | undefined>;
+}
+
+export interface TokenProvider<TUser extends AuthenticatedUser = AuthenticatedUser> {
+  verify(request: Request): TUser | null | undefined | Promise<TUser | null | undefined>;
+}
+
 export interface ServerAppOptions {
   injector?: DependencyInjector;
+  database?: DatabaseAdapter;
   onError?: (error: unknown, context: ServerRequestContext) => Response | Promise<Response>;
 }
 
@@ -185,6 +211,7 @@ export function createServerApp(options: ServerAppOptions = {}): ServerApp {
         query: url.searchParams,
         state: {},
         services: injector,
+        database: options.database,
         json: jsonResponse,
         text: textResponse,
         ok: (data) => jsonResponse(data),
@@ -288,6 +315,12 @@ export const securityMiddleware = {
       if (!(await isAllowed(user, context))) return context.fail('Forbidden', 403);
       return next();
     };
+  },
+  session<T extends AuthenticatedUser = AuthenticatedUser>(provider: SessionProvider<T>): ServerMiddleware {
+    return securityMiddleware.authenticate((context) => provider.getUser(context.request));
+  },
+  token<T extends AuthenticatedUser = AuthenticatedUser>(provider: TokenProvider<T>): ServerMiddleware {
+    return securityMiddleware.authenticate((context) => provider.verify(context.request));
   },
   rateLimit(options: RateLimitOptions): ServerMiddleware {
     const counters = new Map<string, { count: number; resetAt: number }>();

@@ -41,7 +41,7 @@ OneKit does not try to hide the browser. DOM elements, events, selectors, reques
 | Components | Typed props, component lifecycle, registration, mount/unmount, dependency injection | `onekit-js` |
 | Rendering | Templates, directives, JSX, automatic JSX runtime, VDOM patching, fragments | `onekit-js/jsx`, `onekit-js/jsx-runtime` |
 | Routing | History/hash/memory modes, typed params, file discovery, nested layouts, guards, loaders, manifests, prefetch, scroll restoration | `onekit-js` and `onekit-js/router` |
-| Backend | Fetch-compatible server app, route methods, middleware composition, params/query parsing, JSON responses, body validation, DI services, CORS, request IDs, and safe error responses | `onekit-js` |
+| Backend | Fetch-compatible server app, route methods, middleware composition, params/query parsing, JSON responses, body validation, DI services, typed database adapter context, session/token provider contracts, authentication/authorization, rate limiting, CORS, request IDs, and safe error responses | `onekit-js` |
 | Server rendering | Request-scoped SSR, streaming, async rendering, hydration diagnostics, error/loading boundaries, safe route manifests | `onekit-js/ssr` |
 | Data and forms | HTTP helpers, retry/timeout/cancellation, query invalidation, mutations, optimistic updates, SSR handoff, typed forms, validation | `onekit-js/api`, `onekit-js/query`, `onekit-js/forms` |
 | Runtime boundaries | Explicit server/client detection and guarded callbacks for shared modules | `onekit-js` |
@@ -71,7 +71,7 @@ The examples in this README are written against the published V3.1.19 package su
 | Published declarations | `npm run verify:declarations` | `scripts/verify-declarations.mjs` |
 | Clean package verification | `npm run verify:package` | Clean install, CLI smoke check, export verification, and vulnerability audit |
 
-The latest V3 audit passes strict TypeScript checking, **30 Jest suites / 154 tests**, production build, declaration verification across 27 relative exports, clean package verification with zero reported vulnerabilities, and `git diff --check`. The Vite plugin build may print non-fatal externalization notices for `node:fs`, `node:path`, and `typescript`; these are expected tooling/server externals and do not indicate a failed build.
+The latest V3 audit passes strict TypeScript checking, **30 Jest suites / 158 tests**, production build, declaration verification across 27 relative exports, clean package verification with zero reported vulnerabilities, and `git diff --check`. The Vite plugin build may print non-fatal externalization notices for `node:fs`, `node:path`, and `typescript`; these are expected tooling/server externals and do not indicate a failed build.
 
 If an example is copied into an application, replace placeholder values such as `HomePage`, `loadReports`, and `createProject` with application-owned implementations. The framework APIs and signatures shown here are the verified part of each example.
 
@@ -371,7 +371,7 @@ import { createNodeHandler } from "onekit-js";
 createServer(createNodeHandler(app)).listen(3000);
 ```
 
-The server context exposes `request`, method/path, decoded `params`, `URLSearchParams` query values, per-request `state`, a scoped `DependencyInjector`, and concise response helpers: `ok(data)`, `json(data, init)`, `text(data, init)`, and `fail(message, status)`. Security helpers are intentionally explicit: `securityMiddleware.authenticate(resolveUser)` stores a verified application user in `state.user`, `securityMiddleware.authorize(rule)` enforces a permission rule, and `securityMiddleware.rateLimit({ max, windowMs, key })` adds bounded in-memory limits and standard rate-limit headers. Use `app.get`, `app.post`, `app.put`, `app.patch`, `app.delete`, or `app.route` for endpoints; use `app.use` for cross-cutting middleware. `validateBody` parses JSON from a cloned request and turns validation failures into a `400` response. Unhandled route errors return a generic `500` response by default so internal messages are not leaked; provide `onError` to integrate application-owned logging and error reporting.
+The server context exposes `request`, method/path, decoded `params`, `URLSearchParams` query values, per-request `state`, a scoped `DependencyInjector`, an optional typed `database` adapter, and concise response helpers: `ok(data)`, `json(data, init)`, `text(data, init)`, and `fail(message, status)`. Security helpers are intentionally explicit: `securityMiddleware.authenticate(resolveUser)` stores a verified application user in `state.user`, `securityMiddleware.session(provider)` and `securityMiddleware.token(provider)` adapt application-owned identity providers, `securityMiddleware.authorize(rule)` enforces a permission rule, and `securityMiddleware.rateLimit({ max, windowMs, key })` adds bounded in-memory limits and standard rate-limit headers. Use `app.get`, `app.post`, `app.put`, `app.patch`, `app.delete`, or `app.route` for endpoints; use `app.use` for cross-cutting middleware. `validateBody` parses JSON from a cloned request and turns validation failures into a `400` response. Unhandled route errors return a generic `500` response by default so internal messages are not leaked; provide `onError` to integrate application-owned logging and error reporting.
 
 ```ts
 app.get(
@@ -388,7 +388,7 @@ app.post(
 );
 ```
 
-This backend layer is intentionally additive and does not replace the existing client router, SSR helpers, QueryClient, or component APIs. It now includes a small Node HTTP bridge and explicit security middleware contracts, but remains a foundation rather than a promise of full NestJS decorators, a built-in ORM, or production-ready identity/session storage. Applications must verify tokens or sessions with their own trusted server-only logic, use a distributed rate-limit store when running multiple instances, and keep secrets out of client bundles. Applications should keep database drivers, authentication, authorization, and secrets in server-only modules and choose the adapter appropriate to their deployment target.
+This backend layer is intentionally additive and does not replace the existing client router, SSR helpers, QueryClient, or component APIs. It now includes a small Node HTTP bridge, explicit security middleware contracts, and typed adapter contracts for database access and identity providers, but remains a foundation rather than a promise of full NestJS decorators, a built-in ORM, managed sessions, or a distributed persistence layer. Applications must verify tokens or sessions with their own trusted server-only logic, implement provider-specific credential handling, use a distributed rate-limit store when running multiple instances, and keep secrets out of client bundles. Applications should keep database drivers, authentication, authorization, and secrets in server-only modules and choose the adapter appropriate to their deployment target.
 
 ## Stores, query data, and forms
 
