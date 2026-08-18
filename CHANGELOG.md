@@ -2,19 +2,76 @@
 
 ## [3.1.18] - 2026-08-17
 
+OneKit JS `3.1.18` is a **V3-line production release** focused on typed routing, nested route composition, SSR/hydration observability, query lifecycle control, explicit runtime boundaries, and a more useful generated starter. It is intended to be compatible with existing V3 applications; applications migrating from OneKit 2.x or the legacy global runtime should follow the full [Migration Guide](MIGRATION_GUIDE.md).
+
 ### Added
-- Add typed route parameters, nested layout helpers, typed loader contexts, awaited loader-result inference, and optional application context injection through `RouterOptions.context`.
-- Add file-based route discovery through `createFileRoutes()`, `RouteParamsFor<Path>`, `routeHref()`, `defineRoute()`, and `defineLayoutRoute()`.
-- Add the SSR route manifest release surface through `createRouteManifest()` and `Router.getManifest()` for preload planning and hydration optimization.
-- Add structured hydration diagnostics with mismatch callbacks and opt-in throw behavior, plus streaming renderer error handoff through `onError`.
-- Extend the query client with invalidation, mutations, retries, cancellation, optimistic updates, and typed SSR dehydrate/hydrate lifecycle support.
-- Add explicit server/client runtime boundary helpers: `isServerRuntime`, `isClientRuntime`, `serverOnly`, and `clientOnly`.
-- Refresh the generated starter application with a polished Vite/React-inspired responsive workspace, live reactive counter, quick-start guidance, and feature cards.
+
+#### Typed routing and route composition
+
+- Add generic route contracts for params, loader data, and application context through `Route<Params, Data, AppContext>`, `RouteContext<Params, AppContext>`, and `RouteLoader<Params, Data, AppContext>`.
+- Add `RouteLoaderData<Loader>` to infer the awaited return type of a route loader without duplicating its result type.
+- Add `RouteContextFor<Path, AppContext>`, `RouteParamsFor<Path>`, `TypedRoute`, and `RouteDataFor` helpers for path-specific TypeScript inference.
+- Add `defineRoute()` and `defineLayoutRoute()` helpers for typed route declarations and nested layout metadata.
+- Add file-based route discovery through `createFileRoutes()` from bundler module maps, with `routeHref()` for typed parameterized URLs.
+- Preserve parent-to-leaf route data through `MatchedRoute.dataByRoute` while keeping `MatchedRoute.data` as the leaf result for V3 compatibility.
+- Expose optional application services through `RouterOptions.context` and pass them consistently to guards, loaders, query-key factories, handlers, and `afterEach` callbacks.
+
+#### SSR, streaming, and hydration
+
+- Add JSON-safe `createRouteManifest()` and `Router.getManifest()` output for preload planning and client hydration preparation. Function-valued behavior is intentionally excluded from serialized manifests.
+- Add structured hydration mismatch diagnostics with callback reporting and an opt-in throw policy for applications that treat mismatches as deployment failures.
+- Add streaming renderer error handoff through `onError`, allowing applications to log, format, or terminate failed streams according to their server policy.
+- Preserve request-scoped SSR data handoff through typed query `dehydrate()` and `hydrate()` APIs; pending loader promises are not serialized.
+
+#### Query lifecycle and runtime safety
+
+- Extend `QueryClient` with `invalidate()`, `invalidateQueries()`, mutations, retry policies, cancellation, optimistic updates, rollback handling, and lifecycle callbacks.
+- Keep router/query integration opt-in through route `queryKey`, `queryOptions`, and `RouterOptions.queryClient`; routes without a query key retain uncached loader behavior.
+- Add explicit runtime helpers: `isServerRuntime()`, `isClientRuntime()`, `serverOnly()`, and `clientOnly()`.
+
+#### Starter and documentation
+
+- Refresh the generated starter with a responsive Vite/React-inspired workspace, live reactive counter, quick-start guidance, feature cards, and the V3 dark indigo/lavender visual language.
+- Add the dedicated [`V3 Release Notes`](docs/V3_RELEASE_NOTES.md) document and synchronize the [README](README.md), [Migration Guide](MIGRATION_GUIDE.md), [V3 Usage Guide](docs/V3_USAGE.md), and generated declaration artifacts.
 
 ### Changed
-- Update the generated starter dependency to `onekit-js@^3.1.18`.
-- Prepare the companion `create-onekit` package for version `1.0.8`.
-- Synchronize `MIGRATION_GUIDE.md`, `docs/V3_USAGE.md`, `docs/V3_RELEASE_NOTES.md`, and package declarations with the published V3 API surface.
+
+- Update generated starter dependencies to `onekit-js@^3.1.18`.
+- Prepare and document the companion starter package as `create-onekit@1.0.8`.
+- Treat router manifests as preload and hydration metadata rather than authorization data.
+- Keep route rendering application-owned: the router resolves navigation and data but does not implicitly render route components.
+- Make application context optional so existing V3 callbacks using only `to` and `from` continue to work without migration changes.
+
+### Fixed
+
+- Ensure application context is initialized from `RouterOptions.context` and is available on navigation contexts rather than being silently omitted.
+- Ensure typed route declarations accept readonly nested route collections without forcing callers to widen literal arrays.
+- Ensure route loader results are assigned consistently to leaf `data` and ordered `dataByRoute` records during nested navigation.
+- Refresh generated ESM, CommonJS, UMD, minified, source-map, and declaration artifacts after the router contract changes.
+- Keep stale asynchronous navigation and route-loader completion from overwriting a newer navigation result.
+
+### Security and operational notes
+
+- Continue to treat route manifests, dehydrated query state, and serialized SSR payloads as untrusted transport data; escape and validate them at the application boundary.
+- Keep server-only services out of client bundles and use the runtime boundary helpers around browser globals and request-scoped services.
+- Do not execute remote template expressions or treat sanitized external HTML as trusted application code.
+
+### Compatibility
+
+- **V3 applications:** Compatible upgrade. Update `onekit-js` to `3.1.18`, run type-check/tests/build/package verification, and adopt the new typed APIs incrementally.
+- **OneKit 2.x or legacy global applications:** Major migration work remains necessary. Replace global access with named imports and follow [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md).
+- **Starter projects:** New projects should use `create-onekit@1.0.8`; existing generated projects should compare their starter files before regenerating.
+
+### Validation
+
+The V3 branch release was validated with strict TypeScript compilation, the complete Jest suite, production builds, declaration export checks, clean package installation, package entrypoint checks, generated starter verification, and `git diff --check`. The typed-loader milestone also includes a regression test proving that application context reaches guards and loaders and that loader data remains available on the navigation result.
+
+### Upgrade references
+
+- [V3.1.18 Release Notes](docs/V3_RELEASE_NOTES.md)
+- [V3 Migration Guide](MIGRATION_GUIDE.md)
+- [V3 Usage Guide](docs/V3_USAGE.md)
+- [Production Readiness Guide](docs/PRODUCTION_READINESS.md)
 
 All notable changes to OneKit will be documented in this file.
 
