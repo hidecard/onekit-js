@@ -7,6 +7,8 @@ import {
   jsonResponse,
   createApi,
   createServerError,
+  defineController,
+  defineModule,
   securityMiddleware,
   type DatabaseAdapter,
   serverMiddleware,
@@ -122,6 +124,40 @@ describe('full-stack server production contract', () => {
     const response = await app.handle(new Request('http://localhost/failure'));
     expect(response.status).toBe(503);
     expect(await response.json()).toEqual({ handled: true });
+  });
+
+  it('composes functional modules and controllers with DI providers', async () => {
+    const audit = defineModule({
+      providers: [{ name: 'greeter', factory: () => ({ greeting: 'hello' }) }],
+      routes: [{ method: 'GET', path: '/audit', handlers: [({ ok }) => ok({ audit: true })] }],
+    });
+    const api = defineModule({
+      imports: [audit],
+      controllers: [defineController({
+        prefix: '/api/projects',
+        middleware: [(context, next) => { context.state.controller = true; return next(); }],
+        routes: [{ method: 'GET', path: '/:id', handlers: [({ params, services, state, ok }) => ok({
+          id: params.id,
+          greeting: services.resolve<{ greeting: string }>('greeter').greeting,
+          controller: state.controller,
+        })] }],
+      })],
+    });
+    const app = createApi().module(api);
+
+    const project = await app.handle(new Request('http://localhost/api/projects/one'));
+    expect(project.status).toBe(200);
+    expect(await project.json()).toEqual({ id: 'one', greeting: 'hello', controller: true });
+    expect((await app.handle(new Request('http://localhost/audit'))).status).toBe(200);
+  });
+
+  it('does not apply the same module twice or loop through cyclic imports', async () => {
+    const first: any = { imports: [], routes: [{ method: 'GET', path: '/once', handlers: [({ ok }: any) => ok({ count: 1 })] }] };
+    const second: any = { imports: [first] };
+    first.imports.push(second);
+    const app = createApi().module(first).module(first);
+    expect(app.routes.filter(route => route.path === '/once')).toHaveLength(1);
+    expect((await app.handle(new Request('http://localhost/once'))).status).toBe(200);
   });
 
   it('supports the concise createApi and context response helpers', async () => {

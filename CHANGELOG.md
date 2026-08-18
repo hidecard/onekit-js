@@ -32,6 +32,7 @@ The V3 branch continues production hardening after `3.1.19` without changing the
 - Add `onekit create <name> --full-stack` with a minimal Node HTTP API entrypoint, health route, graceful shutdown, `dev:server`/`start` scripts, and `.env.example`.
 - Add adapter-neutral `createServerData()` resources with request/abort context, concurrent-load deduplication, optional TTL caching, invalidation, and injectable cache storage.
 - Add `createMemoryServerDataCache()` as a small reference cache without coupling the framework to Redis, an ORM, or a database driver.
+- Add decorator-free `defineModule()`, `defineController()`, and `app.module()` composition APIs for nested imports, providers, middleware, controller prefixes, and grouped routes.
 
 ### Documentation
 
@@ -40,12 +41,12 @@ The V3 branch continues production hardening after `3.1.19` without changing the
 - Document the all-in-one backend workflow, adapter boundary, server-only responsibilities, and current limits in the README.
 - Make the shortest backend learning path the default README example, while retaining the lower-level API for advanced applications.
 - Document the Node HTTP adapter, security middleware, typed database adapter, session/token providers, `context.body<T>()`, and `app.resource()` examples while keeping provider verification, distributed stores, and decorator-module boundaries explicit.
-- Document typed server errors, safe error serialization, resilient error hooks, the optional full-stack CLI starter workflow, and server-data/cache boundaries for Node, serverless, and edge deployments.
+- Document typed server errors, safe error serialization, resilient error hooks, the optional full-stack CLI starter workflow, server-data/cache boundaries, and functional module/controller organization for Node, serverless, and edge deployments.
 
 ### Validation
 
 - The focused observability, VDOM, CLI, and server suites pass, together with strict TypeScript checking and the full Jest matrix; the CLI suite covers ten tests and the server regression suite covers fourteen tests.
-- The latest focused validation passes strict `type-check` and the new server-data suite (**4 tests**); the full release matrix is run after documentation and integration changes are complete. The generated TypeScript starter also passes npm install, type-check, its smoke test, and Vite production build.
+- The latest focused validation passes strict `type-check`; the server production suite now covers **18 tests**, including functional module/controller composition. The full release matrix is run after documentation and integration changes are complete. The generated TypeScript starter also passes npm install, type-check, its smoke test, and Vite production build.
 - The Vite plugin build still prints expected non-fatal externalization notices for `node:fs`, `node:path`, and `typescript`; these are intentional server/tooling externals and do not fail the build.
 
 ## [3.1.19] - 2026-08-18

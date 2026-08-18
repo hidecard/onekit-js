@@ -84,6 +84,50 @@ export interface ResourceHandlers {
   remove?: ServerHandler;
 }
 
+export interface ServerProvider {
+  name: string;
+  factory: (...dependencies: unknown[]) => unknown;
+  dependencies?: readonly string[];
+  singleton?: boolean;
+}
+
+export interface ServerControllerRoute {
+  method: ServerMethod;
+  path: string;
+  handlers: readonly ServerHandler[];
+}
+
+/** Functional controller contract; decorators are intentionally optional and not required. */
+export interface ServerController {
+  prefix?: string;
+  middleware?: readonly ServerMiddleware[];
+  routes: readonly ServerControllerRoute[];
+}
+
+export interface ServerModule {
+  imports?: readonly ServerModule[];
+  providers?: readonly ServerProvider[];
+  middleware?: readonly ServerMiddleware[];
+  controllers?: readonly ServerController[];
+  routes?: readonly ServerRouteDefinition[];
+  configure?: (app: ServerApp) => void;
+}
+
+export function defineController(controller: ServerController): ServerController {
+  return controller;
+}
+
+export function defineModule(module: ServerModule): ServerModule {
+  return module;
+}
+
+function joinServerPath(prefix: string | undefined, path: string): string {
+  const left = prefix?.replace(/^\/+|\/+$/g, '') ?? '';
+  const right = path.replace(/^\/+/, '');
+  const joined = [left, right].filter(Boolean).join('/');
+  return joined ? `/${joined}` : '/';
+}
+
 export interface DatabaseExecutionResult {
   affectedRows: number;
   insertId?: string | number;
@@ -128,6 +172,7 @@ export interface ServerApp {
   patch(path: string, ...handlers: ServerHandler[]): this;
   delete(path: string, ...handlers: ServerHandler[]): this;
   resource(path: string, handlers: ResourceHandlers): this;
+  module(module: ServerModule): this;
   start(): Promise<void>;
   stop(): Promise<void>;
   handle(request: Request): Promise<Response>;
@@ -272,6 +317,7 @@ export function createServerApp(options: ServerAppOptions = {}): ServerApp {
   const middleware: ServerMiddleware[] = [];
   const routes: ServerRouteDefinition[] = [];
   const compiled: CompiledRoute[] = [];
+  const appliedModules = new Set<ServerModule>();
   let started = false;
   let stopping: Promise<void> | undefined;
 
@@ -299,6 +345,24 @@ export function createServerApp(options: ServerAppOptions = {}): ServerApp {
         app.patch(`${base}/:id`, handlers.update);
       }
       if (handlers.remove) app.delete(`${base}/:id`, handlers.remove);
+      return app;
+    },
+    module(moduleDefinition) {
+      if (appliedModules.has(moduleDefinition)) return app;
+      appliedModules.add(moduleDefinition);
+      for (const imported of moduleDefinition.imports ?? []) app.module(imported);
+      for (const provider of moduleDefinition.providers ?? []) {
+        injector.register(provider.name, provider.factory, [...(provider.dependencies ?? [])], provider.singleton ?? true);
+      }
+      for (const handler of moduleDefinition.middleware ?? []) app.use(handler);
+      moduleDefinition.configure?.(app);
+      for (const controller of moduleDefinition.controllers ?? []) {
+        const middleware = [...(controller.middleware ?? [])];
+        for (const route of controller.routes) {
+          app.route(route.method, joinServerPath(controller.prefix, route.path), ...middleware, ...route.handlers);
+        }
+      }
+      for (const route of moduleDefinition.routes ?? []) app.route(route.method, route.path, ...route.handlers);
       return app;
     },
     async start() {

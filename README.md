@@ -460,6 +460,34 @@ app.get("/api/projects", async (context) =>
 
 `createServerData()` does not persist secrets, manage authentication, or replace an ORM. Inject a production cache with bounded TTLs, invalidate it after mutations, and keep credentials in server-only modules. For browser state, use the existing `QueryClient` rather than sharing a server cache instance across requests.
 
+### Organizing larger APIs without decorators
+
+When an API grows, use `defineModule()` and `defineController()` to group providers, middleware, imports, and routes without requiring decorators or generated metadata. Modules are applied once, nested imports are safe, and controller middleware runs before that controller's handlers.
+
+```ts
+import { createApi, defineController, defineModule } from "onekit-js";
+
+const projectsModule = defineModule({
+  providers: [{ name: "projectService", factory: () => projectService }],
+  controllers: [defineController({
+    prefix: "/api/projects",
+    routes: [
+      {
+        method: "GET",
+        path: "/:id",
+        handlers: [({ params, services, ok }) => ok(
+          services.resolve<typeof projectService>("projectService").get(params.id),
+        )],
+      },
+    ],
+  })],
+});
+
+const app = createApi().module(projectsModule);
+```
+
+`module()` is intentionally a composition helper rather than a dependency container replacement. Providers use the existing injector, database and authentication contracts remain adapter-owned, and applications can still register routes directly with `app.get()` or `app.resource()`.
+
 ## Stores, query data, and forms
 
 ### Stores
