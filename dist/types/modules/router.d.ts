@@ -3,26 +3,31 @@ import type { HeadManager, HeadMetadata } from './head';
 import type { QueryClient, QueryKey, QueryOptions } from './query';
 export type RouteParams = Record<string, string>;
 export type QueryParams = Record<string, string | string[]>;
-export interface RouteLocation {
+export interface RouteLocation<Params extends RouteParams = RouteParams> {
     path: string;
     fullPath: string;
-    params: RouteParams;
+    params: Params;
     query: QueryParams;
     hash: string;
 }
-export interface RouteMatch {
+export interface RouteMatch<Params extends RouteParams = RouteParams> {
     route: Route;
-    location: RouteLocation;
+    location: RouteLocation<Params>;
 }
-export interface RouteContext {
-    to: RouteLocation;
+/** Context shared by guards, loaders, handlers, and query-key factories. */
+export interface RouteContext<Params extends RouteParams = RouteParams, AppContext = unknown> {
+    to: RouteLocation<Params>;
     from: RouteLocation | null;
     matched?: readonly RouteMatch[];
+    /** Optional application context supplied through RouterOptions.context. */
+    context: AppContext;
 }
+export type Awaitable<T> = T | Promise<T>;
 export type NavigationResult = void | boolean | string | RouteLocation;
-export type RouteGuard = (context: RouteContext) => NavigationResult | Promise<NavigationResult>;
-export type RouteLoader = (context: RouteContext) => unknown | Promise<unknown>;
-export type RouteQueryKey = QueryKey | ((context: RouteContext) => QueryKey);
+export type RouteGuard<Params extends RouteParams = RouteParams, AppContext = unknown> = (context: RouteContext<Params, AppContext>) => Awaitable<NavigationResult>;
+export type RouteLoader<Params extends RouteParams = RouteParams, Data = unknown, AppContext = unknown> = (context: RouteContext<Params, AppContext>) => Awaitable<Data>;
+export type RouteLoaderData<Loader extends RouteLoader> = Awaited<ReturnType<Loader>>;
+export type RouteQueryKey<AppContext = unknown> = QueryKey | ((context: RouteContext<RouteParams, AppContext>) => QueryKey);
 export type RouteComponentLoader = () => unknown | Promise<unknown>;
 export type ScrollBehavior = (to: RouteLocation, from: RouteLocation | null) => void | Promise<void>;
 /** JSON-safe route metadata emitted for SSR preload and client hydration planning. */
@@ -39,20 +44,20 @@ export interface RouteManifest {
     routes: readonly RouteManifestEntry[];
 }
 export declare function createRouteManifest(routes?: readonly Route[]): RouteManifest;
-export interface Route {
+export interface Route<Params extends RouteParams = RouteParams, Data = unknown, AppContext = unknown> {
     path: string;
     component?: unknown;
     /** Parent route component used as a layout when this route has children. */
     layout?: unknown;
     lazy?: RouteComponentLoader;
-    handler?: (context?: RouteContext) => void | Promise<void>;
-    beforeEnter?: RouteGuard;
-    loader?: RouteLoader;
+    handler?: (context?: RouteContext<Params, AppContext>) => Awaitable<void>;
+    beforeEnter?: RouteGuard<Params, AppContext>;
+    loader?: RouteLoader<Params, Data, AppContext>;
     /** Optional QueryClient cache key for the route loader. */
-    queryKey?: RouteQueryKey;
+    queryKey?: RouteQueryKey<AppContext>;
     /** Query freshness options used when `queryKey` and a router QueryClient are configured. */
-    queryOptions?: QueryOptions<unknown>;
-    children?: Route[];
+    queryOptions?: QueryOptions<Data>;
+    children?: readonly Route[];
     meta?: Record<string, unknown>;
     /** Route-level document metadata composed from parent to leaf. */
     head?: HeadMetadata;
@@ -68,7 +73,9 @@ export interface MatchedRoute {
     /** Resolved parent-to-leaf components for layout composition. */
     components?: readonly unknown[];
 }
-export interface RouterOptions {
+export interface RouterOptions<AppContext = unknown> {
+    /** Optional application services/context exposed to route callbacks. */
+    context?: AppContext;
     mode?: 'history' | 'hash' | 'memory';
     base?: string;
     initialPath?: string;
@@ -88,7 +95,7 @@ export interface RouterOptions {
     head?: HeadManager;
 }
 type Listener = (to: RouteLocation, from: RouteLocation | null) => void;
-export declare class Router {
+export declare class Router<AppContext = unknown> {
     private routes;
     private listeners;
     private current;
@@ -96,7 +103,7 @@ export declare class Router {
     private navigationToken;
     private readonly options;
     private readonly popstateHandler;
-    constructor(routes?: Route[], options?: RouterOptions);
+    constructor(routes?: readonly Route[], options?: RouterOptions<AppContext>);
     addRoute(route: Route): this;
     removeRoute(path: string): boolean;
     get routesList(): readonly Route[];
@@ -126,6 +133,6 @@ export declare class Router {
     private readBrowserPath;
     private commit;
 }
-export declare function createRouter(routes?: Route[], options?: RouterOptions): Router;
-export declare const router: Router;
+export declare function createRouter<AppContext = unknown>(routes?: readonly Route[], options?: RouterOptions<AppContext>): Router<AppContext>;
+export declare const router: Router<unknown>;
 export {};

@@ -1,4 +1,4 @@
-import type { Route } from './router';
+import type { Route, RouteParams } from './router';
 export type FileRouteModule = Route | {
     default?: unknown;
     route?: Omit<Route, 'path'> & {
@@ -11,9 +11,14 @@ export interface FileRouteOptions {
     /** Keep route-module files whose names begin with an underscore. */
     includePrivate?: boolean;
 }
-export type TypedRoute<Path extends string> = Omit<Route, 'path'> & {
+export type TypedRoute<Path extends string, Data = unknown, AppContext = unknown> = Omit<Route<RouteParamsFor<Path>, Data, AppContext>, 'path'> & {
     path: Path;
 };
+export type RouteDataFor<R extends Route> = R extends Route<RouteParams, infer Data, unknown> ? Data : unknown;
+export type RouteContextFor<Path extends string, AppContext = unknown> = import('./router').RouteContext<RouteParamsFor<Path>, AppContext>;
+type LoaderDataForDefinition<Definition> = Definition extends {
+    loader?: infer Loader;
+} ? Loader extends (...args: never[]) => infer Result ? Awaited<Result> : unknown : unknown;
 type SegmentParams<Segment extends string> = Segment extends `:${infer Param}` ? Param extends `${infer Name}?` ? {
     [Key in Name]?: string;
 } : {
@@ -31,9 +36,9 @@ export type LayoutRoute<Path extends string, Children extends readonly Route[]> 
  * Preserve a route literal so TypeScript can retain its path type in generated
  * route tables while keeping the runtime representation compatible with Route.
  */
-export declare function defineRoute<const Path extends string>(path: Path, route?: Omit<Route, 'path'>): TypedRoute<Path>;
+export declare function defineRoute<const Path extends string, const Definition extends Omit<Route<RouteParamsFor<Path>, any, unknown>, 'path'>>(path: Path, route?: Definition): TypedRoute<Path, LoaderDataForDefinition<Definition>>;
 /** Define a parent route whose component is composed around its child matches. */
-export declare function defineLayoutRoute<const Path extends string, const Children extends readonly Route[]>(path: Path, layout: unknown, children: Children, route?: Omit<Route, 'path' | 'layout' | 'children'>): LayoutRoute<Path, Children>;
+export declare function defineLayoutRoute<const Path extends string, const Children extends readonly Route[], AppContext = unknown>(path: Path, layout: unknown, children: Children, route?: Omit<Route<RouteParamsFor<Path>, any, AppContext>, 'path' | 'layout' | 'children'>): LayoutRoute<Path, Children>;
 /** Convert a file-system-like module key into a router path. */
 export declare function filePathToRoutePath(filePath: string, root?: string): string;
 /**

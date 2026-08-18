@@ -3393,7 +3393,7 @@ class Router {
         if (!route)
             return null;
         const records = this.recordsFor(matched, route, to);
-        const context = { to, from: this.current, matched: records };
+        const context = { to, from: this.current, matched: records, context: this.options.context };
         const globalGuard = await this.runGuard(this.options.beforeEach, context);
         if (globalGuard === false || typeof globalGuard === 'string')
             return null;
@@ -3433,7 +3433,7 @@ class Router {
         const from = this.current;
         const route = matched?.route ?? this.options.notFound;
         emitDevToolsEvent({ type: 'router:navigation', phase: 'start', to: to.fullPath, from: from?.fullPath ?? null });
-        const baseContext = { to, from };
+        const baseContext = { to, from, context: this.options.context };
         const guardResult = await this.runGuard(this.options.beforeEach, baseContext);
         if (!isCurrentNavigation())
             return null;
@@ -3498,7 +3498,7 @@ class Router {
         if (!isCurrentNavigation())
             return null;
         this.notify(to, from);
-        this.options.afterEach?.({ to: context.to, from: context.from, matched: result, routeMatches: records });
+        this.options.afterEach?.({ to: context.to, from: context.from, context: context.context, matched: result, routeMatches: records });
         emitDevToolsEvent({ type: 'router:navigation', phase: 'success', to: to.fullPath, from: from?.fullPath ?? null, route: route.path });
         return result;
     }
