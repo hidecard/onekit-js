@@ -168,6 +168,23 @@ describe('full-stack server production contract', () => {
     expect(await removed.json()).toEqual({ action: 'remove', id: 't1' });
   });
 
+  it('runs global middleware for missing routes and handles CORS preflight', async () => {
+    const app = createApi();
+    app.use(serverMiddleware.cors({ origin: 'https://example.test', credentials: true, maxAge: 600 }));
+    const preflight = await app.handle(new Request('http://localhost/missing', {
+      method: 'OPTIONS',
+      headers: { 'access-control-request-method': 'POST', 'access-control-request-headers': 'x-demo' },
+    }));
+    const missing = await app.handle(new Request('http://localhost/missing'));
+    expect(preflight.status).toBe(204);
+    expect(preflight.headers.get('access-control-allow-origin')).toBe('https://example.test');
+    expect(preflight.headers.get('access-control-allow-headers')).toBe('x-demo');
+    expect(preflight.headers.get('access-control-allow-credentials')).toBe('true');
+    expect(preflight.headers.get('access-control-max-age')).toBe('600');
+    expect(missing.status).toBe(404);
+    expect(missing.headers.get('access-control-allow-origin')).toBe('https://example.test');
+  });
+
   it('adds CORS and request ids through built-in middleware', async () => {
     const app = createServerApp();
     app.use(serverMiddleware.requestId(), serverMiddleware.cors({ origin: 'https://example.test' }));

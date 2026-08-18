@@ -249,8 +249,10 @@ export function createServerApp(options: ServerAppOptions = {}): ServerApp {
           return parsedBody as T;
         }
       };
-      if (!route) return json({ error: 'Not Found' }, { status: 404 });
-      const handlers = [...middleware, ...route.definition.handlers];
+      const handlers = [
+        ...middleware,
+        ...(route ? route.definition.handlers : [() => json({ error: 'Not Found' }, { status: 404 }) as Response])
+      ];
       let index = -1;
       const dispatch = async (position: number): Promise<Response> => {
         if (position <= index) throw new Error('next() called multiple times');
@@ -388,12 +390,31 @@ export const securityMiddleware = {
 };
 
 export const serverMiddleware = {
-  cors(options: { origin?: string } = {}): ServerMiddleware {
-    return async (_context, next) => {
-      const response = await next();
-      const headers = new Headers(response.headers);
+  cors(options: {
+    origin?: string;
+    methods?: string;
+    headers?: string;
+    credentials?: boolean;
+    maxAge?: number;
+  } = {}): ServerMiddleware {
+    return async (context, next) => {
+      const headers = new Headers();
       headers.set('access-control-allow-origin', options.origin ?? '*');
-      return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+      headers.set('access-control-allow-methods', options.methods ?? 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+      headers.set('access-control-allow-headers', options.headers ?? context.request.headers.get('access-control-request-headers') ?? 'content-type, authorization');
+      if (options.credentials) headers.set('access-control-allow-credentials', 'true');
+      if (options.maxAge !== undefined) headers.set('access-control-max-age', String(Math.max(0, options.maxAge)));
+      if (context.method === 'OPTIONS' && context.request.headers.has('access-control-request-method')) {
+        return new Response(null, { status: 204, headers });
+      }
+      const response = await next();
+      const responseHeaders = new Headers(response.headers);
+      for (const [name, value] of headers) responseHeaders.set(name, value);
+      return new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: responseHeaders,
+      });
     };
   },
   requestId(header = 'x-request-id'): ServerMiddleware {

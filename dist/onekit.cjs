@@ -5390,7 +5390,7 @@ function validateBody(validator) {
     return async (context, next) => {
         let value;
         try {
-            value = await context.request.clone().json();
+            value = await context.body();
         }
         catch {
             return json({ error: 'Invalid JSON body' }, { status: 400 });
@@ -5423,10 +5423,28 @@ function createServerApp(options = {}) {
         put(path, ...handlers) { return app.route('PUT', path, ...handlers); },
         patch(path, ...handlers) { return app.route('PATCH', path, ...handlers); },
         delete(path, ...handlers) { return app.route('DELETE', path, ...handlers); },
+        resource(path, handlers) {
+            const base = path === '/' ? '' : `/${path.replace(/^\/+|\/+$/g, '')}`;
+            if (handlers.list)
+                app.get(base || '/', handlers.list);
+            if (handlers.get)
+                app.get(`${base}/:id`, handlers.get);
+            if (handlers.create)
+                app.post(base || '/', handlers.create);
+            if (handlers.update) {
+                app.put(`${base}/:id`, handlers.update);
+                app.patch(`${base}/:id`, handlers.update);
+            }
+            if (handlers.remove)
+                app.delete(`${base}/:id`, handlers.remove);
+            return app;
+        },
         async handle(request) {
             const url = new URL(request.url);
             const method = request.method.toUpperCase();
             const route = compiled.find(item => (item.definition.method === '*' || item.definition.method === method) && item.match(url.pathname));
+            let parsedBody;
+            let bodyLoaded = false;
             const context = {
                 request,
                 method,
@@ -5439,11 +5457,19 @@ function createServerApp(options = {}) {
                 json: jsonResponse,
                 text: textResponse,
                 ok: (data) => jsonResponse(data),
-                fail: (message, status = 400) => jsonResponse({ error: message }, { status })
+                fail: (message, status = 400) => jsonResponse({ error: message }, { status }),
+                async body() {
+                    if (!bodyLoaded) {
+                        bodyLoaded = true;
+                        parsedBody = await request.clone().json();
+                    }
+                    return parsedBody;
+                }
             };
-            if (!route)
-                return json({ error: 'Not Found' }, { status: 404 });
-            const handlers = [...middleware, ...route.definition.handlers];
+            const handlers = [
+                ...middleware,
+                ...(route ? route.definition.handlers : [() => json({ error: 'Not Found' }, { status: 404 })])
+            ];
             let index = -1;
             const dispatch = async (position) => {
                 if (position <= index)
@@ -5586,11 +5612,27 @@ const securityMiddleware = {
 };
 const serverMiddleware = {
     cors(options = {}) {
-        return async (_context, next) => {
-            const response = await next();
-            const headers = new Headers(response.headers);
+        return async (context, next) => {
+            const headers = new Headers();
             headers.set('access-control-allow-origin', options.origin ?? '*');
-            return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+            headers.set('access-control-allow-methods', options.methods ?? 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+            headers.set('access-control-allow-headers', options.headers ?? context.request.headers.get('access-control-request-headers') ?? 'content-type, authorization');
+            if (options.credentials)
+                headers.set('access-control-allow-credentials', 'true');
+            if (options.maxAge !== undefined)
+                headers.set('access-control-max-age', String(Math.max(0, options.maxAge)));
+            if (context.method === 'OPTIONS' && context.request.headers.has('access-control-request-method')) {
+                return new Response(null, { status: 204, headers });
+            }
+            const response = await next();
+            const responseHeaders = new Headers(response.headers);
+            for (const [name, value] of headers)
+                responseHeaders.set(name, value);
+            return new Response(response.body, {
+                status: response.status,
+                statusText: response.statusText,
+                headers: responseHeaders,
+            });
         };
     },
     requestId(header = 'x-request-id') {
