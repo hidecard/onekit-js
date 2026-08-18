@@ -5409,6 +5409,8 @@ function createServerApp(options = {}) {
     const middleware = [];
     const routes = [];
     const compiled = [];
+    let started = false;
+    let stopping;
     const app = {
         get routes() { return routes; },
         use(...handlers) { middleware.push(...handlers); return app; },
@@ -5438,6 +5440,39 @@ function createServerApp(options = {}) {
             if (handlers.remove)
                 app.delete(`${base}/:id`, handlers.remove);
             return app;
+        },
+        async start() {
+            if (started)
+                return;
+            started = true;
+            try {
+                await options.onStart?.(app);
+            }
+            catch (error) {
+                started = false;
+                throw error;
+            }
+        },
+        async stop() {
+            if (stopping)
+                return stopping;
+            stopping = (async () => {
+                if (!started)
+                    return;
+                try {
+                    await options.onStop?.(app);
+                }
+                finally {
+                    await options.database?.close?.();
+                    started = false;
+                }
+            })();
+            try {
+                await stopping;
+            }
+            finally {
+                stopping = undefined;
+            }
         },
         async handle(request) {
             const url = new URL(request.url);

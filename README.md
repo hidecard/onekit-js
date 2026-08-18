@@ -371,6 +371,19 @@ import { createNodeHandler } from "onekit-js";
 createServer(createNodeHandler(app)).listen(3000);
 ```
 
+For startup and graceful shutdown, call `await app.start()` once after wiring routes and call `await app.stop()` from the server's shutdown path. `onStart` runs once per start cycle, `onStop` is awaited before the optional database adapter is closed, and concurrent stop calls are safely coalesced. This keeps the beginner path explicit without forcing a Node-specific server lifecycle into the browser-safe core.
+
+```ts
+const server = createServer(createNodeHandler(app));
+await app.start();
+server.listen(3000);
+
+process.once("SIGTERM", async () => {
+  await app.stop();
+  server.close();
+});
+```
+
 The server context exposes `request`, method/path, decoded `params`, `URLSearchParams` query values, per-request `state`, a scoped `DependencyInjector`, an optional typed `database` adapter, a one-read typed `body<T>()` helper, and concise response helpers: `ok(data)`, `json(data, init)`, `text(data, init)`, and `fail(message, status)`. Security helpers are intentionally explicit: `securityMiddleware.authenticate(resolveUser)` stores a verified application user in `state.user`, `securityMiddleware.session(provider)` and `securityMiddleware.token(provider)` adapt application-owned identity providers, `securityMiddleware.authorize(rule)` enforces a permission rule, and `securityMiddleware.rateLimit({ max, windowMs, key })` adds bounded in-memory limits and standard rate-limit headers. Use `app.get`, `app.post`, `app.put`, `app.patch`, `app.delete`, or `app.route` for endpoints; use `app.use` for cross-cutting middleware. `validateBody` parses JSON from a cloned request and turns validation failures into a `400` response. The built-in CORS middleware handles `OPTIONS` preflight requests with `204`, allows configurable methods/headers/credentials/max-age, and also applies CORS headers to `404` responses because global middleware runs before the fallback route. Unhandled route errors return a generic `500` response by default so internal messages are not leaked; provide `onError` to integrate application-owned logging and error reporting.
 
 ```ts

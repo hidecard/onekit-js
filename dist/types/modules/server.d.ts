@@ -53,6 +53,8 @@ export interface ServerAppOptions {
     injector?: DependencyInjector;
     database?: DatabaseAdapter;
     onError?: (error: unknown, context: ServerRequestContext) => Response | Promise<Response>;
+    onStart?: (app: ServerApp) => void | Promise<void>;
+    onStop?: (app: ServerApp) => void | Promise<void>;
 }
 export interface ServerApp {
     readonly routes: readonly ServerRouteDefinition[];
@@ -64,6 +66,8 @@ export interface ServerApp {
     patch(path: string, ...handlers: ServerHandler[]): this;
     delete(path: string, ...handlers: ServerHandler[]): this;
     resource(path: string, handlers: ResourceHandlers): this;
+    start(): Promise<void>;
+    stop(): Promise<void>;
     handle(request: Request): Promise<Response>;
 }
 export interface NodeHttpRequest {

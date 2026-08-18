@@ -168,6 +168,25 @@ describe('full-stack server production contract', () => {
     expect(await removed.json()).toEqual({ action: 'remove', id: 't1' });
   });
 
+  it('supports idempotent lifecycle hooks and closes the database on stop', async () => {
+    const events: string[] = [];
+    const database: DatabaseAdapter = {
+      async query() { return []; },
+      async execute() { return { affectedRows: 0 }; },
+      async transaction<T>(work) { return work(this); },
+      async close() { events.push('database:close'); },
+    };
+    const app = createApi({
+      database,
+      onStart: () => { events.push('start'); },
+      onStop: () => { events.push('stop'); },
+    });
+    await app.start();
+    await app.start();
+    await Promise.all([app.stop(), app.stop()]);
+    expect(events).toEqual(['start', 'stop', 'database:close']);
+  });
+
   it('runs global middleware for missing routes and handles CORS preflight', async () => {
     const app = createApi();
     app.use(serverMiddleware.cors({ origin: 'https://example.test', credentials: true, maxAge: 600 }));

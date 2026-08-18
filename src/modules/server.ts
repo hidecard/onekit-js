@@ -68,6 +68,8 @@ export interface ServerAppOptions {
   injector?: DependencyInjector;
   database?: DatabaseAdapter;
   onError?: (error: unknown, context: ServerRequestContext) => Response | Promise<Response>;
+  onStart?: (app: ServerApp) => void | Promise<void>;
+  onStop?: (app: ServerApp) => void | Promise<void>;
 }
 
 export interface ServerApp {
@@ -80,6 +82,8 @@ export interface ServerApp {
   patch(path: string, ...handlers: ServerHandler[]): this;
   delete(path: string, ...handlers: ServerHandler[]): this;
   resource(path: string, handlers: ResourceHandlers): this;
+  start(): Promise<void>;
+  stop(): Promise<void>;
   handle(request: Request): Promise<Response>;
 }
 
@@ -195,6 +199,8 @@ export function createServerApp(options: ServerAppOptions = {}): ServerApp {
   const middleware: ServerMiddleware[] = [];
   const routes: ServerRouteDefinition[] = [];
   const compiled: CompiledRoute[] = [];
+  let started = false;
+  let stopping: Promise<void> | undefined;
 
   const app: ServerApp = {
     get routes() { return routes; },
@@ -221,6 +227,33 @@ export function createServerApp(options: ServerAppOptions = {}): ServerApp {
       }
       if (handlers.remove) app.delete(`${base}/:id`, handlers.remove);
       return app;
+    },
+    async start() {
+      if (started) return;
+      started = true;
+      try {
+        await options.onStart?.(app);
+      } catch (error) {
+        started = false;
+        throw error;
+      }
+    },
+    async stop() {
+      if (stopping) return stopping;
+      stopping = (async () => {
+        if (!started) return;
+        try {
+          await options.onStop?.(app);
+        } finally {
+          await options.database?.close?.();
+          started = false;
+        }
+      })();
+      try {
+        await stopping;
+      } finally {
+        stopping = undefined;
+      }
     },
     async handle(request) {
       const url = new URL(request.url);
