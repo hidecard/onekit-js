@@ -21,7 +21,7 @@ describe('OneKit CLI', () => {
       expect(packageJson.scripts.dev).toBe('vite');
       expect(packageJson.scripts.preview).toBe('vite preview');
       expect(packageJson.scripts.test).toBe('node --test');
-      expect(packageJson.dependencies['onekit-js']).toBe('^3.1.19');
+      expect(packageJson.dependencies['onekit-js']).toBe('^3.1.18');
       expect(await readFile(path.join(appPath, 'src', 'main.ts'), 'utf8')).toContain("./App.okjs");
       expect(await readFile(path.join(appPath, 'src', 'App.okjs'), 'utf8')).toContain('<template>');
       expect(await readFile(path.join(appPath, 'src', 'App.okjs'), 'utf8')).toContain('A familiar Vite workflow');

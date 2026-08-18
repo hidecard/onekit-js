@@ -46,7 +46,7 @@ onekit preview
 onekit test
 ```
 
-The create command generates a Vite-compatible TypeScript starter by default. Use `--javascript` or `--template js` for a JavaScript starter. For a generated Vite project, `onekit build` delegates to the project `build` script because the starter entrypoint is `src/main.ts` or `src/main.js`. For a library project with `source`, `src/index.ts`, or `src/index.js`, it uses OneKit's bundle builder. `onekit dev` delegates to the project `dev` script, `onekit preview` requires a `dist` directory and delegates to the `preview` script, and `onekit test` delegates to the project `test` script while preserving the child process exit code. Use `--cwd <directory>` to run commands from another project and pass additional arguments after the command.
+The create command generates a Vite-compatible TypeScript starter by default. Use `--javascript` or `--template js` for a JavaScript starter. For a generated Vite project, `onekit build` delegates to the project `build` script because the starter entrypoint is `src/main.ts` or `src/main.js`; a custom `--out-dir <directory>` is forwarded as Vite's `--outDir` option. For a library project with `source`, `src/index.ts`, or `src/index.js`, it uses OneKit's bundle builder. `onekit dev` delegates to the project `dev` script, `onekit preview` requires a `dist` directory and delegates to the `preview` script, and `onekit test` delegates to the project `test` script while preserving the child process exit code. Use `--cwd <directory>` to run commands from another project and pass additional arguments after the command.
 
 ```bash
 onekit dev --cwd ./my-app -- --host 0.0.0.0
@@ -845,7 +845,7 @@ git tag v3.1.19
 git push origin v3.1.19
 ```
 
-The creator package is published independently through `create-onekit-v1.0.8`; publish `onekit-js` first so the creator's `^3.1.19` dependency is available. A manual `npm publish --access public` remains possible for an authenticated npm session, but the tag workflow is preferred because it provides repeatable validation and npm provenance.
+The creator package is published independently through `create-onekit-v1.0.8`. The generated starter currently uses the installable compatibility floor `onekit-js@^3.1.18`, which resolves the newest compatible V3 release from npm; after `3.1.19` is published, the same caret range resolves to that patch automatically. If a creator release pins `^3.1.19` directly, publish `onekit-js` first so that exact range is available. A manual `npm publish --access public` remains possible for an authenticated npm session, but the tag workflow is preferred because it provides repeatable validation and npm provenance.
 
 Never place an npm access token in source files, commit history, chat messages, or public documentation.
 

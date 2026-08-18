@@ -19,6 +19,7 @@ The V3 branch continues production hardening after `3.1.19` without changing the
 - Add Node adapter regression coverage for request-body streaming, response status/headers, and JSON payload serialization.
 - Add beginner-friendly `securityMiddleware.authenticate()` and `securityMiddleware.authorize()` contracts that keep verified application users in request state and return safe `401`/`403` responses.
 - Add bounded in-memory `securityMiddleware.rateLimit()` with configurable keying, `429` responses, retry hints, and standard rate-limit headers.
+- Forward custom `onekit build --out-dir <directory>` values to delegated Vite-style project build scripts while preserving default build-script compatibility.
 
 ### Documentation
 
@@ -30,8 +31,8 @@ The V3 branch continues production hardening after `3.1.19` without changing the
 
 ### Validation
 
-- The focused observability, VDOM, and server suites pass, together with strict TypeScript checking and the full Jest matrix; the server regression suite now covers six tests.
-- The latest audit passes `type-check`, **30 Jest suites / 155 tests**, production build, declaration verification across 27 relative exports, package verification with a clean install and zero reported vulnerabilities, and `git diff --check`; the backend suite now covers eight tests including the Node adapter and security middleware.
+- The focused observability, VDOM, CLI, and server suites pass, together with strict TypeScript checking and the full Jest matrix; the CLI suite covers ten tests and the server regression suite covers eight tests.
+- The latest framework audit passes `type-check`, **30 Jest suites / 156 tests**, production build, declaration verification across 27 relative exports, package verification with a clean install and zero reported vulnerabilities, and `git diff --check`. The generated TypeScript starter also passes npm install, type-check, its smoke test, and Vite production build.
 - The Vite plugin build still prints expected non-fatal externalization notices for `node:fs`, `node:path`, and `typescript`; these are intentional server/tooling externals and do not fail the build.
 
 ## [3.1.19] - 2026-08-18
@@ -49,7 +50,7 @@ OneKit JS `3.1.19` is a **V3 production-parity patch release** that adds progres
 
 - Document progressive SSR boundaries and query persistence/revalidation in the V3 Usage Guide.
 - Synchronize the Production Readiness Guide and roadmap with the completed parity milestones.
-- Update generated Vite starter dependencies to `onekit-js@^3.1.19`.
+- Update the generated Vite starter to use the installable compatibility floor `onekit-js@^3.1.18`; its caret range resolves the newest compatible V3 release, including `3.1.19` once published.
 
 ### Compatibility and boundaries
 
