@@ -41,7 +41,7 @@ OneKit does not try to hide the browser. DOM elements, events, selectors, reques
 | Components | Typed props, component lifecycle, registration, mount/unmount, dependency injection | `onekit-js` |
 | Rendering | Templates, directives, JSX, automatic JSX runtime, VDOM patching, fragments | `onekit-js/jsx`, `onekit-js/jsx-runtime` |
 | Routing | History/hash/memory modes, typed params, file discovery, nested layouts, guards, loaders, manifests, prefetch, scroll restoration | `onekit-js` and `onekit-js/router` |
-| Backend | Fetch-compatible server app, route methods, middleware composition, params/query parsing, JSON responses, body validation, DI services, typed database adapter context, session/token provider contracts, authentication/authorization, rate limiting, CORS, request IDs, and safe error responses | `onekit-js` |
+| Backend | Fetch-compatible server app, route methods, middleware composition, params/query parsing, JSON responses, body validation, DI services, typed database adapter context, session/token provider contracts, authentication/authorization, portable rate-limit stores, CORS, request IDs, lifecycle hooks, and safe error responses | `onekit-js` |
 | Server rendering | Request-scoped SSR, streaming, async rendering, hydration diagnostics, error/loading boundaries, safe route manifests | `onekit-js/ssr` |
 | Data and forms | HTTP helpers, retry/timeout/cancellation, query invalidation, mutations, optimistic updates, SSR handoff, typed forms, validation | `onekit-js/api`, `onekit-js/query`, `onekit-js/forms` |
 | Runtime boundaries | Explicit server/client detection and guarded callbacks for shared modules | `onekit-js` |
@@ -57,6 +57,8 @@ The current V3 branch also hardens failure handling and teardown behavior for pr
 
 VDOM subtree replacement now disposes registered event listeners in addition to clearing refs, including listeners on descendant nodes. This makes long-lived applications safer during keyed updates and subtree replacement. These behaviors are covered by the production test matrix.
 
+Backend rate limiting now accepts a portable `RateLimitStore` contract through `securityMiddleware.rateLimit()` or the beginner-friendly `serverMiddleware.rateLimit()` alias. The default store is process-local memory; distributed deployments can provide a Redis, database, or edge-store adapter through `store.increment(key, windowMs)`.
+
 ### Verified V3.1.19 contract
 
 The examples in this README are written against the published V3.1.19 package surface. The following table maps the main documented commands and entrypoints to the repository checks that verify them:
@@ -71,7 +73,7 @@ The examples in this README are written against the published V3.1.19 package su
 | Published declarations | `npm run verify:declarations` | `scripts/verify-declarations.mjs` |
 | Clean package verification | `npm run verify:package` | Clean install, CLI smoke check, export verification, and vulnerability audit |
 
-The latest V3 audit passes strict TypeScript checking, **30 Jest suites / 159 tests**, production build, declaration verification across 27 relative exports, clean package verification with zero reported vulnerabilities, and `git diff --check`. The Vite plugin build may print non-fatal externalization notices for `node:fs`, `node:path`, and `typescript`; these are expected tooling/server externals and do not indicate a failed build.
+The latest V3 audit passes strict TypeScript checking, **30 Jest suites / 162 tests**, production build, declaration verification across 27 relative exports, clean package verification with zero reported vulnerabilities, and `git diff --check`. The Vite plugin build may print non-fatal externalization notices for `node:fs`, `node:path`, and `typescript`; these are expected tooling/server externals and do not indicate a failed build.
 
 If an example is copied into an application, replace placeholder values such as `HomePage`, `loadReports`, and `createProject` with application-owned implementations. The framework APIs and signatures shown here are the verified part of each example.
 

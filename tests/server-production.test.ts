@@ -168,6 +168,23 @@ describe('full-stack server production contract', () => {
     expect(await removed.json()).toEqual({ action: 'remove', id: 't1' });
   });
 
+  it('accepts a portable rate-limit store contract', async () => {
+    const counters = new Map<string, number>();
+    const store = {
+      increment(key: string) {
+        const count = (counters.get(key) ?? 0) + 1;
+        counters.set(key, count);
+        return { count, resetAt: Date.now() + 60_000 };
+      },
+    };
+    const app = createApi();
+    app.use(serverMiddleware.rateLimit({ max: 1, windowMs: 60_000, key: () => 'user-1', store }));
+    app.get('/limited', ({ ok }) => ok({ done: true }));
+    expect((await app.handle(new Request('http://localhost/limited'))).status).toBe(200);
+    expect((await app.handle(new Request('http://localhost/limited'))).status).toBe(429);
+    expect(counters.get('user-1')).toBe(2);
+  });
+
   it('supports idempotent lifecycle hooks and closes the database on stop', async () => {
     const events: string[] = [];
     const database: DatabaseAdapter = {

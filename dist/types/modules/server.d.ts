@@ -90,12 +90,22 @@ export interface AuthenticatedUser {
 }
 export type UserResolver<T extends AuthenticatedUser = AuthenticatedUser> = (context: ServerRequestContext) => T | null | undefined | Promise<T | null | undefined>;
 export type AuthorizationRule<T extends AuthenticatedUser = AuthenticatedUser> = (user: T, context: ServerRequestContext) => boolean | Promise<boolean>;
+export interface RateLimitState {
+    count: number;
+    resetAt: number;
+}
+/** Store contract for sharing rate-limit counters across processes or instances. */
+export interface RateLimitStore {
+    increment(key: string, windowMs: number): RateLimitState | Promise<RateLimitState>;
+}
 export interface RateLimitOptions {
     max: number;
     windowMs: number;
     key?: (context: ServerRequestContext) => string;
     message?: string;
+    store?: RateLimitStore;
 }
+export declare function createMemoryRateLimitStore(): RateLimitStore;
 export declare function validateBody<T>(validator: (value: unknown) => T): ServerMiddleware;
 export declare function createServerApp(options?: ServerAppOptions): ServerApp;
 export declare const createApi: typeof createServerApp;
@@ -112,6 +122,7 @@ export declare const securityMiddleware: {
     rateLimit(options: RateLimitOptions): ServerMiddleware;
 };
 export declare const serverMiddleware: {
+    rateLimit: (options: RateLimitOptions) => ServerMiddleware;
     cors(options?: {
         origin?: string;
         methods?: string;

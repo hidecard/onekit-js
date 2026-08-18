@@ -170,11 +170,38 @@ export type AuthorizationRule<T extends AuthenticatedUser = AuthenticatedUser> =
   context: ServerRequestContext
 ) => boolean | Promise<boolean>;
 
+export interface RateLimitState {
+  count: number;
+  resetAt: number;
+}
+
+/** Store contract for sharing rate-limit counters across processes or instances. */
+export interface RateLimitStore {
+  increment(key: string, windowMs: number): RateLimitState | Promise<RateLimitState>;
+}
+
 export interface RateLimitOptions {
   max: number;
   windowMs: number;
   key?: (context: ServerRequestContext) => string;
   message?: string;
+  store?: RateLimitStore;
+}
+
+export function createMemoryRateLimitStore(): RateLimitStore {
+  const counters = new Map<string, RateLimitState>();
+  return {
+    increment(key, windowMs) {
+      const now = Date.now();
+      const current = counters.get(key);
+      const entry = !current || current.resetAt <= now
+        ? { count: 0, resetAt: now + Math.max(1, windowMs) }
+        : current;
+      entry.count += 1;
+      counters.set(key, entry);
+      return entry;
+    },
+  };
 }
 
 export function validateBody<T>(validator: (value: unknown) => T): ServerMiddleware {
@@ -390,16 +417,11 @@ export const securityMiddleware = {
     return securityMiddleware.authenticate((context) => provider.verify(context.request));
   },
   rateLimit(options: RateLimitOptions): ServerMiddleware {
-    const counters = new Map<string, { count: number; resetAt: number }>();
+    const store = options.store ?? createMemoryRateLimitStore();
     return async (context, next) => {
       const now = Date.now();
       const key = options.key?.(context) ?? 'global';
-      const current = counters.get(key);
-      const entry = !current || current.resetAt <= now
-        ? { count: 0, resetAt: now + Math.max(1, options.windowMs) }
-        : current;
-      entry.count += 1;
-      counters.set(key, entry);
+      const entry = await store.increment(key, options.windowMs);
       const remaining = Math.max(0, options.max - entry.count);
       if (entry.count > options.max) {
         return context.json({ error: options.message ?? 'Too many requests' }, {
@@ -423,6 +445,7 @@ export const securityMiddleware = {
 };
 
 export const serverMiddleware = {
+  rateLimit: securityMiddleware.rateLimit,
   cors(options: {
     origin?: string;
     methods?: string;

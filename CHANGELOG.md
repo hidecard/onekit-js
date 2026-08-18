@@ -23,6 +23,7 @@ The V3 branch continues production hardening after `3.1.19` without changing the
 - Add one-read typed `context.body<T>()` parsing and `app.resource(path, { list, get, create, update, remove })` CRUD route registration to reduce repetitive backend code.
 - Add regression coverage for resource routes, body helpers, database context, and provider middleware contracts.
 - Add bounded in-memory `securityMiddleware.rateLimit()` with configurable keying, `429` responses, retry hints, and standard rate-limit headers.
+- Add a portable `RateLimitStore` contract, `createMemoryRateLimitStore()` helper, and beginner-friendly `serverMiddleware.rateLimit()` alias so Redis, database, or edge-backed counters can be injected without changing route code.
 - Forward custom `onekit build --out-dir <directory>` values to delegated Vite-style project build scripts while preserving default build-script compatibility.
 - Harden global middleware dispatch so middleware runs for missing routes, and add configurable CORS preflight handling with `204` responses and standard method/header/credential/max-age headers.
 - Add idempotent `app.start()`/`app.stop()` lifecycle hooks with `onStart`/`onStop` callbacks, concurrent shutdown coalescing, and automatic closing of the optional database adapter after application shutdown.
@@ -37,8 +38,8 @@ The V3 branch continues production hardening after `3.1.19` without changing the
 
 ### Validation
 
-- The focused observability, VDOM, CLI, and server suites pass, together with strict TypeScript checking and the full Jest matrix; the CLI suite covers ten tests and the server regression suite covers eleven tests.
-- The latest framework audit passes `type-check`, **30 Jest suites / 159 tests**, production build, declaration verification across 27 relative exports, package verification with a clean install and zero reported vulnerabilities, and `git diff --check`. The generated TypeScript starter also passes npm install, type-check, its smoke test, and Vite production build.
+- The focused observability, VDOM, CLI, and server suites pass, together with strict TypeScript checking and the full Jest matrix; the CLI suite covers ten tests and the server regression suite covers fourteen tests.
+- The latest framework audit passes `type-check`, **30 Jest suites / 162 tests**, production build, declaration verification across 27 relative exports, package verification with a clean install and zero reported vulnerabilities, and `git diff --check`. The generated TypeScript starter also passes npm install, type-check, its smoke test, and Vite production build.
 - The Vite plugin build still prints expected non-fatal externalization notices for `node:fs`, `node:path`, and `typescript`; these are intentional server/tooling externals and do not fail the build.
 
 ## [3.1.19] - 2026-08-18

@@ -5386,6 +5386,21 @@ function defineMiddleware(handler) {
 function defineHandler(handler) {
     return (context) => handler(context);
 }
+function createMemoryRateLimitStore() {
+    const counters = new Map();
+    return {
+        increment(key, windowMs) {
+            const now = Date.now();
+            const current = counters.get(key);
+            const entry = !current || current.resetAt <= now
+                ? { count: 0, resetAt: now + Math.max(1, windowMs) }
+                : current;
+            entry.count += 1;
+            counters.set(key, entry);
+            return entry;
+        },
+    };
+}
 function validateBody(validator) {
     return async (context, next) => {
         let value;
@@ -5614,16 +5629,11 @@ const securityMiddleware = {
         return securityMiddleware.authenticate((context) => provider.verify(context.request));
     },
     rateLimit(options) {
-        const counters = new Map();
+        const store = options.store ?? createMemoryRateLimitStore();
         return async (context, next) => {
             const now = Date.now();
             const key = options.key?.(context) ?? 'global';
-            const current = counters.get(key);
-            const entry = !current || current.resetAt <= now
-                ? { count: 0, resetAt: now + Math.max(1, options.windowMs) }
-                : current;
-            entry.count += 1;
-            counters.set(key, entry);
+            const entry = await store.increment(key, options.windowMs);
             const remaining = Math.max(0, options.max - entry.count);
             if (entry.count > options.max) {
                 return context.json({ error: options.message ?? 'Too many requests' }, {
@@ -5646,6 +5656,7 @@ const securityMiddleware = {
     }
 };
 const serverMiddleware = {
+    rateLimit: securityMiddleware.rateLimit,
     cors(options = {}) {
         return async (context, next) => {
             const headers = new Headers();
@@ -6156,6 +6167,7 @@ exports.createForm = createForm;
 exports.createHeadManager = createHeadManager;
 exports.createLandmarks = createLandmarks;
 exports.createLoadingBoundary = createLoadingBoundary;
+exports.createMemoryRateLimitStore = createMemoryRateLimitStore;
 exports.createNodeHandler = createNodeHandler;
 exports.createQueryClient = createQueryClient;
 exports.createRouteManifest = createRouteManifest;
