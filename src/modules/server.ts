@@ -46,6 +46,20 @@ export interface ServerApp {
   handle(request: Request): Promise<Response>;
 }
 
+export interface NodeHttpRequest {
+  method?: string;
+  url?: string;
+  headers: Record<string, string | string[] | undefined>;
+  [Symbol.asyncIterator](): AsyncIterator<Uint8Array | string>;
+}
+
+export interface NodeHttpResponse {
+  writeHead(statusCode: number, headers?: Record<string, string>): this;
+  end(body?: Uint8Array): void;
+}
+
+export type NodeHttpHandler = (request: NodeHttpRequest, response: NodeHttpResponse) => Promise<void>;
+
 interface CompiledRoute {
   definition: ServerRouteDefinition;
   match(path: string): Record<string, string> | null;
@@ -182,6 +196,61 @@ function itemMatch(route: CompiledRoute, path: string): Record<string, string> {
 }
 
 export const createApi = createServerApp;
+
+function nodeHeaders(input: NodeHttpRequest['headers']): Headers {
+  const headers = new Headers();
+  for (const [name, value] of Object.entries(input)) {
+    if (value !== undefined) headers.set(name, Array.isArray(value) ? value.join(', ') : value);
+  }
+  return headers;
+}
+
+async function nodeBody(request: NodeHttpRequest): Promise<Uint8Array | undefined> {
+  if (request.method === 'GET' || request.method === 'HEAD') return undefined;
+  const chunks: Uint8Array[] = [];
+  let length = 0;
+  for await (const chunk of request) {
+    const bytes = typeof chunk === 'string' ? new TextEncoder().encode(chunk) : chunk;
+    chunks.push(bytes);
+    length += bytes.byteLength;
+  }
+  if (length === 0) return undefined;
+  const body = new Uint8Array(length);
+  let offset = 0;
+  for (const chunk of chunks) {
+    body.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return body;
+}
+
+/**
+ * Bridges a standard Node HTTP server to the Fetch-compatible ServerApp.
+ * Import `node:http` in the application and pass this handler to `createServer`.
+ */
+export function createNodeHandler(app: ServerApp, baseUrl = 'http://localhost'): NodeHttpHandler {
+  return async (request, response) => {
+    try {
+      const url = new URL(request.url ?? '/', baseUrl);
+      const body = await nodeBody(request);
+      const fetchRequest = new Request(url, {
+        method: request.method ?? 'GET',
+        headers: nodeHeaders(request.headers),
+        body: body as BodyInit | undefined,
+        ...(body ? { duplex: 'half' as const } : {})
+      });
+      const result = await app.handle(fetchRequest);
+      const payload = new Uint8Array(await result.arrayBuffer());
+      const headers: Record<string, string> = {};
+      result.headers.forEach((value, name) => { headers[name] = value; });
+      response.writeHead(result.status, headers);
+      response.end(payload);
+    } catch {
+      response.writeHead(500, { 'content-type': 'application/json; charset=utf-8' });
+      response.end(new TextEncoder().encode(JSON.stringify({ error: 'Internal Server Error' })));
+    }
+  };
+}
 
 export const serverMiddleware = {
   cors(options: { origin?: string } = {}): ServerMiddleware {

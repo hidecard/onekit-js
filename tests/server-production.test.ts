@@ -2,6 +2,7 @@
 
 import {
   createServerApp,
+  createNodeHandler,
   defineMiddleware,
   jsonResponse,
   createApi,
@@ -91,6 +92,26 @@ describe('full-stack server production contract', () => {
     expect(await greeting.json()).toEqual({ hello: 'OneKit' });
     expect(failure.status).toBe(403);
     expect(await failure.json()).toEqual({ error: 'Not allowed' });
+  });
+
+  it('bridges Node HTTP request/response objects through createNodeHandler', async () => {
+    const app = createApi();
+    app.post('/node', async ({ request, ok }) => ok({ value: await request.json() }));
+    const handler = createNodeHandler(app, 'http://example.test');
+    const output: { status?: number; headers?: Record<string, string>; body?: Uint8Array } = {};
+    const request = {
+      method: 'POST',
+      url: '/node',
+      headers: { 'content-type': 'application/json' },
+      async *[Symbol.asyncIterator]() { yield '{"value":42}'; }
+    };
+    await handler(request, {
+      writeHead(status, headers) { output.status = status; output.headers = headers; return this; },
+      end(body) { output.body = body; }
+    });
+    expect(output.status).toBe(200);
+    expect(output.headers?.['content-type']).toContain('application/json');
+    expect(JSON.parse(new TextDecoder().decode(output.body))).toEqual({ value: { value: 42 } });
   });
 
   it('adds CORS and request ids through built-in middleware', async () => {

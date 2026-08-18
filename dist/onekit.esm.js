@@ -5467,6 +5467,62 @@ function itemMatch(route, path) {
     return route.match(path) ?? {};
 }
 const createApi = createServerApp;
+function nodeHeaders(input) {
+    const headers = new Headers();
+    for (const [name, value] of Object.entries(input)) {
+        if (value !== undefined)
+            headers.set(name, Array.isArray(value) ? value.join(', ') : value);
+    }
+    return headers;
+}
+async function nodeBody(request) {
+    if (request.method === 'GET' || request.method === 'HEAD')
+        return undefined;
+    const chunks = [];
+    let length = 0;
+    for await (const chunk of request) {
+        const bytes = typeof chunk === 'string' ? new TextEncoder().encode(chunk) : chunk;
+        chunks.push(bytes);
+        length += bytes.byteLength;
+    }
+    if (length === 0)
+        return undefined;
+    const body = new Uint8Array(length);
+    let offset = 0;
+    for (const chunk of chunks) {
+        body.set(chunk, offset);
+        offset += chunk.byteLength;
+    }
+    return body;
+}
+/**
+ * Bridges a standard Node HTTP server to the Fetch-compatible ServerApp.
+ * Import `node:http` in the application and pass this handler to `createServer`.
+ */
+function createNodeHandler(app, baseUrl = 'http://localhost') {
+    return async (request, response) => {
+        try {
+            const url = new URL(request.url ?? '/', baseUrl);
+            const body = await nodeBody(request);
+            const fetchRequest = new Request(url, {
+                method: request.method ?? 'GET',
+                headers: nodeHeaders(request.headers),
+                body: body,
+                ...(body ? { duplex: 'half' } : {})
+            });
+            const result = await app.handle(fetchRequest);
+            const payload = new Uint8Array(await result.arrayBuffer());
+            const headers = {};
+            result.headers.forEach((value, name) => { headers[name] = value; });
+            response.writeHead(result.status, headers);
+            response.end(payload);
+        }
+        catch {
+            response.writeHead(500, { 'content-type': 'application/json; charset=utf-8' });
+            response.end(new TextEncoder().encode(JSON.stringify({ error: 'Internal Server Error' })));
+        }
+    };
+}
 const serverMiddleware = {
     cors(options = {}) {
         return async (_context, next) => {
@@ -5919,5 +5975,5 @@ const jsxDEV = jsx;
 // Version info
 const VERSION = '3.1.19';
 
-export { API, DependencyInjector, Fragment, HydrationMismatchError, OneKit, OneKitWebComponent, QueryClient, Router, StreamingRenderer, VERSION, addScript, addStorePlugin, addStyle, addToBody, addToHead, animations, announce, patch as apiPatch, applyHead, assertClient, assertServer, autorun, batch, bind, cache, cleanup, clearDevToolsDependencies, clientOnly, compileOkjs, compileTemplate, component, computed, create, createApi, createApp, createElement, createErrorBoundary, createErrorReport, createFileRoutes, createForm, createHeadManager, createLandmarks, createLoadingBoundary, createQueryClient, createRouteManifest, createRouter, createSSRContext, createServerApp, createSkipLink, createStorage, createStore, createStreamingBoundary, debounce, deepClone, defineComponent, defineHandler, defineLayoutRoute, defineMiddleware, defineRoute, defineStore, del, derive, destroy, devToolsSnapshot, di, disableScopeLeakWarnings, disposeDevToolsResource, effect, effectScope, emitDevToolsEvent, enableDevTools, enableScopeLeakWarnings, errorHandler, filePathToRoutePath, fireEvent, flush, generateId, get, getActiveScopeDiagnostics, getAllStores, getCurrentScope, getDependencyGraph, getDevToolsEffectId, getDevToolsScopeId, getDevToolsTargetId, getInstance, getResourceGraph, getRuntimeEnvironment, h, hotUpdateComponent, hydrate, initTemplateEngine, isClient, isClientRuntime, isDevToolsEnabled, isServer, isServerRuntime, jsonResponse, jsx$1 as jsx, jsxDEV$1 as jsxDEV, jsx as jsxRuntime, jsxDEV as jsxRuntimeDEV, jsxs, localStorage, makeFocusable, makeUnfocusable, manageTabOrder, measureDevTools, mount, nextTick, ok, okjs, onDestroyed, onDevToolsEvent, onMounted, onPropsChanged, onScopeDispose, onUpdated, parseOkjs, patch$1 as patch, pluginManager, post, preloadModule, preloadScript, preloadStyle, put, reactive, recordDevToolsDependency, recordDevToolsError, register, registerDevToolsInspector, registerDevToolsResource, registerDirective, registerDisposable, registerWebComponent, removeStore, render, renderHead, renderMeta$1 as renderMeta, renderOpenGraph, renderTest, renderTitle, renderToString, request, resumeStreamingBoundary, resumeStreamingBoundaryChunk, routeHref, router, safeMethod, serverMiddleware, serverOnly, sessionStorage, setAriaAttributes, setErrorReporter, setMeta, setupComponent, skipToContent, snapshot, state, stop, textResponse, throttle, trapFocus, unmount, useStore, validateAccessibility, validateBody, patch$1 as vdomPatch, waitFor, watch, watchEffect, withCache, withScope };
+export { API, DependencyInjector, Fragment, HydrationMismatchError, OneKit, OneKitWebComponent, QueryClient, Router, StreamingRenderer, VERSION, addScript, addStorePlugin, addStyle, addToBody, addToHead, animations, announce, patch as apiPatch, applyHead, assertClient, assertServer, autorun, batch, bind, cache, cleanup, clearDevToolsDependencies, clientOnly, compileOkjs, compileTemplate, component, computed, create, createApi, createApp, createElement, createErrorBoundary, createErrorReport, createFileRoutes, createForm, createHeadManager, createLandmarks, createLoadingBoundary, createNodeHandler, createQueryClient, createRouteManifest, createRouter, createSSRContext, createServerApp, createSkipLink, createStorage, createStore, createStreamingBoundary, debounce, deepClone, defineComponent, defineHandler, defineLayoutRoute, defineMiddleware, defineRoute, defineStore, del, derive, destroy, devToolsSnapshot, di, disableScopeLeakWarnings, disposeDevToolsResource, effect, effectScope, emitDevToolsEvent, enableDevTools, enableScopeLeakWarnings, errorHandler, filePathToRoutePath, fireEvent, flush, generateId, get, getActiveScopeDiagnostics, getAllStores, getCurrentScope, getDependencyGraph, getDevToolsEffectId, getDevToolsScopeId, getDevToolsTargetId, getInstance, getResourceGraph, getRuntimeEnvironment, h, hotUpdateComponent, hydrate, initTemplateEngine, isClient, isClientRuntime, isDevToolsEnabled, isServer, isServerRuntime, jsonResponse, jsx$1 as jsx, jsxDEV$1 as jsxDEV, jsx as jsxRuntime, jsxDEV as jsxRuntimeDEV, jsxs, localStorage, makeFocusable, makeUnfocusable, manageTabOrder, measureDevTools, mount, nextTick, ok, okjs, onDestroyed, onDevToolsEvent, onMounted, onPropsChanged, onScopeDispose, onUpdated, parseOkjs, patch$1 as patch, pluginManager, post, preloadModule, preloadScript, preloadStyle, put, reactive, recordDevToolsDependency, recordDevToolsError, register, registerDevToolsInspector, registerDevToolsResource, registerDirective, registerDisposable, registerWebComponent, removeStore, render, renderHead, renderMeta$1 as renderMeta, renderOpenGraph, renderTest, renderTitle, renderToString, request, resumeStreamingBoundary, resumeStreamingBoundaryChunk, routeHref, router, safeMethod, serverMiddleware, serverOnly, sessionStorage, setAriaAttributes, setErrorReporter, setMeta, setupComponent, skipToContent, snapshot, state, stop, textResponse, throttle, trapFocus, unmount, useStore, validateAccessibility, validateBody, patch$1 as vdomPatch, waitFor, watch, watchEffect, withCache, withScope };
 //# sourceMappingURL=onekit.esm.js.map
