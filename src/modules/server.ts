@@ -10,6 +10,10 @@ export interface ServerRequestContext {
   query: URLSearchParams;
   state: Record<string, unknown>;
   services: DependencyInjector;
+  json(data: unknown, init?: ResponseInit): Response;
+  text(data: string, init?: ResponseInit): Response;
+  ok(data: unknown): Response;
+  fail(message: string, status?: number): Response;
 }
 
 export type ServerHandler = (
@@ -94,6 +98,10 @@ export function defineMiddleware(handler: ServerMiddleware): ServerMiddleware {
   return handler;
 }
 
+export function defineHandler(handler: (context: ServerRequestContext) => Response | Promise<Response>): ServerHandler {
+  return (context) => handler(context);
+}
+
 export function validateBody<T>(validator: (value: unknown) => T): ServerMiddleware {
   return async (context, next) => {
     let value: unknown;
@@ -142,7 +150,11 @@ export function createServerApp(options: ServerAppOptions = {}): ServerApp {
         params: route ? itemMatch(route, url.pathname) : {},
         query: url.searchParams,
         state: {},
-        services: injector
+        services: injector,
+        json: jsonResponse,
+        text: textResponse,
+        ok: (data) => jsonResponse(data),
+        fail: (message, status = 400) => jsonResponse({ error: message }, { status })
       };
       if (!route) return json({ error: 'Not Found' }, { status: 404 });
       const handlers = [...middleware, ...route.definition.handlers];
@@ -168,6 +180,8 @@ export function createServerApp(options: ServerAppOptions = {}): ServerApp {
 function itemMatch(route: CompiledRoute, path: string): Record<string, string> {
   return route.match(path) ?? {};
 }
+
+export const createApi = createServerApp;
 
 export const serverMiddleware = {
   cors(options: { origin?: string } = {}): ServerMiddleware {

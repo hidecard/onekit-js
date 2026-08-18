@@ -13,16 +13,19 @@ The V3 branch continues production hardening after `3.1.19` without changing the
 - Add a Fetch-compatible `createServerApp()` with Express-style route methods, ordered middleware, decoded route params, query parsing, safe JSON/text responses, per-request state, and adapter-neutral `Request`/`Response` handling.
 - Add `validateBody()` for JSON body validation and built-in `serverMiddleware.requestId()` and `serverMiddleware.cors()` helpers.
 - Reuse the existing `DependencyInjector` through each server request context for Nest-style service composition without introducing decorators or a deployment-specific runtime.
+- Add the beginner-friendly `createApi()` alias and `context.ok()`, `context.json()`, `context.text()`, and `context.fail()` helpers so common handlers can be written without manual `Response` construction.
+- Add `defineHandler()` for explicit concise handlers while keeping the existing middleware-compatible handler signature available.
 
 ### Documentation
 
 - Update the README feature map and production-parity guidance for runtime diagnostics and VDOM teardown behavior.
 - Keep production-readiness guidance explicit about reviewing and redacting error messages and stack traces before external forwarding.
 - Document the all-in-one backend workflow, adapter boundary, server-only responsibilities, and current limits in the README.
+- Make the shortest backend learning path the default README example, while retaining the lower-level API for advanced applications.
 
 ### Validation
 
-- The focused observability, VDOM, and server suites pass, together with strict TypeScript checking and the full Jest matrix.
+- The focused observability, VDOM, and server suites pass, together with strict TypeScript checking and the full Jest matrix; the server regression suite now covers six tests.
 
 ## [3.1.19] - 2026-08-18
 

@@ -4,6 +4,7 @@ import {
   createServerApp,
   defineMiddleware,
   jsonResponse,
+  createApi,
   serverMiddleware,
   validateBody
 } from '../src';
@@ -77,6 +78,19 @@ describe('full-stack server production contract', () => {
     const failure = await app.handle(new Request('http://localhost/failure'));
     expect(failure.status).toBe(500);
     expect(await failure.json()).toEqual({ error: 'Internal Server Error' });
+  });
+
+  it('supports the concise createApi and context response helpers', async () => {
+    const app = createApi();
+    app.get('/hello/:name', ({ params, ok }) => ok({ hello: params.name }));
+    app.get('/fail', ({ fail }) => fail('Not allowed', 403));
+
+    const greeting = await app.handle(new Request('http://localhost/hello/OneKit'));
+    const failure = await app.handle(new Request('http://localhost/fail'));
+
+    expect(await greeting.json()).toEqual({ hello: 'OneKit' });
+    expect(failure.status).toBe(403);
+    expect(await failure.json()).toEqual({ error: 'Not allowed' });
   });
 
   it('adds CORS and request ids through built-in middleware', async () => {

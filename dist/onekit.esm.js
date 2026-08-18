@@ -5381,6 +5381,9 @@ function textResponse(data, init = {}) {
 function defineMiddleware(handler) {
     return handler;
 }
+function defineHandler(handler) {
+    return (context) => handler(context);
+}
 function validateBody(validator) {
     return async (context, next) => {
         let value;
@@ -5429,7 +5432,11 @@ function createServerApp(options = {}) {
                 params: route ? itemMatch(route, url.pathname) : {},
                 query: url.searchParams,
                 state: {},
-                services: injector
+                services: injector,
+                json: jsonResponse,
+                text: textResponse,
+                ok: (data) => jsonResponse(data),
+                fail: (message, status = 400) => jsonResponse({ error: message }, { status })
             };
             if (!route)
                 return json({ error: 'Not Found' }, { status: 404 });
@@ -5459,6 +5466,7 @@ function createServerApp(options = {}) {
 function itemMatch(route, path) {
     return route.match(path) ?? {};
 }
+const createApi = createServerApp;
 const serverMiddleware = {
     cors(options = {}) {
         return async (_context, next) => {
@@ -5911,5 +5919,5 @@ const jsxDEV = jsx;
 // Version info
 const VERSION = '3.1.19';
 
-export { API, DependencyInjector, Fragment, HydrationMismatchError, OneKit, OneKitWebComponent, QueryClient, Router, StreamingRenderer, VERSION, addScript, addStorePlugin, addStyle, addToBody, addToHead, animations, announce, patch as apiPatch, applyHead, assertClient, assertServer, autorun, batch, bind, cache, cleanup, clearDevToolsDependencies, clientOnly, compileOkjs, compileTemplate, component, computed, create, createApp, createElement, createErrorBoundary, createErrorReport, createFileRoutes, createForm, createHeadManager, createLandmarks, createLoadingBoundary, createQueryClient, createRouteManifest, createRouter, createSSRContext, createServerApp, createSkipLink, createStorage, createStore, createStreamingBoundary, debounce, deepClone, defineComponent, defineLayoutRoute, defineMiddleware, defineRoute, defineStore, del, derive, destroy, devToolsSnapshot, di, disableScopeLeakWarnings, disposeDevToolsResource, effect, effectScope, emitDevToolsEvent, enableDevTools, enableScopeLeakWarnings, errorHandler, filePathToRoutePath, fireEvent, flush, generateId, get, getActiveScopeDiagnostics, getAllStores, getCurrentScope, getDependencyGraph, getDevToolsEffectId, getDevToolsScopeId, getDevToolsTargetId, getInstance, getResourceGraph, getRuntimeEnvironment, h, hotUpdateComponent, hydrate, initTemplateEngine, isClient, isClientRuntime, isDevToolsEnabled, isServer, isServerRuntime, jsonResponse, jsx$1 as jsx, jsxDEV$1 as jsxDEV, jsx as jsxRuntime, jsxDEV as jsxRuntimeDEV, jsxs, localStorage, makeFocusable, makeUnfocusable, manageTabOrder, measureDevTools, mount, nextTick, ok, okjs, onDestroyed, onDevToolsEvent, onMounted, onPropsChanged, onScopeDispose, onUpdated, parseOkjs, patch$1 as patch, pluginManager, post, preloadModule, preloadScript, preloadStyle, put, reactive, recordDevToolsDependency, recordDevToolsError, register, registerDevToolsInspector, registerDevToolsResource, registerDirective, registerDisposable, registerWebComponent, removeStore, render, renderHead, renderMeta$1 as renderMeta, renderOpenGraph, renderTest, renderTitle, renderToString, request, resumeStreamingBoundary, resumeStreamingBoundaryChunk, routeHref, router, safeMethod, serverMiddleware, serverOnly, sessionStorage, setAriaAttributes, setErrorReporter, setMeta, setupComponent, skipToContent, snapshot, state, stop, textResponse, throttle, trapFocus, unmount, useStore, validateAccessibility, validateBody, patch$1 as vdomPatch, waitFor, watch, watchEffect, withCache, withScope };
+export { API, DependencyInjector, Fragment, HydrationMismatchError, OneKit, OneKitWebComponent, QueryClient, Router, StreamingRenderer, VERSION, addScript, addStorePlugin, addStyle, addToBody, addToHead, animations, announce, patch as apiPatch, applyHead, assertClient, assertServer, autorun, batch, bind, cache, cleanup, clearDevToolsDependencies, clientOnly, compileOkjs, compileTemplate, component, computed, create, createApi, createApp, createElement, createErrorBoundary, createErrorReport, createFileRoutes, createForm, createHeadManager, createLandmarks, createLoadingBoundary, createQueryClient, createRouteManifest, createRouter, createSSRContext, createServerApp, createSkipLink, createStorage, createStore, createStreamingBoundary, debounce, deepClone, defineComponent, defineHandler, defineLayoutRoute, defineMiddleware, defineRoute, defineStore, del, derive, destroy, devToolsSnapshot, di, disableScopeLeakWarnings, disposeDevToolsResource, effect, effectScope, emitDevToolsEvent, enableDevTools, enableScopeLeakWarnings, errorHandler, filePathToRoutePath, fireEvent, flush, generateId, get, getActiveScopeDiagnostics, getAllStores, getCurrentScope, getDependencyGraph, getDevToolsEffectId, getDevToolsScopeId, getDevToolsTargetId, getInstance, getResourceGraph, getRuntimeEnvironment, h, hotUpdateComponent, hydrate, initTemplateEngine, isClient, isClientRuntime, isDevToolsEnabled, isServer, isServerRuntime, jsonResponse, jsx$1 as jsx, jsxDEV$1 as jsxDEV, jsx as jsxRuntime, jsxDEV as jsxRuntimeDEV, jsxs, localStorage, makeFocusable, makeUnfocusable, manageTabOrder, measureDevTools, mount, nextTick, ok, okjs, onDestroyed, onDevToolsEvent, onMounted, onPropsChanged, onScopeDispose, onUpdated, parseOkjs, patch$1 as patch, pluginManager, post, preloadModule, preloadScript, preloadStyle, put, reactive, recordDevToolsDependency, recordDevToolsError, register, registerDevToolsInspector, registerDevToolsResource, registerDirective, registerDisposable, registerWebComponent, removeStore, render, renderHead, renderMeta$1 as renderMeta, renderOpenGraph, renderTest, renderTitle, renderToString, request, resumeStreamingBoundary, resumeStreamingBoundaryChunk, routeHref, router, safeMethod, serverMiddleware, serverOnly, sessionStorage, setAriaAttributes, setErrorReporter, setMeta, setupComponent, skipToContent, snapshot, state, stop, textResponse, throttle, trapFocus, unmount, useStore, validateAccessibility, validateBody, patch$1 as vdomPatch, waitFor, watch, watchEffect, withCache, withScope };
 //# sourceMappingURL=onekit.esm.js.map

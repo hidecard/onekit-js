@@ -331,22 +331,21 @@ Use `RouteParamsFor<Path>` and `routeHref()` when constructing typed links, `cre
 
 ## Backend and full-stack applications
 
-OneKit V3 now includes a Fetch-compatible backend foundation for applications that want one framework for browser UI, SSR, APIs, and server-side composition. It follows familiar Express-style route and middleware conventions while reusing OneKit's dependency-injection and TypeScript contracts. It is adapter-friendly: the same `ServerApp.handle(request)` method can be connected to Node HTTP, serverless functions, edge runtimes, or other platforms that can provide a standard `Request` and consume a `Response`.
+OneKit V3 now includes a Fetch-compatible backend foundation for applications that want one framework for browser UI, SSR, APIs, and server-side composition. For the shortest learning path, use `createApi()` and return `context.ok()`, `context.json()`, or `context.fail()` directly from a route handler; the lower-level `createServerApp()` API remains available when you need custom options. It follows familiar Express-style route and middleware conventions while reusing OneKit's dependency-injection and TypeScript contracts. It is adapter-friendly: the same `ServerApp.handle(request)` method can be connected to Node HTTP, serverless functions, edge runtimes, or other platforms that can provide a standard `Request` and consume a `Response`.
 
 ```ts
 import {
-  createServerApp,
-  jsonResponse,
+  createApi,
   validateBody,
   serverMiddleware,
 } from "onekit-js";
 
-const app = createServerApp();
+const app = createApi();
 
 app.use(serverMiddleware.requestId());
 
 app.get("/api/health", async (context) =>
-  jsonResponse({ ok: true, requestId: context.state.requestId }),
+  context.ok({ ok: true, requestId: context.state.requestId }),
 );
 
 app.post(
@@ -357,14 +356,14 @@ app.post(
     }
     return value as { name: string };
   }),
-  async (context) => jsonResponse({ project: context.state.body }, { status: 201 }),
+  async (context) => context.json({ project: context.state.body }, { status: 201 }),
 );
 
 // Node, serverless, or edge adapters call:
 const response = await app.handle(request);
 ```
 
-The server context exposes `request`, method/path, decoded `params`, `URLSearchParams` query values, per-request `state`, and a scoped `DependencyInjector`. Use `app.get`, `app.post`, `app.put`, `app.patch`, `app.delete`, or `app.route` for endpoints; use `app.use` for cross-cutting middleware. `validateBody` parses JSON from a cloned request and turns validation failures into a `400` response. Unhandled route errors return a generic `500` response by default so internal messages are not leaked; provide `onError` to integrate application-owned logging and error reporting.
+The server context exposes `request`, method/path, decoded `params`, `URLSearchParams` query values, per-request `state`, a scoped `DependencyInjector`, and concise response helpers: `ok(data)`, `json(data, init)`, `text(data, init)`, and `fail(message, status)`. Use `app.get`, `app.post`, `app.put`, `app.patch`, `app.delete`, or `app.route` for endpoints; use `app.use` for cross-cutting middleware. `validateBody` parses JSON from a cloned request and turns validation failures into a `400` response. Unhandled route errors return a generic `500` response by default so internal messages are not leaked; provide `onError` to integrate application-owned logging and error reporting.
 
 This backend layer is intentionally additive and does not replace the existing client router, SSR helpers, QueryClient, or component APIs. It is a foundation rather than a promise of full NestJS decorators, a built-in ORM, or a deployment-specific server adapter. Applications should keep database drivers, authentication, authorization, and secrets in server-only modules and choose the adapter appropriate to their deployment target.
 

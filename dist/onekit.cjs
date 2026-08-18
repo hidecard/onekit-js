@@ -5383,6 +5383,9 @@ function textResponse(data, init = {}) {
 function defineMiddleware(handler) {
     return handler;
 }
+function defineHandler(handler) {
+    return (context) => handler(context);
+}
 function validateBody(validator) {
     return async (context, next) => {
         let value;
@@ -5431,7 +5434,11 @@ function createServerApp(options = {}) {
                 params: route ? itemMatch(route, url.pathname) : {},
                 query: url.searchParams,
                 state: {},
-                services: injector
+                services: injector,
+                json: jsonResponse,
+                text: textResponse,
+                ok: (data) => jsonResponse(data),
+                fail: (message, status = 400) => jsonResponse({ error: message }, { status })
             };
             if (!route)
                 return json({ error: 'Not Found' }, { status: 404 });
@@ -5461,6 +5468,7 @@ function createServerApp(options = {}) {
 function itemMatch(route, path) {
     return route.match(path) ?? {};
 }
+const createApi = createServerApp;
 const serverMiddleware = {
     cors(options = {}) {
         return async (_context, next) => {
@@ -5946,6 +5954,7 @@ exports.compileTemplate = compileTemplate;
 exports.component = component;
 exports.computed = computed;
 exports.create = create;
+exports.createApi = createApi;
 exports.createApp = createApp;
 exports.createElement = createElement;
 exports.createErrorBoundary = createErrorBoundary;
@@ -5967,6 +5976,7 @@ exports.createStreamingBoundary = createStreamingBoundary;
 exports.debounce = debounce;
 exports.deepClone = deepClone;
 exports.defineComponent = defineComponent;
+exports.defineHandler = defineHandler;
 exports.defineLayoutRoute = defineLayoutRoute;
 exports.defineMiddleware = defineMiddleware;
 exports.defineRoute = defineRoute;
