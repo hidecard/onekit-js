@@ -371,9 +371,24 @@ import { createNodeHandler } from "onekit-js";
 createServer(createNodeHandler(app)).listen(3000);
 ```
 
-The server context exposes `request`, method/path, decoded `params`, `URLSearchParams` query values, per-request `state`, a scoped `DependencyInjector`, and concise response helpers: `ok(data)`, `json(data, init)`, `text(data, init)`, and `fail(message, status)`. Use `app.get`, `app.post`, `app.put`, `app.patch`, `app.delete`, or `app.route` for endpoints; use `app.use` for cross-cutting middleware. `validateBody` parses JSON from a cloned request and turns validation failures into a `400` response. Unhandled route errors return a generic `500` response by default so internal messages are not leaked; provide `onError` to integrate application-owned logging and error reporting.
+The server context exposes `request`, method/path, decoded `params`, `URLSearchParams` query values, per-request `state`, a scoped `DependencyInjector`, and concise response helpers: `ok(data)`, `json(data, init)`, `text(data, init)`, and `fail(message, status)`. Security helpers are intentionally explicit: `securityMiddleware.authenticate(resolveUser)` stores a verified application user in `state.user`, `securityMiddleware.authorize(rule)` enforces a permission rule, and `securityMiddleware.rateLimit({ max, windowMs, key })` adds bounded in-memory limits and standard rate-limit headers. Use `app.get`, `app.post`, `app.put`, `app.patch`, `app.delete`, or `app.route` for endpoints; use `app.use` for cross-cutting middleware. `validateBody` parses JSON from a cloned request and turns validation failures into a `400` response. Unhandled route errors return a generic `500` response by default so internal messages are not leaked; provide `onError` to integrate application-owned logging and error reporting.
 
-This backend layer is intentionally additive and does not replace the existing client router, SSR helpers, QueryClient, or component APIs. It now includes a small Node HTTP bridge, but remains a foundation rather than a promise of full NestJS decorators, a built-in ORM, authentication, rate limiting, or an ORM-specific database layer. Applications should keep database drivers, authentication, authorization, and secrets in server-only modules and choose the adapter appropriate to their deployment target.
+```ts
+app.get(
+  "/admin",
+  securityMiddleware.authenticate(async ({ request }) => verifySession(request)),
+  securityMiddleware.authorize((user) => user.role === "admin"),
+  ({ ok, state }) => ok({ user: state.user }),
+);
+
+app.post(
+  "/login",
+  securityMiddleware.rateLimit({ max: 10, windowMs: 60_000, key: ({ request }) => request.headers.get("x-client-key") ?? "anonymous" }),
+  loginHandler,
+);
+```
+
+This backend layer is intentionally additive and does not replace the existing client router, SSR helpers, QueryClient, or component APIs. It now includes a small Node HTTP bridge and explicit security middleware contracts, but remains a foundation rather than a promise of full NestJS decorators, a built-in ORM, or production-ready identity/session storage. Applications must verify tokens or sessions with their own trusted server-only logic, use a distributed rate-limit store when running multiple instances, and keep secrets out of client bundles. Applications should keep database drivers, authentication, authorization, and secrets in server-only modules and choose the adapter appropriate to their deployment target.
 
 ## Stores, query data, and forms
 

@@ -6,6 +6,7 @@ import {
   defineMiddleware,
   jsonResponse,
   createApi,
+  securityMiddleware,
   serverMiddleware,
   validateBody
 } from '../src';
@@ -112,6 +113,33 @@ describe('full-stack server production contract', () => {
     expect(output.status).toBe(200);
     expect(output.headers?.['content-type']).toContain('application/json');
     expect(JSON.parse(new TextDecoder().decode(output.body))).toEqual({ value: { value: 42 } });
+  });
+
+  it('supports authentication, authorization, and rate limiting guards', async () => {
+    const app = createApi();
+    app.get(
+      '/secure',
+      securityMiddleware.authenticate(() => ({ id: 'u1', role: 'admin' })),
+      securityMiddleware.authorize((user) => user.role === 'admin'),
+      ({ state, ok }) => ok({ user: state.user }),
+    );
+    app.get('/limited', securityMiddleware.rateLimit({ max: 2, windowMs: 60_000 }), ({ ok }) => ok({ ok: true }));
+
+    const secure = await app.handle(new Request('http://localhost/secure'));
+    expect(secure.status).toBe(200);
+    expect(await secure.json()).toEqual({ user: { id: 'u1', role: 'admin' } });
+
+    const denied = createApi();
+    denied.get('/secure', securityMiddleware.authenticate(() => ({ id: 'u2', role: 'viewer' })), securityMiddleware.authorize(() => false), ({ ok }) => ok({ ok: true }));
+    expect((await denied.handle(new Request('http://localhost/secure'))).status).toBe(403);
+
+    const limited = createApi();
+    limited.get('/limited', securityMiddleware.rateLimit({ max: 1, windowMs: 60_000 }), ({ ok }) => ok({ ok: true }));
+    const first = await limited.handle(new Request('http://localhost/limited'));
+    const second = await limited.handle(new Request('http://localhost/limited'));
+    expect(first.headers.get('x-ratelimit-remaining')).toBe('0');
+    expect(second.status).toBe(429);
+    expect(second.headers.get('retry-after')).toBeTruthy();
   });
 
   it('adds CORS and request ids through built-in middleware', async () => {

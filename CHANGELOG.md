@@ -17,6 +17,8 @@ The V3 branch continues production hardening after `3.1.19` without changing the
 - Add `defineHandler()` for explicit concise handlers while keeping the existing middleware-compatible handler signature available.
 - Add `createNodeHandler()` to bridge Node HTTP request/response objects to the Fetch-compatible `ServerApp` without importing Node modules into browser-oriented code.
 - Add Node adapter regression coverage for request-body streaming, response status/headers, and JSON payload serialization.
+- Add beginner-friendly `securityMiddleware.authenticate()` and `securityMiddleware.authorize()` contracts that keep verified application users in request state and return safe `401`/`403` responses.
+- Add bounded in-memory `securityMiddleware.rateLimit()` with configurable keying, `429` responses, retry hints, and standard rate-limit headers.
 
 ### Documentation
 
@@ -24,12 +26,12 @@ The V3 branch continues production hardening after `3.1.19` without changing the
 - Keep production-readiness guidance explicit about reviewing and redacting error messages and stack traces before external forwarding.
 - Document the all-in-one backend workflow, adapter boundary, server-only responsibilities, and current limits in the README.
 - Make the shortest backend learning path the default README example, while retaining the lower-level API for advanced applications.
-- Document the Node HTTP adapter and keep the remaining authentication, database, rate-limiting, and decorator-module boundaries explicit.
+- Document the Node HTTP adapter and security middleware examples while keeping token verification, distributed stores, database, and decorator-module boundaries explicit.
 
 ### Validation
 
 - The focused observability, VDOM, and server suites pass, together with strict TypeScript checking and the full Jest matrix; the server regression suite now covers six tests.
-- The latest audit passes `type-check`, **30 Jest suites / 154 tests**, production build, declaration verification across 27 relative exports, package verification with a clean install and zero reported vulnerabilities, and `git diff --check`; the backend suite now covers seven tests including the Node adapter.
+- The latest audit passes `type-check`, **30 Jest suites / 155 tests**, production build, declaration verification across 27 relative exports, package verification with a clean install and zero reported vulnerabilities, and `git diff --check`; the backend suite now covers eight tests including the Node adapter and security middleware.
 - The Vite plugin build still prints expected non-fatal externalization notices for `node:fs`, `node:path`, and `typescript`; these are intentional server/tooling externals and do not fail the build.
 
 ## [3.1.19] - 2026-08-18

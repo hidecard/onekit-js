@@ -116,6 +116,26 @@ export function defineHandler(handler: (context: ServerRequestContext) => Respon
   return (context) => handler(context);
 }
 
+export interface AuthenticatedUser {
+  [key: string]: unknown;
+}
+
+export type UserResolver<T extends AuthenticatedUser = AuthenticatedUser> = (
+  context: ServerRequestContext
+) => T | null | undefined | Promise<T | null | undefined>;
+
+export type AuthorizationRule<T extends AuthenticatedUser = AuthenticatedUser> = (
+  user: T,
+  context: ServerRequestContext
+) => boolean | Promise<boolean>;
+
+export interface RateLimitOptions {
+  max: number;
+  windowMs: number;
+  key?: (context: ServerRequestContext) => string;
+  message?: string;
+}
+
 export function validateBody<T>(validator: (value: unknown) => T): ServerMiddleware {
   return async (context, next) => {
     let value: unknown;
@@ -251,6 +271,56 @@ export function createNodeHandler(app: ServerApp, baseUrl = 'http://localhost'):
     }
   };
 }
+
+export const securityMiddleware = {
+  authenticate<T extends AuthenticatedUser = AuthenticatedUser>(resolveUser: UserResolver<T>): ServerMiddleware {
+    return async (context, next) => {
+      const user = await resolveUser(context);
+      if (!user) return context.fail('Authentication required', 401);
+      context.state.user = user;
+      return next();
+    };
+  },
+  authorize<T extends AuthenticatedUser = AuthenticatedUser>(isAllowed: AuthorizationRule<T>): ServerMiddleware {
+    return async (context, next) => {
+      const user = context.state.user as T | undefined;
+      if (!user) return context.fail('Authentication required', 401);
+      if (!(await isAllowed(user, context))) return context.fail('Forbidden', 403);
+      return next();
+    };
+  },
+  rateLimit(options: RateLimitOptions): ServerMiddleware {
+    const counters = new Map<string, { count: number; resetAt: number }>();
+    return async (context, next) => {
+      const now = Date.now();
+      const key = options.key?.(context) ?? 'global';
+      const current = counters.get(key);
+      const entry = !current || current.resetAt <= now
+        ? { count: 0, resetAt: now + Math.max(1, options.windowMs) }
+        : current;
+      entry.count += 1;
+      counters.set(key, entry);
+      const remaining = Math.max(0, options.max - entry.count);
+      if (entry.count > options.max) {
+        return context.json({ error: options.message ?? 'Too many requests' }, {
+          status: 429,
+          headers: {
+            'retry-after': String(Math.max(1, Math.ceil((entry.resetAt - now) / 1000))),
+            'x-ratelimit-limit': String(options.max),
+            'x-ratelimit-remaining': '0',
+            'x-ratelimit-reset': String(Math.ceil(entry.resetAt / 1000))
+          }
+        });
+      }
+      const response = await next();
+      const headers = new Headers(response.headers);
+      headers.set('x-ratelimit-limit', String(options.max));
+      headers.set('x-ratelimit-remaining', String(remaining));
+      headers.set('x-ratelimit-reset', String(Math.ceil(entry.resetAt / 1000)));
+      return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+    };
+  }
+};
 
 export const serverMiddleware = {
   cors(options: { origin?: string } = {}): ServerMiddleware {
