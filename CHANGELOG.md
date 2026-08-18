@@ -27,6 +27,9 @@ The V3 branch continues production hardening after `3.1.19` without changing the
 - Forward custom `onekit build --out-dir <directory>` values to delegated Vite-style project build scripts while preserving default build-script compatibility.
 - Harden global middleware dispatch so middleware runs for missing routes, and add configurable CORS preflight handling with `204` responses and standard method/header/credential/max-age headers.
 - Add idempotent `app.start()`/`app.stop()` lifecycle hooks with `onStart`/`onStop` callbacks, concurrent shutdown coalescing, and automatic closing of the optional database adapter after application shutdown.
+- Add typed `ServerError`, `createServerError()`, and `serverErrorResponse()` contracts for safe public application failures with status, code, details, headers, and production message redaction.
+- Add a resilient `errorResponse` hook; custom error hooks are isolated so telemetry failures fall back to a safe `500` response.
+- Add `onekit create <name> --full-stack` with a minimal Node HTTP API entrypoint, health route, graceful shutdown, `dev:server`/`start` scripts, and `.env.example`.
 
 ### Documentation
 
@@ -35,11 +38,12 @@ The V3 branch continues production hardening after `3.1.19` without changing the
 - Document the all-in-one backend workflow, adapter boundary, server-only responsibilities, and current limits in the README.
 - Make the shortest backend learning path the default README example, while retaining the lower-level API for advanced applications.
 - Document the Node HTTP adapter, security middleware, typed database adapter, session/token providers, `context.body<T>()`, and `app.resource()` examples while keeping provider verification, distributed stores, and decorator-module boundaries explicit.
+- Document typed server errors, safe error serialization, resilient error hooks, and the optional full-stack CLI starter workflow.
 
 ### Validation
 
 - The focused observability, VDOM, CLI, and server suites pass, together with strict TypeScript checking and the full Jest matrix; the CLI suite covers ten tests and the server regression suite covers fourteen tests.
-- The latest framework audit passes `type-check`, **30 Jest suites / 162 tests**, production build, declaration verification across 27 relative exports, package verification with a clean install and zero reported vulnerabilities, and `git diff --check`. The generated TypeScript starter also passes npm install, type-check, its smoke test, and Vite production build.
+- The latest framework audit passes `type-check`, **30 Jest suites / 165 tests**, production build, declaration verification across 27 relative exports, package verification with a clean install and zero reported vulnerabilities, and `git diff --check`. The generated TypeScript starter also passes npm install, type-check, its smoke test, and Vite production build.
 - The Vite plugin build still prints expected non-fatal externalization notices for `node:fs`, `node:path`, and `typescript`; these are intentional server/tooling externals and do not fail the build.
 
 ## [3.1.19] - 2026-08-18

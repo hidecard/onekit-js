@@ -52,6 +52,23 @@ describe('OneKit CLI', () => {
     }
   });
 
+  it('creates an optional full-stack starter with a Node API entrypoint', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'onekit-cli-fullstack-'));
+    const appPath = path.join(root, 'fullstack-app');
+    try {
+      await run(process.execPath, [path.resolve('bin/onekit.js'), 'create', appPath, '--full-stack'], { cwd: process.cwd() });
+      const packageJson = JSON.parse(await readFile(path.join(appPath, 'package.json'), 'utf8'));
+      expect(packageJson.scripts['dev:server']).toBe('node --watch server.mjs');
+      expect(packageJson.scripts.start).toBe('node server.mjs');
+      expect(await readFile(path.join(appPath, 'server.mjs'), 'utf8')).toContain("app.get('/api/health'");
+      expect(await readFile(path.join(appPath, 'server.mjs'), 'utf8')).toContain('createNodeHandler');
+      expect(await readFile(path.join(appPath, '.env.example'), 'utf8')).toContain('PORT=3001');
+      expect(await readFile(path.join(appPath, 'README.md'), 'utf8')).toContain('## Full-stack API');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('delegates build to a Vite-style project script when no library entrypoint exists', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'onekit-cli-build-'));
     try {

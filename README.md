@@ -386,7 +386,7 @@ process.once("SIGTERM", async () => {
 });
 ```
 
-The server context exposes `request`, method/path, decoded `params`, `URLSearchParams` query values, per-request `state`, a scoped `DependencyInjector`, an optional typed `database` adapter, a one-read typed `body<T>()` helper, and concise response helpers: `ok(data)`, `json(data, init)`, `text(data, init)`, and `fail(message, status)`. Security helpers are intentionally explicit: `securityMiddleware.authenticate(resolveUser)` stores a verified application user in `state.user`, `securityMiddleware.session(provider)` and `securityMiddleware.token(provider)` adapt application-owned identity providers, `securityMiddleware.authorize(rule)` enforces a permission rule, and `securityMiddleware.rateLimit({ max, windowMs, key })` adds bounded in-memory limits and standard rate-limit headers. Use `app.get`, `app.post`, `app.put`, `app.patch`, `app.delete`, or `app.route` for endpoints; use `app.use` for cross-cutting middleware. `validateBody` parses JSON from a cloned request and turns validation failures into a `400` response. The built-in CORS middleware handles `OPTIONS` preflight requests with `204`, allows configurable methods/headers/credentials/max-age, and also applies CORS headers to `404` responses because global middleware runs before the fallback route. Unhandled route errors return a generic `500` response by default so internal messages are not leaked; provide `onError` to integrate application-owned logging and error reporting.
+The server context exposes `request`, method/path, decoded `params`, `URLSearchParams` query values, per-request `state`, a scoped `DependencyInjector`, an optional typed `database` adapter, a one-read typed `body<T>()` helper, and concise response helpers: `ok(data)`, `json(data, init)`, `text(data, init)`, and `fail(message, status)`. Security helpers are intentionally explicit: `securityMiddleware.authenticate(resolveUser)` stores a verified application user in `state.user`, `securityMiddleware.session(provider)` and `securityMiddleware.token(provider)` adapt application-owned identity providers, `securityMiddleware.authorize(rule)` enforces a permission rule, and `securityMiddleware.rateLimit({ max, windowMs, key })` adds bounded in-memory limits and standard rate-limit headers. Use `app.get`, `app.post`, `app.put`, `app.patch`, `app.delete`, or `app.route` for endpoints; use `app.use` for cross-cutting middleware. `validateBody` parses JSON from a cloned request and turns validation failures into a `400` response. The built-in CORS middleware handles `OPTIONS` preflight requests with `204`, allows configurable methods/headers/credentials/max-age, and also applies CORS headers to `404` responses because global middleware runs before the fallback route. Unhandled route errors return a generic `500` response by default so internal messages are not leaked; provide `onError` to integrate application-owned logging and error reporting. For safe application failures, throw `createServerError(message, { status, code, details, headers })`; client-visible messages are exposed only for statuses below `500` unless `expose` is explicitly set. Use `errorResponse` when the application needs a final response envelope, and keep `onError` focused on telemetry because a failing error hook is isolated and cannot replace the safe fallback.
 
 ```ts
 app.get(
@@ -417,6 +417,19 @@ app.resource('/todos', {
   create: async ({ body, ok }) => ok(await body<CreateTodo>()),
 });
 ```
+
+The CLI can generate the beginner-friendly full-stack shape without changing the default frontend-only starter:
+
+```bash
+onekit create my-app --full-stack --typescript
+cd my-app
+npm install
+npm run dev                 # browser UI
+npm run dev:server          # Fetch-compatible Node API on port 3001
+npm start                   # production API process
+```
+
+The generated `server.mjs` exposes `GET /api/health`, includes graceful shutdown, and is intentionally small enough to replace with application routes, database adapters, authentication providers, and deployment-specific adapters. The `.env.example` file documents the `PORT` setting. Run the UI and API as separate processes during development, or place them behind the same deployment gateway in production.
 
 This backend layer is intentionally additive and does not replace the existing client router, SSR helpers, QueryClient, or component APIs. It now includes a small Node HTTP bridge, explicit security middleware contracts, and typed adapter contracts for database access and identity providers, but remains a foundation rather than a promise of full NestJS decorators, a built-in ORM, managed sessions, or a distributed persistence layer. Applications must verify tokens or sessions with their own trusted server-only logic, implement provider-specific credential handling, use a distributed rate-limit store when running multiple instances, and keep secrets out of client bundles. Applications should keep database drivers, authentication, authorization, and secrets in server-only modules and choose the adapter appropriate to their deployment target.
 

@@ -6,6 +6,7 @@ import {
   defineMiddleware,
   jsonResponse,
   createApi,
+  createServerError,
   securityMiddleware,
   type DatabaseAdapter,
   serverMiddleware,
@@ -81,6 +82,46 @@ describe('full-stack server production contract', () => {
     const failure = await app.handle(new Request('http://localhost/failure'));
     expect(failure.status).toBe(500);
     expect(await failure.json()).toEqual({ error: 'Internal Server Error' });
+  });
+
+  it('serializes typed application errors without leaking unexpected failures', async () => {
+    const app = createApi();
+    app.get('/bad-request', () => {
+      throw createServerError('Name is required', {
+        status: 422,
+        code: 'VALIDATION_FAILED',
+        details: { field: 'name' },
+        headers: { 'x-error-source': 'validation' },
+      });
+    });
+    app.get('/unexpected', () => { throw new Error('database password=secret'); });
+
+    const badRequest = await app.handle(new Request('http://localhost/bad-request'));
+    expect(badRequest.status).toBe(422);
+    expect(badRequest.headers.get('x-error-source')).toBe('validation');
+    expect(await badRequest.json()).toEqual({
+      error: 'Name is required',
+      code: 'VALIDATION_FAILED',
+      details: { field: 'name' },
+    });
+
+    const unexpected = await app.handle(new Request('http://localhost/unexpected'));
+    expect(unexpected.status).toBe(500);
+    expect(await unexpected.json()).toEqual({ error: 'Internal Server Error' });
+  });
+
+  it('supports a resilient custom error response hook', async () => {
+    const app = createApi({
+      onError: () => { throw new Error('telemetry failed'); },
+      errorResponse: (error) => new Response(JSON.stringify({ handled: error instanceof Error }), {
+        status: 503,
+        headers: { 'content-type': 'application/json' },
+      }),
+    });
+    app.get('/failure', () => { throw new Error('temporary outage'); });
+    const response = await app.handle(new Request('http://localhost/failure'));
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ handled: true });
   });
 
   it('supports the concise createApi and context response helpers', async () => {

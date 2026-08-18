@@ -10,7 +10,7 @@ function parseCreateArgs(values) {
   const template = templateIndex >= 0
     ? values[templateIndex + 1]
     : values.includes('--javascript') || values.includes('--js') ? 'js' : 'ts';
-  return { appName: positional[0], template };
+  return { appName: positional[0], template, fullStack: values.includes('--full-stack') };
 }
 
 function readOption(values, name) {
@@ -43,6 +43,7 @@ Usage:
   onekit create <name> [--template ts|js]
   onekit create <name> --typescript
   onekit create <name> --javascript
+  onekit create <name> --full-stack [--typescript|--javascript]
   onekit dev [--cwd <dir>] [-- vite-options]
   onekit build [--out-dir <dir>] [--no-minify]
   onekit preview [--cwd <dir>] [--out-dir <dir>] [-- vite-options]
@@ -52,9 +53,9 @@ Usage:
 
 try {
   if (command === 'create') {
-    const { appName, template } = parseCreateArgs(args);
-    const result = await createApp(appName, { template });
-    console.log(`Created OneKit ${template.toUpperCase()} app: ${result.appPath}`);
+    const { appName, template, fullStack } = parseCreateArgs(args);
+    const result = await createApp(appName, { template, fullStack });
+    console.log(`Created OneKit ${template.toUpperCase()}${fullStack ? ' full-stack' : ''} app: ${result.appPath}`);
   } else if (command === 'build') {
     const { build } = await import('../lib/cli/build.js');
     const outIndex = args.indexOf('--out-dir');

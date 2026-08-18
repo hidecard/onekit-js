@@ -2,6 +2,50 @@ import { DependencyInjector } from '../core/di';
 
 export type ServerMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'OPTIONS' | 'HEAD' | '*';
 
+export interface ServerErrorOptions {
+  status?: number;
+  code?: string;
+  details?: unknown;
+  expose?: boolean;
+  headers?: HeadersInit;
+}
+
+/** Safe, typed application error for Fetch-compatible route handlers. */
+export class ServerError extends Error {
+  readonly status: number;
+  readonly code: string;
+  readonly details?: unknown;
+  readonly expose: boolean;
+  readonly headers?: HeadersInit;
+
+  constructor(message: string, options: ServerErrorOptions = {}) {
+    super(message);
+    this.name = 'ServerError';
+    const status = options.status ?? 500;
+    this.status = Number.isInteger(status) && status >= 400 && status <= 599 ? status : 500;
+    this.code = options.code ?? 'SERVER_ERROR';
+    this.details = options.details;
+    this.expose = options.expose ?? this.status < 500;
+    this.headers = options.headers;
+  }
+}
+
+export function createServerError(message: string, options?: ServerErrorOptions): ServerError {
+  return new ServerError(message, options);
+}
+
+export function serverErrorResponse(error: unknown, fallbackMessage = 'Internal Server Error'): Response {
+  const typed = error instanceof ServerError ? error : undefined;
+  const headers = new Headers(typed?.headers);
+  if (!headers.has('content-type')) headers.set('content-type', 'application/json; charset=utf-8');
+  const body: { error: string; code?: string; details?: unknown } = {
+    error: typed?.expose ? typed.message : fallbackMessage,
+  };
+  if (typed?.expose && typed.code) body.code = typed.code;
+  if (typed?.expose && typed.details !== undefined) body.details = typed.details;
+  return new Response(JSON.stringify(body), { status: typed?.status ?? 500, headers });
+}
+
 export interface ServerRequestContext {
   request: Request;
   method: string;
@@ -68,6 +112,8 @@ export interface ServerAppOptions {
   injector?: DependencyInjector;
   database?: DatabaseAdapter;
   onError?: (error: unknown, context: ServerRequestContext) => Response | Promise<Response>;
+  /** Controls the final safe response when a handler or custom error hook fails. */
+  errorResponse?: (error: unknown, context: ServerRequestContext) => Response | Promise<Response>;
   onStart?: (app: ServerApp) => void | Promise<void>;
   onStop?: (app: ServerApp) => void | Promise<void>;
 }
@@ -324,8 +370,19 @@ export function createServerApp(options: ServerAppOptions = {}): ServerApp {
       try {
         return await dispatch(0);
       } catch (error) {
-        if (options.onError) return options.onError(error, context);
-        return json({ error: 'Internal Server Error' }, { status: 500 });
+        try {
+          if (options.onError) return await options.onError(error, context);
+        } catch (hookError) {
+          error = hookError;
+        }
+        if (options.errorResponse) {
+          try {
+            return await options.errorResponse(error, context);
+          } catch {
+            return serverErrorResponse(error);
+          }
+        }
+        return serverErrorResponse(error);
       }
     }
   };
