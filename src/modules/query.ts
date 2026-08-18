@@ -28,6 +28,24 @@ export interface DehydratedQueryState {
   queries: readonly DehydratedQuery[];
 }
 
+export interface QueryStorage {
+  getItem(key: string): string | null | Promise<string | null>;
+  setItem(key: string, value: string): void | Promise<void>;
+  removeItem?(key: string): void | Promise<void>;
+}
+
+export interface QueryPersistenceOptions {
+  storage: QueryStorage;
+  key?: string;
+  maxAge?: number;
+}
+
+export interface QueryClientOptions {
+  persistence?: QueryPersistenceOptions;
+  revalidateOnWindowFocus?: boolean;
+  revalidateOnReconnect?: boolean;
+}
+
 export interface OptimisticUpdate<TVariables, TContext = unknown> {
   key: QueryKey;
   update: (current: unknown, variables: TVariables) => unknown;
@@ -50,6 +68,8 @@ interface QueryRecord<T> {
   state: QueryState<T>;
   promise?: Promise<T>;
   controller?: AbortController;
+  loader?: (context?: QueryLoaderContext) => Promise<T> | T;
+  options?: QueryOptions<T>;
   listeners: Set<(state: QueryState<T>) => void>;
 }
 
@@ -81,6 +101,26 @@ function createController(signal?: AbortSignal): AbortController {
 
 export class QueryClient {
   private records = new Map<string, QueryRecord<unknown>>();
+  private readonly options: QueryClientOptions;
+  private readonly cleanupListeners: Array<() => void> = [];
+  private persistTimer?: ReturnType<typeof setTimeout>;
+
+  constructor(options: QueryClientOptions = {}) {
+    this.options = options;
+    this.restorePersisted();
+    if (typeof window !== 'undefined') {
+      if (options.revalidateOnWindowFocus !== false) {
+        const onFocus = () => { void this.revalidate('focus'); };
+        window.addEventListener('focus', onFocus);
+        this.cleanupListeners.push(() => window.removeEventListener('focus', onFocus));
+      }
+      if (options.revalidateOnReconnect !== false) {
+        const onOnline = () => { void this.revalidate('reconnect'); };
+        window.addEventListener('online', onOnline);
+        this.cleanupListeners.push(() => window.removeEventListener('online', onOnline));
+      }
+    }
+  }
 
   private record<T>(key: QueryKey, options: QueryOptions<T> = {}): QueryRecord<T> {
     const normalized = normalizeKey(key);
@@ -111,6 +151,8 @@ export class QueryClient {
 
   async fetch<T>(key: QueryKey, loader: (context?: QueryLoaderContext) => Promise<T> | T, options: QueryOptions<T> = {}): Promise<T> {
     const record = this.record<T>(key, options);
+    record.loader = loader;
+    record.options = options;
     if (record.promise) return record.promise;
     const isFresh = record.state.status === 'success' && options.staleTime !== undefined
       && Date.now() - record.state.updatedAt < options.staleTime;
@@ -131,6 +173,7 @@ export class QueryClient {
           const data = await loader({ signal: controller.signal });
           record.state = { status: 'success', data, updatedAt: Date.now() };
           this.notify(record);
+          this.schedulePersist();
           return data;
         } catch (error) {
           const canRetry = typeof retry === 'function' ? retry(attempt, error) : attempt < maxRetries;
@@ -142,6 +185,7 @@ export class QueryClient {
           }
           record.state = { ...record.state, status: 'error', error, updatedAt: Date.now() };
           this.notify(record);
+          this.schedulePersist();
           throw error;
         }
       }
@@ -156,6 +200,7 @@ export class QueryClient {
     const record = this.record<T>(key);
     record.state = { status: 'success', data, updatedAt: Date.now() };
     this.notify(record);
+    this.schedulePersist();
   }
 
   getData<T>(key: QueryKey): T | undefined {
@@ -170,6 +215,7 @@ export class QueryClient {
       record.state = { ...record.state, updatedAt: 0 };
       this.notify(record);
     }
+    this.schedulePersist();
   }
 
   invalidateQueries(key?: QueryKey): void {
@@ -232,11 +278,31 @@ export class QueryClient {
   remove(key: QueryKey): void {
     this.cancel(key);
     this.records.delete(normalizeKey(key));
+    this.schedulePersist();
   }
 
   clear(): void {
     this.cancel();
     this.records.clear();
+    this.schedulePersist();
+  }
+
+  /** Re-fetch queries with remembered loaders after focus or reconnect. */
+  async revalidate(reason: 'focus' | 'reconnect' | 'manual' = 'manual'): Promise<void> {
+    const jobs: Promise<unknown>[] = [];
+    for (const record of this.records.values()) {
+      if (!record.loader || record.promise) continue;
+      const options = record.options ?? {};
+      if (options.signal?.aborted) continue;
+      jobs.push(this.fetchFromRecord(record, reason));
+    }
+    await Promise.allSettled(jobs);
+  }
+
+  /** Remove browser event listeners and pending persistence work. */
+  dispose(): void {
+    for (const cleanup of this.cleanupListeners.splice(0)) cleanup();
+    if (this.persistTimer) clearTimeout(this.persistTimer);
   }
 
   /** Export settled query states for a trusted SSR-to-client handoff. */
@@ -264,6 +330,48 @@ export class QueryClient {
       record.controller = undefined;
       this.records.set(entry.key, record);
     }
+    this.schedulePersist();
+  }
+
+  private async fetchFromRecord(record: QueryRecord<unknown>, _reason: 'focus' | 'reconnect' | 'manual'): Promise<unknown> {
+    if (!record.loader) return undefined;
+    const key = Array.from(this.records.entries()).find(([, value]) => value === record)?.[0];
+    if (!key) return undefined;
+    return this.fetch(key, record.loader, record.options);
+  }
+
+  private restorePersisted(): void {
+    const persistence = this.options.persistence;
+    if (!persistence) return;
+    try {
+      const value = persistence.storage.getItem(persistence.key ?? 'onekit-query-cache');
+      Promise.resolve(value).then(serialized => {
+        if (!serialized) return;
+        const snapshot = JSON.parse(serialized) as DehydratedQueryState;
+        if (persistence.maxAge !== undefined) {
+          const now = Date.now();
+          snapshot.queries = snapshot.queries.filter(query => now - query.state.updatedAt <= persistence.maxAge!);
+        }
+        this.hydrate(snapshot);
+      }).catch(() => undefined);
+    } catch {
+      // Persistence is best-effort and must never break app startup.
+    }
+  }
+
+  private schedulePersist(): void {
+    if (!this.options.persistence) return;
+    if (this.persistTimer) return;
+    this.persistTimer = setTimeout(() => {
+      this.persistTimer = undefined;
+      const persistence = this.options.persistence!;
+      try {
+        const serialized = JSON.stringify(this.dehydrate());
+        void Promise.resolve(persistence.storage.setItem(persistence.key ?? 'onekit-query-cache', serialized)).catch(() => undefined);
+      } catch {
+        // Non-serializable query data is ignored rather than breaking rendering.
+      }
+    }, 0);
   }
 
   private notify<T>(record: QueryRecord<T>): void {
@@ -271,6 +379,6 @@ export class QueryClient {
   }
 }
 
-export function createQueryClient(): QueryClient {
-  return new QueryClient();
+export function createQueryClient(options: QueryClientOptions = {}): QueryClient {
+  return new QueryClient(options);
 }

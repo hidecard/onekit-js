@@ -1,5 +1,15 @@
 import { TransformStream } from 'node:stream/web';
-import { h, hydrate, renderToString, createSSRContext, setMeta, addToHead, StreamingRenderer } from '../src/index';
+import {
+  h,
+  hydrate,
+  renderToString,
+  createSSRContext,
+  setMeta,
+  addToHead,
+  StreamingRenderer,
+  createStreamingBoundary,
+  resumeStreamingBoundaryChunk,
+} from '../src/index';
 
 (globalThis as typeof globalThis & { TransformStream?: typeof TransformStream }).TransformStream = TransformStream;
 
@@ -69,6 +79,35 @@ describe('SSR production contracts', () => {
     }
 
     expect(html).toContain('<main><span>first</span><span>second</span></main>');
+  });
+
+  it('streams fallback and resolved content for progressive boundaries', async () => {
+    const renderer = new StreamingRenderer();
+    const stream = await renderer.renderToStream(h('main', {}, createStreamingBoundary(
+      new Promise(resolve => setTimeout(() => resolve(h('span', {}, 'ready')), 5)),
+      h('span', {}, 'loading'),
+      { id: 'profile' },
+    )));
+    const reader = stream.getReader();
+    const chunks: string[] = [];
+    while (true) {
+      const result = await reader.read();
+      if (result.done) break;
+      chunks.push(result.value);
+    }
+    expect(chunks.join('')).toContain('<div data-okjs-boundary="profile"><span>loading</span></div>');
+    expect(chunks.join('')).toContain('<template data-okjs-boundary-content="profile"><span>ready</span></template>');
+  });
+
+  it('resumes a streamed boundary chunk in the client shell', () => {
+    document.body.innerHTML = '<main><div data-okjs-boundary="profile"><span>loading</span></div></main>';
+    const applied = resumeStreamingBoundaryChunk(
+      document.body,
+      '<template data-okjs-boundary-content="profile"><span>ready</span></template>',
+    );
+    expect(applied).toBe(true);
+    expect(document.body.innerHTML).toContain('<span>ready</span>');
+    expect(document.body.innerHTML).not.toContain('loading');
   });
 
   it('supports a promise as the streamed root vnode', async () => {

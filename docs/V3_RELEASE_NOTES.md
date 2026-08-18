@@ -1,29 +1,31 @@
 # OneKit JS V3 Release Notes
 
-**Release:** `onekit-js@3.1.18`  
+**Release:** `onekit-js@3.1.19`  
 **Starter CLI:** `create-onekit@1.0.8`  
 **Branch:** `V3`  
-**Release date:** 17 August 2026  
+**Release date:** 18 August 2026  
 **License:** MIT
 
 ## Overview
 
-OneKit JS `3.1.18` is a production-oriented V3 release that consolidates the framework’s routing, SSR, data-fetching, hydration, developer-tooling, and starter-project improvements. The release remains compact and browser-first while providing clearer contracts for applications that need nested layouts, request-scoped data, typed route parameters, and controlled server/client boundaries.
+OneKit JS `3.1.19` is a production-parity V3 patch release that extends the 3.1.18 foundation with progressive SSR boundaries, client continuation, persisted query state, and automatic focus/reconnect revalidation. The release remains compact and browser-first while providing clearer contracts for applications that need nested layouts, request-scoped data, typed route parameters, and controlled server/client boundaries.
 
 This is a **compatible V3-line release**. Existing V3 applications can upgrade from earlier V3 versions by updating the package version and reviewing the migration notes below. Applications migrating from OneKit 2.x or the legacy global runtime should follow the full [Migration Guide](../MIGRATION_GUIDE.md), because the V3 module and lifecycle model contains broader changes.
 
-> **Recommended upgrade:** update `onekit-js` to `3.1.18`, update generated starters or `create-onekit` to `1.0.8`, run the type-check and full test suite, then verify the packed package in a clean install.
+> **Recommended upgrade:** update `onekit-js` to `3.1.19`, regenerate starters if needed, run the type-check and full test suite, then verify the packed package in a clean install.
 
 ## Highlights
 
-| Area | What is included in `3.1.18` | Why it matters |
+| Area | What is included in `3.1.19` | Why it matters |
 |---|---|---|
 | Routing | JSON-safe manifests, file-based route discovery, typed path parameters, nested layout metadata, and typed loader contexts | Makes route trees easier to preload, compose, and maintain in TypeScript. |
 | SSR and hydration | Structured hydration diagnostics and streaming error handoff | Makes mismatches and streaming failures observable without forcing an application-wide policy. |
 | Data fetching | Query invalidation, mutations, retries, cancellation, optimistic updates, persistence-oriented lifecycle hooks, and route-loader integration | Provides a practical cache lifecycle while preserving uncached loader behavior by default. |
 | Runtime boundaries | `isServerRuntime`, `isClientRuntime`, `serverOnly`, and `clientOnly` | Makes browser/server assumptions explicit and safer during SSR. |
 | CLI starter | Updated Vite/React-inspired responsive starter with dark indigo/lavender visual language and quick-start guidance | Gives new projects a more useful production-like starting point. |
-| Documentation and validation | Synchronized V3 guide, migration guide, framework guide, declarations, package verification, and release workflow | Reduces drift between source APIs and published artifacts. |
+| Progressive SSR | Visible fallback shells, deferred content chunks, abort/error handoff, and import-safe client continuation | Allows useful HTML to arrive early while async boundaries continue on the client. |
+| Query persistence | Configurable storage, cache key, max age, restore, focus/reconnect revalidation, and disposal | Preserves useful server data across reloads while keeping freshness explicit. |
+| Documentation and validation | Synchronized V3 guide, production readiness guide, declarations, package verification, and release workflow | Reduces drift between source APIs and published artifacts. |
 
 ## New and expanded APIs
 

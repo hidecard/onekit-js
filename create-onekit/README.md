@@ -50,7 +50,7 @@ npm pack
 mkdir -p /tmp/create-onekit-smoke
 cd /tmp/create-onekit-smoke
 npm init -y
-npm install /path/to/onekit-js/onekit-js-3.1.18.tgz /path/to/onekit-js/create-onekit/create-onekit-1.0.8.tgz
+npm install /path/to/onekit-js/onekit-js-3.1.19.tgz /path/to/onekit-js/create-onekit/create-onekit-1.0.8.tgz
 npx create-onekit demo-app
 ```
 

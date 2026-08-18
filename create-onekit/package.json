@@ -14,7 +14,7 @@
     "access": "public"
   },
   "dependencies": {
-    "onekit-js": "^3.1.18"
+    "onekit-js": "^3.1.19"
   },
   "engines": {
     "node": ">=18"

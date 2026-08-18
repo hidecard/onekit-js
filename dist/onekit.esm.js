@@ -4318,6 +4318,25 @@ function createController(signal) {
 }
 class QueryClient {
     records = new Map();
+    options;
+    cleanupListeners = [];
+    persistTimer;
+    constructor(options = {}) {
+        this.options = options;
+        this.restorePersisted();
+        if (typeof window !== 'undefined') {
+            if (options.revalidateOnWindowFocus !== false) {
+                const onFocus = () => { void this.revalidate('focus'); };
+                window.addEventListener('focus', onFocus);
+                this.cleanupListeners.push(() => window.removeEventListener('focus', onFocus));
+            }
+            if (options.revalidateOnReconnect !== false) {
+                const onOnline = () => { void this.revalidate('reconnect'); };
+                window.addEventListener('online', onOnline);
+                this.cleanupListeners.push(() => window.removeEventListener('online', onOnline));
+            }
+        }
+    }
     record(key, options = {}) {
         const normalized = normalizeKey(key);
         let record = this.records.get(normalized);
@@ -4344,6 +4363,8 @@ class QueryClient {
     }
     async fetch(key, loader, options = {}) {
         const record = this.record(key, options);
+        record.loader = loader;
+        record.options = options;
         if (record.promise)
             return record.promise;
         const isFresh = record.state.status === 'success' && options.staleTime !== undefined
@@ -4366,6 +4387,7 @@ class QueryClient {
                     const data = await loader({ signal: controller.signal });
                     record.state = { status: 'success', data, updatedAt: Date.now() };
                     this.notify(record);
+                    this.schedulePersist();
                     return data;
                 }
                 catch (error) {
@@ -4378,6 +4400,7 @@ class QueryClient {
                     }
                     record.state = { ...record.state, status: 'error', error, updatedAt: Date.now() };
                     this.notify(record);
+                    this.schedulePersist();
                     throw error;
                 }
             }
@@ -4391,6 +4414,7 @@ class QueryClient {
         const record = this.record(key);
         record.state = { status: 'success', data, updatedAt: Date.now() };
         this.notify(record);
+        this.schedulePersist();
     }
     getData(key) {
         return this.getState(key).data;
@@ -4403,6 +4427,7 @@ class QueryClient {
             record.state = { ...record.state, updatedAt: 0 };
             this.notify(record);
         }
+        this.schedulePersist();
     }
     invalidateQueries(key) {
         this.invalidate(key);
@@ -4463,10 +4488,32 @@ class QueryClient {
     remove(key) {
         this.cancel(key);
         this.records.delete(normalizeKey(key));
+        this.schedulePersist();
     }
     clear() {
         this.cancel();
         this.records.clear();
+        this.schedulePersist();
+    }
+    /** Re-fetch queries with remembered loaders after focus or reconnect. */
+    async revalidate(reason = 'manual') {
+        const jobs = [];
+        for (const record of this.records.values()) {
+            if (!record.loader || record.promise)
+                continue;
+            const options = record.options ?? {};
+            if (options.signal?.aborted)
+                continue;
+            jobs.push(this.fetchFromRecord(record, reason));
+        }
+        await Promise.allSettled(jobs);
+    }
+    /** Remove browser event listeners and pending persistence work. */
+    dispose() {
+        for (const cleanup of this.cleanupListeners.splice(0))
+            cleanup();
+        if (this.persistTimer)
+            clearTimeout(this.persistTimer);
     }
     /** Export settled query states for a trusted SSR-to-client handoff. */
     dehydrate() {
@@ -4495,14 +4542,61 @@ class QueryClient {
             record.controller = undefined;
             this.records.set(entry.key, record);
         }
+        this.schedulePersist();
+    }
+    async fetchFromRecord(record, _reason) {
+        if (!record.loader)
+            return undefined;
+        const key = Array.from(this.records.entries()).find(([, value]) => value === record)?.[0];
+        if (!key)
+            return undefined;
+        return this.fetch(key, record.loader, record.options);
+    }
+    restorePersisted() {
+        const persistence = this.options.persistence;
+        if (!persistence)
+            return;
+        try {
+            const value = persistence.storage.getItem(persistence.key ?? 'onekit-query-cache');
+            Promise.resolve(value).then(serialized => {
+                if (!serialized)
+                    return;
+                const snapshot = JSON.parse(serialized);
+                if (persistence.maxAge !== undefined) {
+                    const now = Date.now();
+                    snapshot.queries = snapshot.queries.filter(query => now - query.state.updatedAt <= persistence.maxAge);
+                }
+                this.hydrate(snapshot);
+            }).catch(() => undefined);
+        }
+        catch {
+            // Persistence is best-effort and must never break app startup.
+        }
+    }
+    schedulePersist() {
+        if (!this.options.persistence)
+            return;
+        if (this.persistTimer)
+            return;
+        this.persistTimer = setTimeout(() => {
+            this.persistTimer = undefined;
+            const persistence = this.options.persistence;
+            try {
+                const serialized = JSON.stringify(this.dehydrate());
+                void Promise.resolve(persistence.storage.setItem(persistence.key ?? 'onekit-query-cache', serialized)).catch(() => undefined);
+            }
+            catch {
+                // Non-serializable query data is ignored rather than breaking rendering.
+            }
+        }, 0);
     }
     notify(record) {
         for (const listener of record.listeners)
             listener(record.state);
     }
 }
-function createQueryClient() {
-    return new QueryClient();
+function createQueryClient(options = {}) {
+    return new QueryClient(options);
 }
 
 function createForm(initialValues, validator) {
@@ -4567,6 +4661,14 @@ function createForm(initialValues, validator) {
     };
 }
 
+let streamingBoundaryId = 0;
+function createStreamingBoundary(content, fallback, options = {}) {
+    const id = options.id ?? `okjs-boundary-${++streamingBoundaryId}`;
+    return { __onekitStreamingBoundary: true, id, fallback, content };
+}
+function isStreamingBoundary(value) {
+    return Boolean(value && typeof value === 'object' && value.__onekitStreamingBoundary === true);
+}
 // Server-side rendering function
 function renderToString(vnode, context = {}) {
     const ctx = { ...context };
@@ -4959,7 +5061,9 @@ class StreamingRenderer {
                 await writer.write(escapeHtml$1(vnode));
             }
             else {
-                await this.renderVNodeAsync(vnode, writer, signal);
+                const pendingBoundaries = [];
+                await this.renderVNodeAsync(vnode, writer, signal, pendingBoundaries);
+                await Promise.all(pendingBoundaries);
             }
             await writer.close();
             markComplete();
@@ -4970,9 +5074,19 @@ class StreamingRenderer {
             throw error;
         }
     }
-    async renderVNodeAsync(vnode, writer, signal) {
+    async renderVNodeAsync(vnode, writer, signal, pendingBoundaries = []) {
         if (signal?.aborted)
             throw createSSRAbortError();
+        if (isStreamingBoundary(vnode)) {
+            await writer.write(`<div data-okjs-boundary="${escapeHtml$1(vnode.id)}">${await this.renderVNodeToStringAsync(vnode.fallback, signal)}</div>`);
+            pendingBoundaries.push((async () => {
+                if (signal?.aborted)
+                    throw createSSRAbortError();
+                const content = await this.renderVNodeToStringAsync(vnode.content, signal);
+                await writer.write(`<template data-okjs-boundary-content="${escapeHtml$1(vnode.id)}">${content}</template>`);
+            })());
+            return;
+        }
         const resolved = await vnode;
         if (typeof resolved === 'string') {
             await writer.write(escapeHtml$1(resolved));
@@ -4982,7 +5096,7 @@ class StreamingRenderer {
         // Handle async components
         if (typeof tag === 'function') {
             const componentResult = await tag(props);
-            return this.renderVNodeAsync(componentResult, writer, signal);
+            return this.renderVNodeAsync(componentResult, writer, signal, pendingBoundaries);
         }
         const attrs = renderAttributes(props);
         const tagHtml = `<${tag}${attrs}>`;
@@ -4993,18 +5107,66 @@ class StreamingRenderer {
                 await writer.write(escapeHtml$1(child));
             }
             else {
-                await this.renderVNodeAsync(child, writer, signal);
+                await this.renderVNodeAsync(child, writer, signal, pendingBoundaries);
             }
         }
         if (!isSelfClosingTag(tag)) {
             await writer.write(`</${tag}>`);
         }
     }
+    async renderVNodeToStringAsync(vnode, signal) {
+        if (signal?.aborted)
+            throw createSSRAbortError();
+        if (isStreamingBoundary(vnode)) {
+            return this.renderVNodeToStringAsync(vnode.fallback, signal);
+        }
+        const resolved = await vnode;
+        if (typeof resolved === 'string')
+            return escapeHtml$1(resolved);
+        const { tag, props, children } = resolved;
+        if (typeof tag === 'function') {
+            return this.renderVNodeToStringAsync(await tag(props), signal);
+        }
+        const attrs = renderAttributes(props);
+        const childrenHtml = (await Promise.all(children.map(child => this.renderVNodeToStringAsync(child, signal)))).join('');
+        if (isSelfClosingTag(tag))
+            return `<${tag}${attrs}>`;
+        return `<${tag}${attrs}>${childrenHtml}</${tag}>`;
+    }
     getContext() {
         return { ...this.context };
     }
 }
 // SSR utilities and helpers
+/** Apply a resolved boundary payload emitted by `StreamingRenderer` to a hydrated shell. */
+function resumeStreamingBoundary(root, boundaryId, html) {
+    const placeholders = Array.from(root.querySelectorAll('[data-okjs-boundary]'));
+    const placeholder = placeholders.find(item => item.getAttribute('data-okjs-boundary') === boundaryId);
+    if (!placeholder)
+        return false;
+    const ownerDocument = placeholder.ownerDocument;
+    const content = ownerDocument.createElement('template');
+    content.innerHTML = html;
+    placeholder.replaceWith(content.content.cloneNode(true));
+    return true;
+}
+/** Parse one streamed boundary chunk and continue the matching client shell. */
+function resumeStreamingBoundaryChunk(root, chunk) {
+    const ownerDocument = typeof Document !== 'undefined' && root instanceof Document
+        ? root
+        : root.ownerDocument;
+    if (!ownerDocument)
+        return false;
+    const parser = ownerDocument.createElement('template');
+    parser.innerHTML = chunk;
+    const payload = parser.content.querySelector('template[data-okjs-boundary-content]');
+    if (!payload)
+        return false;
+    const boundaryId = payload.getAttribute('data-okjs-boundary-content');
+    if (!boundaryId)
+        return false;
+    return resumeStreamingBoundary(root, boundaryId, payload.innerHTML);
+}
 function createSSRContext() {
     return {
         head: [],
@@ -5518,7 +5680,7 @@ const jsxDEV = jsx;
 // Main entry point with tree-shaking friendly exports
 // Core systems
 // Version info
-const VERSION = '3.1.18';
+const VERSION = '3.1.19';
 
-export { API, DependencyInjector, Fragment, HydrationMismatchError, OneKit, OneKitWebComponent, QueryClient, Router, StreamingRenderer, VERSION, addScript, addStorePlugin, addStyle, addToBody, addToHead, animations, announce, patch as apiPatch, applyHead, assertClient, assertServer, autorun, batch, bind, cache, cleanup, clearDevToolsDependencies, clientOnly, compileOkjs, compileTemplate, component, computed, create, createApp, createElement, createErrorBoundary, createFileRoutes, createForm, createHeadManager, createLandmarks, createLoadingBoundary, createQueryClient, createRouteManifest, createRouter, createSSRContext, createSkipLink, createStorage, createStore, debounce, deepClone, defineComponent, defineLayoutRoute, defineRoute, defineStore, del, derive, destroy, devToolsSnapshot, di, disableScopeLeakWarnings, disposeDevToolsResource, effect, effectScope, emitDevToolsEvent, enableDevTools, enableScopeLeakWarnings, errorHandler, filePathToRoutePath, fireEvent, flush, generateId, get, getActiveScopeDiagnostics, getAllStores, getCurrentScope, getDependencyGraph, getDevToolsEffectId, getDevToolsScopeId, getDevToolsTargetId, getInstance, getResourceGraph, getRuntimeEnvironment, h, hotUpdateComponent, hydrate, initTemplateEngine, isClient, isClientRuntime, isDevToolsEnabled, isServer, isServerRuntime, jsx$1 as jsx, jsxDEV$1 as jsxDEV, jsx as jsxRuntime, jsxDEV as jsxRuntimeDEV, jsxs, localStorage, makeFocusable, makeUnfocusable, manageTabOrder, measureDevTools, mount, nextTick, ok, okjs, onDestroyed, onDevToolsEvent, onMounted, onPropsChanged, onScopeDispose, onUpdated, parseOkjs, patch$1 as patch, pluginManager, post, preloadModule, preloadScript, preloadStyle, put, reactive, recordDevToolsDependency, register, registerDevToolsInspector, registerDevToolsResource, registerDirective, registerDisposable, registerWebComponent, removeStore, render, renderHead, renderMeta$1 as renderMeta, renderOpenGraph, renderTest, renderTitle, renderToString, request, routeHref, router, safeMethod, serverOnly, sessionStorage, setAriaAttributes, setMeta, setupComponent, skipToContent, snapshot, state, stop, throttle, trapFocus, unmount, useStore, validateAccessibility, patch$1 as vdomPatch, waitFor, watch, watchEffect, withCache, withScope };
+export { API, DependencyInjector, Fragment, HydrationMismatchError, OneKit, OneKitWebComponent, QueryClient, Router, StreamingRenderer, VERSION, addScript, addStorePlugin, addStyle, addToBody, addToHead, animations, announce, patch as apiPatch, applyHead, assertClient, assertServer, autorun, batch, bind, cache, cleanup, clearDevToolsDependencies, clientOnly, compileOkjs, compileTemplate, component, computed, create, createApp, createElement, createErrorBoundary, createFileRoutes, createForm, createHeadManager, createLandmarks, createLoadingBoundary, createQueryClient, createRouteManifest, createRouter, createSSRContext, createSkipLink, createStorage, createStore, createStreamingBoundary, debounce, deepClone, defineComponent, defineLayoutRoute, defineRoute, defineStore, del, derive, destroy, devToolsSnapshot, di, disableScopeLeakWarnings, disposeDevToolsResource, effect, effectScope, emitDevToolsEvent, enableDevTools, enableScopeLeakWarnings, errorHandler, filePathToRoutePath, fireEvent, flush, generateId, get, getActiveScopeDiagnostics, getAllStores, getCurrentScope, getDependencyGraph, getDevToolsEffectId, getDevToolsScopeId, getDevToolsTargetId, getInstance, getResourceGraph, getRuntimeEnvironment, h, hotUpdateComponent, hydrate, initTemplateEngine, isClient, isClientRuntime, isDevToolsEnabled, isServer, isServerRuntime, jsx$1 as jsx, jsxDEV$1 as jsxDEV, jsx as jsxRuntime, jsxDEV as jsxRuntimeDEV, jsxs, localStorage, makeFocusable, makeUnfocusable, manageTabOrder, measureDevTools, mount, nextTick, ok, okjs, onDestroyed, onDevToolsEvent, onMounted, onPropsChanged, onScopeDispose, onUpdated, parseOkjs, patch$1 as patch, pluginManager, post, preloadModule, preloadScript, preloadStyle, put, reactive, recordDevToolsDependency, register, registerDevToolsInspector, registerDevToolsResource, registerDirective, registerDisposable, registerWebComponent, removeStore, render, renderHead, renderMeta$1 as renderMeta, renderOpenGraph, renderTest, renderTitle, renderToString, request, resumeStreamingBoundary, resumeStreamingBoundaryChunk, routeHref, router, safeMethod, serverOnly, sessionStorage, setAriaAttributes, setMeta, setupComponent, skipToContent, snapshot, state, stop, throttle, trapFocus, unmount, useStore, validateAccessibility, patch$1 as vdomPatch, waitFor, watch, watchEffect, withCache, withScope };
 //# sourceMappingURL=onekit.esm.js.map

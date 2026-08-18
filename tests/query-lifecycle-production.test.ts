@@ -37,6 +37,34 @@ describe('query lifecycle', () => {
     expect(signal?.aborted).toBe(true);
   });
 
+  it('persists settled cache and restores it in a new client', async () => {
+    const values = new Map<string, string>();
+    const storage = {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => { values.set(key, value); },
+    };
+    const first = createQueryClient({ persistence: { storage, key: 'test-cache' } });
+    first.setData('profile', { name: 'OneKit' });
+    await new Promise(resolve => setTimeout(resolve, 5));
+    const second = createQueryClient({ persistence: { storage, key: 'test-cache' } });
+    await new Promise(resolve => setTimeout(resolve, 5));
+    expect(second.getData<{ name: string }>('profile')).toEqual({ name: 'OneKit' });
+    first.dispose();
+    second.dispose();
+  });
+
+  it('revalidates remembered loaders on window focus and reconnect', async () => {
+    const client = createQueryClient();
+    let calls = 0;
+    await client.fetch('status', () => ++calls);
+    window.dispatchEvent(new Event('focus'));
+    await new Promise(resolve => setTimeout(resolve, 5));
+    window.dispatchEvent(new Event('online'));
+    await new Promise(resolve => setTimeout(resolve, 5));
+    expect(calls).toBe(3);
+    client.dispose();
+  });
+
   it('applies and rolls back optimistic mutation data', async () => {
     const client = createQueryClient();
     client.setData('todos', [{ id: 1, done: false }]);

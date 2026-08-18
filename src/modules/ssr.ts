@@ -15,7 +15,34 @@ export interface RenderResult {
   context: SSRContext;
 }
 
-type AsyncVNode = VNode | string | PromiseLike<VNode | string>;
+type AsyncVNode = VNode | string | PromiseLike<VNode | string> | StreamingBoundary;
+
+export interface StreamingBoundaryOptions {
+  id?: string;
+}
+
+/** A progressive SSR boundary that sends fallback markup first and resolved markup later. */
+export interface StreamingBoundary {
+  readonly __onekitStreamingBoundary: true;
+  readonly id: string;
+  readonly fallback: VNode | string;
+  readonly content: AsyncVNode;
+}
+
+let streamingBoundaryId = 0;
+
+export function createStreamingBoundary(
+  content: AsyncVNode,
+  fallback: VNode | string,
+  options: StreamingBoundaryOptions = {},
+): StreamingBoundary {
+  const id = options.id ?? `okjs-boundary-${++streamingBoundaryId}`;
+  return { __onekitStreamingBoundary: true, id, fallback, content };
+}
+
+function isStreamingBoundary(value: unknown): value is StreamingBoundary {
+  return Boolean(value && typeof value === 'object' && (value as StreamingBoundary).__onekitStreamingBoundary === true);
+}
 
 // Server-side rendering function
 export function renderToString(vnode: VNode | string, context: SSRContext = {}): RenderResult {
@@ -484,7 +511,9 @@ export class StreamingRenderer {
       if (typeof vnode === 'string') {
         await writer.write(escapeHtml(vnode));
       } else {
-        await this.renderVNodeAsync(vnode, writer, signal);
+        const pendingBoundaries: Array<Promise<void>> = [];
+        await this.renderVNodeAsync(vnode, writer, signal, pendingBoundaries);
+        await Promise.all(pendingBoundaries);
       }
       await writer.close();
       markComplete();
@@ -495,8 +524,22 @@ export class StreamingRenderer {
     }
   }
 
-  private async renderVNodeAsync(vnode: AsyncVNode, writer: WritableStreamDefaultWriter<string>, signal?: AbortSignal): Promise<void> {
+  private async renderVNodeAsync(
+    vnode: AsyncVNode,
+    writer: WritableStreamDefaultWriter<string>,
+    signal?: AbortSignal,
+    pendingBoundaries: Array<Promise<void>> = [],
+  ): Promise<void> {
     if (signal?.aborted) throw createSSRAbortError();
+    if (isStreamingBoundary(vnode)) {
+      await writer.write(`<div data-okjs-boundary="${escapeHtml(vnode.id)}">${await this.renderVNodeToStringAsync(vnode.fallback, signal)}</div>`);
+      pendingBoundaries.push((async () => {
+        if (signal?.aborted) throw createSSRAbortError();
+        const content = await this.renderVNodeToStringAsync(vnode.content, signal);
+        await writer.write(`<template data-okjs-boundary-content="${escapeHtml(vnode.id)}">${content}</template>`);
+      })());
+      return;
+    }
     const resolved = await vnode;
     if (typeof resolved === 'string') {
       await writer.write(escapeHtml(resolved));
@@ -507,7 +550,7 @@ export class StreamingRenderer {
     // Handle async components
     if (typeof tag === 'function') {
       const componentResult = await (tag as Function)(props);
-      return this.renderVNodeAsync(componentResult, writer, signal);
+      return this.renderVNodeAsync(componentResult, writer, signal, pendingBoundaries);
     }
 
     const attrs = renderAttributes(props);
@@ -520,7 +563,7 @@ export class StreamingRenderer {
       if (typeof child === 'string') {
         await writer.write(escapeHtml(child));
       } else {
-        await this.renderVNodeAsync(child, writer, signal);
+        await this.renderVNodeAsync(child, writer, signal, pendingBoundaries);
       }
     }
 
@@ -529,12 +572,56 @@ export class StreamingRenderer {
     }
   }
 
+  private async renderVNodeToStringAsync(vnode: AsyncVNode, signal?: AbortSignal): Promise<string> {
+    if (signal?.aborted) throw createSSRAbortError();
+    if (isStreamingBoundary(vnode)) {
+      return this.renderVNodeToStringAsync(vnode.fallback, signal);
+    }
+    const resolved = await vnode;
+    if (typeof resolved === 'string') return escapeHtml(resolved);
+    const { tag, props, children } = resolved;
+    if (typeof tag === 'function') {
+      return this.renderVNodeToStringAsync(await (tag as Function)(props), signal);
+    }
+    const attrs = renderAttributes(props);
+    const childrenHtml = (await Promise.all(children.map(child => this.renderVNodeToStringAsync(child, signal)))).join('');
+    if (isSelfClosingTag(tag)) return `<${tag}${attrs}>`;
+    return `<${tag}${attrs}>${childrenHtml}</${tag}>`;
+  }
+
   getContext(): SSRContext {
     return { ...this.context };
   }
 }
 
 // SSR utilities and helpers
+/** Apply a resolved boundary payload emitted by `StreamingRenderer` to a hydrated shell. */
+export function resumeStreamingBoundary(root: ParentNode, boundaryId: string, html: string): boolean {
+  const placeholders = Array.from(root.querySelectorAll('[data-okjs-boundary]'));
+  const placeholder = placeholders.find(item => item.getAttribute('data-okjs-boundary') === boundaryId);
+  if (!placeholder) return false;
+  const ownerDocument = placeholder.ownerDocument;
+  const content = ownerDocument.createElement('template');
+  content.innerHTML = html;
+  placeholder.replaceWith(content.content.cloneNode(true));
+  return true;
+}
+
+/** Parse one streamed boundary chunk and continue the matching client shell. */
+export function resumeStreamingBoundaryChunk(root: ParentNode, chunk: string): boolean {
+  const ownerDocument = typeof Document !== 'undefined' && root instanceof Document
+    ? root
+    : (root as Element).ownerDocument;
+  if (!ownerDocument) return false;
+  const parser = ownerDocument.createElement('template');
+  parser.innerHTML = chunk;
+  const payload = parser.content.querySelector('template[data-okjs-boundary-content]');
+  if (!payload) return false;
+  const boundaryId = payload.getAttribute('data-okjs-boundary-content');
+  if (!boundaryId) return false;
+  return resumeStreamingBoundary(root, boundaryId, payload.innerHTML);
+}
+
 export function createSSRContext(): SSRContext {
   return {
     head: [],

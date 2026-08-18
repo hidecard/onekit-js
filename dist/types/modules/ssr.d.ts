@@ -10,7 +10,18 @@ export interface RenderResult {
     html: string;
     context: SSRContext;
 }
-type AsyncVNode = VNode | string | PromiseLike<VNode | string>;
+type AsyncVNode = VNode | string | PromiseLike<VNode | string> | StreamingBoundary;
+export interface StreamingBoundaryOptions {
+    id?: string;
+}
+/** A progressive SSR boundary that sends fallback markup first and resolved markup later. */
+export interface StreamingBoundary {
+    readonly __onekitStreamingBoundary: true;
+    readonly id: string;
+    readonly fallback: VNode | string;
+    readonly content: AsyncVNode;
+}
+export declare function createStreamingBoundary(content: AsyncVNode, fallback: VNode | string, options?: StreamingBoundaryOptions): StreamingBoundary;
 export declare function renderToString(vnode: VNode | string, context?: SSRContext): RenderResult;
 export interface HydrationMismatch {
     path: string;
@@ -46,8 +57,13 @@ export declare class StreamingRenderer {
     renderToStream(vnode: AsyncVNode, options?: StreamingRenderOptions): Promise<ReadableStream<string>>;
     private renderAsync;
     private renderVNodeAsync;
+    private renderVNodeToStringAsync;
     getContext(): SSRContext;
 }
+/** Apply a resolved boundary payload emitted by `StreamingRenderer` to a hydrated shell. */
+export declare function resumeStreamingBoundary(root: ParentNode, boundaryId: string, html: string): boolean;
+/** Parse one streamed boundary chunk and continue the matching client shell. */
+export declare function resumeStreamingBoundaryChunk(root: ParentNode, chunk: string): boolean;
 export declare function createSSRContext(): SSRContext;
 export declare function addToHead(context: SSRContext, content: string): void;
 export declare function addToBody(context: SSRContext, content: string): void;

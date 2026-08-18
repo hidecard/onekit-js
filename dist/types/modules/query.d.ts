@@ -22,6 +22,21 @@ export interface DehydratedQuery {
 export interface DehydratedQueryState {
     queries: readonly DehydratedQuery[];
 }
+export interface QueryStorage {
+    getItem(key: string): string | null | Promise<string | null>;
+    setItem(key: string, value: string): void | Promise<void>;
+    removeItem?(key: string): void | Promise<void>;
+}
+export interface QueryPersistenceOptions {
+    storage: QueryStorage;
+    key?: string;
+    maxAge?: number;
+}
+export interface QueryClientOptions {
+    persistence?: QueryPersistenceOptions;
+    revalidateOnWindowFocus?: boolean;
+    revalidateOnReconnect?: boolean;
+}
 export interface OptimisticUpdate<TVariables, TContext = unknown> {
     key: QueryKey;
     update: (current: unknown, variables: TVariables) => unknown;
@@ -40,6 +55,10 @@ export interface MutationOptions<TData, TVariables, TContext = unknown> {
 }
 export declare class QueryClient {
     private records;
+    private readonly options;
+    private readonly cleanupListeners;
+    private persistTimer?;
+    constructor(options?: QueryClientOptions);
     private record;
     getState<T>(key: QueryKey): QueryState<T>;
     subscribe<T>(key: QueryKey, listener: (state: QueryState<T>) => void): () => void;
@@ -52,10 +71,17 @@ export declare class QueryClient {
     mutate<TData, TVariables, TContext = unknown>(variables: TVariables, options: MutationOptions<TData, TVariables, TContext>): Promise<TData>;
     remove(key: QueryKey): void;
     clear(): void;
+    /** Re-fetch queries with remembered loaders after focus or reconnect. */
+    revalidate(reason?: 'focus' | 'reconnect' | 'manual'): Promise<void>;
+    /** Remove browser event listeners and pending persistence work. */
+    dispose(): void;
     /** Export settled query states for a trusted SSR-to-client handoff. */
     dehydrate(): DehydratedQueryState;
     /** Restore dehydrated states without executing loaders or notifying listeners. */
     hydrate(snapshot: DehydratedQueryState): void;
+    private fetchFromRecord;
+    private restorePersisted;
+    private schedulePersist;
     private notify;
 }
-export declare function createQueryClient(): QueryClient;
+export declare function createQueryClient(options?: QueryClientOptions): QueryClient;

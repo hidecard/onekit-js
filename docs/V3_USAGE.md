@@ -1,6 +1,6 @@
 # OneKit JS V3 Usage Guide
 
-**Target release:** OneKit JS V3 / 3.1.18
+**Target release:** OneKit JS V3 / 3.1.19
 **License:** MIT  
 **Runtime:** Browser-first JavaScript and TypeScript
 
@@ -512,7 +512,25 @@ try {
 }
 ```
 
-`StreamingRenderer.renderToStream()` accepts an optional `onError` callback. It receives the original render failure or `AbortError` once, before the stream is aborted, so a server adapter can map the error to its own request logging and recovery policy:
+`StreamingRenderer.renderToStream()` accepts an optional `onError` callback. It receives the original render failure or `AbortError` once, before the stream is aborted, so a server adapter can map the error to its own request logging and recovery policy. Progressive boundaries can emit a visible fallback shell first and a continuation chunk when the async content settles:
+
+```ts
+import { createStreamingBoundary, applyStreamingContinuation } from "onekit-js";
+
+const boundary = createStreamingBoundary("profile-card", {
+  fallback: '<p aria-busy="true">Loading profile…</p>',
+  render: async () => `<article>${await loadProfileHtml()}</article>`,
+});
+
+const firstChunk = boundary.fallbackChunk();
+const continuation = await boundary.contentChunk();
+// Send both chunks through the response stream in order.
+// In the browser, applyStreamingContinuation(continuation) replaces the shell.
+void firstChunk;
+void applyStreamingContinuation;
+```
+
+The continuation helper is import-safe on the server and applies only trusted framework-generated chunks. Applications should preserve chunk order, abort the boundary with the request signal, and keep user-controlled HTML escaped before passing it to the renderer.
 
 ```ts
 const stream = await new StreamingRenderer(context).renderToStream(App(), {
@@ -819,15 +837,15 @@ npm pack --dry-run
 `npm run verify:package` creates an isolated temporary project, installs the packed tarball, and checks the root, ESM, CJS, SSR, and CLI entrypoints. Then inspect the tarball contents and verify that the package version, declaration paths, CLI files, README, documentation, and license are present. Pull requests and pushes to the `V3` branch also run the same checks through GitHub Actions. For the main package, publication is handled by `.github/workflows/publish-onekit.yml`. After validation passes, bump the package version, commit the release metadata, and push a matching tag:
 
 ```bash
-npm version 3.1.18 --no-git-tag-version
+npm version 3.1.19 --no-git-tag-version
 git add package.json package-lock.json src/index.ts CHANGELOG.md README.md docs
-git commit -m "chore(release): prepare onekit 3.1.18"
+git commit -m "chore(release): prepare onekit 3.1.19"
 git push origin V3
-git tag v3.1.18
-git push origin v3.1.18
+git tag v3.1.19
+git push origin v3.1.19
 ```
 
-The creator package is published independently through `create-onekit-v1.0.8`; publish `onekit-js` first so the creator's `^3.1.18` dependency is available. A manual `npm publish --access public` remains possible for an authenticated npm session, but the tag workflow is preferred because it provides repeatable validation and npm provenance.
+The creator package is published independently through `create-onekit-v1.0.8`; publish `onekit-js` first so the creator's `^3.1.19` dependency is available. A manual `npm publish --access public` remains possible for an authenticated npm session, but the tag workflow is preferred because it provides repeatable validation and npm provenance.
 
 Never place an npm access token in source files, commit history, chat messages, or public documentation.
 
@@ -912,7 +930,7 @@ The existing `reactive`, `effect`, `watch`, `register`, `create`, and `mount` AP
 
 ## Testing, query, and forms foundations
 
-OneKit 3.1.18 includes a small DOM-first testing foundation from `onekit-js/testing`. `renderTest()` mounts a VNode into an isolated container and provides `rerender()` and `unmount()`; `cleanup()` removes containers registered by the helper; `fireEvent()`, `flush()`, and `waitFor()` support common synchronous and asynchronous component tests.
+OneKit 3.1.19 includes a small DOM-first testing foundation from `onekit-js/testing`. `renderTest()` mounts a VNode into an isolated container and provides `rerender()` and `unmount()`; `cleanup()` removes containers registered by the helper; `fireEvent()`, `flush()`, and `waitFor()` support common synchronous and asynchronous component tests.
 
 ```ts
 import { h } from "onekit-js";
@@ -953,6 +971,34 @@ await queries.mutate(
   },
 );
 ```
+
+A client can persist settled query state and revalidate remembered loaders after browser focus or network reconnect. Persistence is best-effort: use a storage adapter appropriate for the application, avoid storing secrets, and create one client per SSR request. The adapter may be synchronous or asynchronous.
+
+```ts
+import { createQueryClient } from "onekit-js";
+
+const queryStorage = {
+  getItem: (key: string) => localStorage.getItem(key),
+  setItem: (key: string, value: string) => localStorage.setItem(key, value),
+};
+
+const queries = createQueryClient({
+  persistence: {
+    storage: queryStorage,
+    key: "my-app-query-cache",
+    maxAge: 24 * 60 * 60 * 1000,
+  },
+  revalidateOnWindowFocus: true,
+  revalidateOnReconnect: true,
+});
+
+await queries.fetch(["account"], loadAccount, { staleTime: 30_000 });
+// The remembered loader is re-run after focus/reconnect.
+await queries.revalidate("manual");
+// Call queries.dispose() when the application scope is destroyed.
+```
+
+`QueryClient` persistence serializes settled states through `dehydrate()` and restores them without executing loaders. Serialization failures are ignored so cache persistence cannot break application startup. Do not persist authentication tokens or other sensitive data in browser storage, and use an explicit server-safe storage adapter during SSR.
 
 The `onekit-js/forms` entry point provides typed values, touched state, synchronous or asynchronous validation, guarded submit, reset, and subscriptions. Application-specific schema adapters can be layered on top without coupling the framework to a validation library.
 

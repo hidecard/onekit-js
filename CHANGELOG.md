@@ -1,5 +1,39 @@
 # Changelog
 
+## [3.1.19] - 2026-08-18
+
+OneKit JS `3.1.19` is a **V3 production-parity patch release** that adds progressive SSR boundaries, client continuation, persisted query cache state, and automatic focus/reconnect revalidation while preserving the existing V3.1.18 contracts.
+
+### Added
+
+- Add progressive streaming SSR boundary chunks with visible fallback shells, deferred content chunks, abort/error handoff, and an import-safe client continuation helper.
+- Add configurable `QueryClient` persistence with storage adapters, cache keys, max-age expiry, restore, and best-effort storage failure handling.
+- Add automatic query revalidation on browser window focus and network reconnect, with lifecycle disposal for long-lived applications and tests.
+- Add regression coverage for SSR fallback/content continuation, query persistence restore/expiry, focus/reconnect events, and listener disposal.
+
+### Documentation and readiness
+
+- Document progressive SSR boundaries and query persistence/revalidation in the V3 Usage Guide.
+- Synchronize the Production Readiness Guide and roadmap with the completed parity milestones.
+- Update generated Vite starter dependencies to `onekit-js@^3.1.19`.
+
+### Compatibility and boundaries
+
+- Existing `StreamingRenderer` behavior remains backward compatible; progressive boundaries are additive and opt-in through the new boundary contract.
+- Existing `QueryClient` cache, invalidation, mutation, retry, cancellation, and hydration APIs remain available.
+- Persisted query state is untrusted transport data. Applications should use a versioned key, validate restored values, and avoid persisting secrets or request-scoped credentials.
+- This patch does not yet claim full React Server Components, Next.js server actions, or keyed component reconciliation parity.
+
+### Validation
+
+The V3 branch changes were validated with strict TypeScript compilation, focused SSR and query production suites, the full Jest suite, production build, declaration verification, package verification, HMR smoke checks, generated starter checks, and `git diff --check`.
+
+### Upgrade references
+
+- [V3 Usage Guide](docs/V3_USAGE.md)
+- [Production Readiness Guide](docs/PRODUCTION_READINESS.md)
+- [V3 Migration Guide](MIGRATION_GUIDE.md)
+
 ## [3.1.18] - 2026-08-17
 
 OneKit JS `3.1.18` is a **V3-line production release** focused on typed routing, nested route composition, SSR/hydration observability, query lifecycle control, explicit runtime boundaries, and a more useful generated starter. It is intended to be compatible with existing V3 applications; applications migrating from OneKit 2.x or the legacy global runtime should follow the full [Migration Guide](MIGRATION_GUIDE.md).

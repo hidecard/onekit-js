@@ -2,14 +2,14 @@
 
 **OneKit JS V3** is a compact, TypeScript-first reactive framework for browser applications. It gives developers explicit building blocks for state, components, templates, JSX/VDOM, routing, stores, forms, data fetching, SSR/hydration, security, testing, and production tooling without forcing a large application architecture.
 
-> **Current release:** `3.1.18`
+> **Current release:** `3.1.19`
 > **Starter CLI:** `create-onekit@1.0.8`
 > **License:** MIT
 > **Runtime:** Browser-first JavaScript and TypeScript
 
 OneKit is designed for developers who want a framework that is easy to learn but does not become restrictive as an application grows. You can begin with one reactive object and progressively adopt components, routes, stores, SSR, and typed tooling when the project needs them.
 
-[![TypeScript-first](https://img.shields.io/badge/TypeScript-first-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) [![Version](https://img.shields.io/badge/version-3.1.18-0f766e)](CHANGELOG.md)
+[![TypeScript-first](https://img.shields.io/badge/TypeScript-first-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) [![Version](https://img.shields.io/badge/version-3.1.19-0f766e)](CHANGELOG.md)
 
 ## Documentation navigation
 
@@ -50,9 +50,9 @@ OneKit does not try to hide the browser. DOM elements, events, selectors, reques
 
 V3 keeps these capabilities composable. An application can use only the reactive core, or combine components, routes, stores, SSR, testing, and tooling as it grows.
 
-### Verified V3.1.18 contract
+### Verified V3.1.19 contract
 
-The examples in this README are written against the published V3.1.18 package surface. The following table maps the main documented commands and entrypoints to the repository checks that verify them:
+The examples in this README are written against the published V3.1.19 package surface. The following table maps the main documented commands and entrypoints to the repository checks that verify them:
 
 | Concern | Documented command or import | Verification source |
 |---|---|---|
@@ -689,14 +689,14 @@ Push the branch and open a pull request against `V3`. A useful pull request desc
 | [Framework Guide](docs/FRAMEWORK_GUIDE.md) | Architecture and application conventions. |
 | [Migration Guide](MIGRATION_GUIDE.md) | Moving from older OneKit versions and comparing patterns. |
 | [Production Readiness](docs/PRODUCTION_READINESS.md) | Runtime contracts, security guarantees, and release guidance. |
-| [Release notes](docs/V3_RELEASE_NOTES.md) | Human-readable `3.1.18` upgrade summary and compatibility notes. |
+| [Release notes](docs/V3_RELEASE_NOTES.md) | Human-readable `3.1.19` upgrade summary and compatibility notes. |
 | [Changelog](CHANGELOG.md) | Version history and release notes. |
 | [Issue tracker](https://github.com/hidecard/onekit-js/issues) | Bugs, feature proposals, and questions. |
 | [GitHub repository](https://github.com/hidecard/onekit-js) | Source, tests, examples, and pull requests. |
 
 ## Versioning and release notes
 
-The current framework release is **OneKit JS `3.1.18`**. The current starter CLI release documented here is **`create-onekit@1.0.8`**. The framework package and starter CLI may release independently; always check the command and package name when pinning versions. For upgrade steps and compatibility notes, read the [V3 Migration Guide](MIGRATION_GUIDE.md) and [V3.1.18 Release Notes](docs/V3_RELEASE_NOTES.md).
+The current framework release is **OneKit JS `3.1.19`**. The current starter CLI release documented here is **`create-onekit@1.0.8`**. The framework package and starter CLI may release independently; always check the command and package name when pinning versions. For upgrade steps and compatibility notes, read the [V3 Migration Guide](MIGRATION_GUIDE.md) and [V3.1.19 Release Notes](docs/V3_RELEASE_NOTES.md).
 
 OneKit follows semantic versioning. Additive APIs and fixes should remain compatible within a major version. Breaking changes require migration notes, updated examples, regression coverage, and an explicit changelog entry.
 
