@@ -238,8 +238,27 @@ export interface HydrationMismatch {
   actual: string;
 }
 
+export interface HydrationOptions {
+  /** Receive each mismatch as soon as the hydration walk completes. */
+  onMismatch?: (mismatch: HydrationMismatch) => void;
+  /** Throw after collecting mismatches instead of continuing silently. */
+  throwOnMismatch?: boolean;
+}
+
+export class HydrationMismatchError extends Error {
+  readonly mismatches: readonly HydrationMismatch[];
+
+  constructor(mismatches: readonly HydrationMismatch[]) {
+    super(`Hydration mismatch detected (${mismatches.length} issue${mismatches.length === 1 ? '' : 's'}).`);
+    this.name = 'HydrationMismatchError';
+    this.mismatches = mismatches;
+  }
+}
+
 export interface HydrationResult {
   mismatches: HydrationMismatch[];
+  hasMismatch: boolean;
+  firstMismatch?: HydrationMismatch;
   dispose: () => void;
 }
 
@@ -273,13 +292,21 @@ function hydrationExpectedAttribute(key: string, value: unknown): string | null 
 
 // Hydration attaches client behavior without rewriting server-rendered DOM.
 // It reports parity problems so applications can fail loudly in development.
-export function hydrate(rootElement: Element, vnode: VNode): HydrationResult {
+export function hydrate(rootElement: Element, vnode: VNode, options: HydrationOptions = {}): HydrationResult {
   const mismatches: HydrationMismatch[] = [];
   const cleanups: Array<() => void> = [];
   walkAndHydrate(rootElement, vnode, 'root', mismatches, cleanups);
 
+  for (const mismatch of mismatches) options.onMismatch?.(mismatch);
+  if (options.throwOnMismatch && mismatches.length > 0) {
+    while (cleanups.length > 0) cleanups.pop()?.();
+    throw new HydrationMismatchError(mismatches);
+  }
+
   return {
     mismatches,
+    hasMismatch: mismatches.length > 0,
+    firstMismatch: mismatches[0],
     dispose: () => {
       while (cleanups.length > 0) cleanups.pop()?.();
     },
@@ -393,6 +420,12 @@ function createSSRAbortError(): Error {
   return error;
 }
 
+export interface StreamingRenderOptions {
+  signal?: AbortSignal;
+  /** Receive the original rendering error before the stream is aborted. */
+  onError?: (error: unknown) => void;
+}
+
 export class StreamingRenderer {
   private context: SSRContext;
 
@@ -400,10 +433,16 @@ export class StreamingRenderer {
     this.context = context;
   }
 
-  async renderToStream(vnode: AsyncVNode, options: { signal?: AbortSignal } = {}): Promise<ReadableStream<string>> {
+  async renderToStream(vnode: AsyncVNode, options: StreamingRenderOptions = {}): Promise<ReadableStream<string>> {
     const { readable, writable } = new TransformStream<string, string>();
     const writer = writable.getWriter();
     let terminated = false;
+    let errorReported = false;
+    const reportError = (error: unknown): void => {
+      if (errorReported) return;
+      errorReported = true;
+      options.onError?.(error);
+    };
     const abortStream = async (error: unknown): Promise<void> => {
       if (terminated) return;
       terminated = true;
@@ -420,8 +459,9 @@ export class StreamingRenderer {
       else options.signal.addEventListener('abort', onAbort, { once: true });
     }
 
-    this.renderAsync(vnode, writer, options.signal, abortStream, () => { terminated = true; })
+    this.renderAsync(vnode, writer, options.signal, abortStream, () => { terminated = true; }, reportError)
       .catch(error => {
+        reportError(error);
         if (!(error instanceof Error && error.name === 'AbortError')) console.error('SSR streaming error:', error);
         return abortStream(error);
       })
@@ -436,6 +476,7 @@ export class StreamingRenderer {
     signal: AbortSignal | undefined,
     abortStream: (error: unknown) => Promise<void>,
     markComplete: () => void,
+    reportError: (error: unknown) => void,
   ): Promise<void> {
     try {
       if (signal?.aborted) throw createSSRAbortError();
@@ -448,6 +489,7 @@ export class StreamingRenderer {
       await writer.close();
       markComplete();
     } catch (error) {
+      reportError(error);
       await abortStream(error);
       throw error;
     }

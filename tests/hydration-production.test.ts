@@ -29,6 +29,26 @@ describe('hydration production contracts', () => {
     expect(root.outerHTML).toBe('<section id="app">Server</section>');
   });
 
+  it('exposes structured mismatch state and supports an opt-in throw policy', () => {
+    document.body.innerHTML = '<section id="app">Server</section>';
+    const root = document.querySelector('#app') as HTMLElement;
+    const onMismatch = jest.fn();
+
+    const result = hydrate(root, h('main', {}, 'Client'), { onMismatch });
+
+    expect(result.hasMismatch).toBe(true);
+    expect(result.firstMismatch).toEqual({
+      path: 'root',
+      kind: 'tag',
+      expected: 'main',
+      actual: 'section',
+    });
+    expect(onMismatch).toHaveBeenCalledTimes(2);
+    expect(() => hydrate(root, h('main', {}, 'Client'), { throwOnMismatch: true }))
+      .toThrow(expect.objectContaining({ name: 'HydrationMismatchError' }));
+    expect(root.outerHTML).toBe('<section id="app">Server</section>');
+  });
+
   it('matches case-insensitive attributes, boolean props, and object styles', () => {
     document.body.innerHTML = '<input id="app" CLASS="field" DISABLED style="color:red;background:blue">';
     const root = document.querySelector('#app') as HTMLInputElement;

@@ -33,9 +33,11 @@ describe('SSR production contracts', () => {
 
   it('propagates the original async component error through the stream', async () => {
     const failure = new Error('async component failed');
+    const onError = jest.fn();
     const renderer = new StreamingRenderer();
     const stream = await renderer.renderToStream(
       h('main', {}, h('p', {}, 'before'), h(async () => { throw failure; })),
+      { onError },
     );
     const reader = stream.getReader();
     const chunks: string[] = [];
@@ -48,6 +50,7 @@ describe('SSR production contracts', () => {
     })();
 
     await expect(consume).rejects.toBe(failure);
+    expect(onError).toHaveBeenCalledWith(failure);
     expect(chunks.join('')).toContain('<main><p>before</p>');
   });
 
@@ -83,13 +86,14 @@ describe('SSR production contracts', () => {
 
   it('aborts a stream with AbortError without masking the cancellation', async () => {
     const controller = new AbortController();
+    const onError = jest.fn();
     const renderer = new StreamingRenderer();
     const stream = await renderer.renderToStream(
       h('div', {}, h(async () => {
         await new Promise(resolve => setTimeout(resolve, 20));
         return h('span', {}, 'late');
       })),
-      { signal: controller.signal },
+      { signal: controller.signal, onError },
     );
     const reader = stream.getReader();
     const consume = (async () => {
@@ -101,6 +105,7 @@ describe('SSR production contracts', () => {
     controller.abort();
 
     await expect(consume).rejects.toMatchObject({ name: 'AbortError' });
+    expect(onError).toHaveBeenCalledWith(expect.objectContaining({ name: 'AbortError' }));
   });
 
   it('reports hydration attribute mismatches while attaching events', () => {
