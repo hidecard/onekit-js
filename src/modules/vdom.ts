@@ -32,6 +32,10 @@ function isFragment(vnode: VNode): boolean { return vnode.tag === 'fragment'; }
 function setProp(element: Element, prop: string, value: unknown, oldValue?: unknown): void {
   if (prop === 'key' || prop === 'children') return;
   if (prop === 'ref') {
+    if (oldValue && oldValue !== value) {
+      if (typeof oldValue === 'function') oldValue(null);
+      else if (typeof oldValue === 'object') (oldValue as { current?: Element | null }).current = null;
+    }
     if (typeof value === 'function') value(element);
     else if (value && typeof value === 'object') (value as { current?: Element }).current = element;
     return;
@@ -55,6 +59,10 @@ function setProp(element: Element, prop: string, value: unknown, oldValue?: unkn
       if (safeValue) style.setProperty(key, safeValue); else style.removeProperty(key);
     });
     return;
+  }
+  const propertyNames = new Set(['value', 'checked', 'selected', 'selectedIndex', 'disabled', 'readOnly', 'required', 'multiple', 'muted', 'hidden']);
+  if (propertyNames.has(prop) && prop in element) {
+    try { (element as unknown as Record<string, unknown>)[prop] = value == null ? (typeof value === 'boolean' ? false : '') : value; } catch { /* fall through to attribute */ }
   }
   if (value == null || value === false) {
     element.removeAttribute(prop);
@@ -106,6 +114,7 @@ function patchNode(parent: Node, domNode: Node | null, next: VNode | string, pre
     return domNode;
   }
   if (typeof next === 'string' || typeof previous === 'string' || typeof next.tag === 'function' || typeof previous.tag === 'function') {
+    if (typeof previous !== 'string') cleanupVNode(previous, domNode);
     const created = render(next);
     parent.replaceChild(created, domNode);
     return created;
@@ -126,6 +135,7 @@ function patchNode(parent: Node, domNode: Node | null, next: VNode | string, pre
     return created.nodeType === Node.DOCUMENT_FRAGMENT_NODE ? parent.childNodes[Math.max(0, Array.from(parent.childNodes).indexOf(anchor) - 1)] ?? null : created;
   }
   if (next.tag !== previous.tag || next.key !== previous.key) {
+    cleanupVNode(previous, domNode);
     const created = render(next);
     parent.replaceChild(created, domNode);
     return created;
@@ -167,7 +177,22 @@ function patchChildren(parent: Node, nextChildren: (VNode | string)[], previousC
       if (created.nodeType !== Node.DOCUMENT_FRAGMENT_NODE) used.add(created);
     }
   });
-  Array.from(parent.childNodes).forEach(node => { if (!used.has(node)) parent.removeChild(node); });
+  Array.from(parent.childNodes).forEach(node => {
+    if (!used.has(node)) {
+      const oldVNode = (node as VElement)._vnode;
+      if (oldVNode) cleanupVNode(oldVNode, node);
+      parent.removeChild(node);
+    }
+  });
+}
+
+function cleanupVNode(vnode: VNode | string, domNode: Node): void {
+  if (typeof vnode === 'string') return;
+  if (vnode.props.ref) setProp(domNode as Element, 'ref', undefined, vnode.props.ref);
+  vnode.children.forEach((child, index) => {
+    const childNode = domNode.childNodes[index];
+    if (childNode) cleanupVNode(child, childNode);
+  });
 }
 
 export function patch(parent: Element, newVNode: VNode | string, oldVNode?: VNode | string): void {

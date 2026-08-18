@@ -50,7 +50,7 @@ The CLI should provide `create`, `dev`, `build`, `preview`, and `test` commands 
 
 ### 7. Add production observability and failure boundaries
 
-Applications need framework-level error capture for render errors, effect errors, event handler errors, router loader failures, and SSR failures. The framework should expose an error boundary or application error handler with development diagnostics and production-safe messages. Logging must be opt-in and must not leak secrets or user data.
+Applications need framework-level error capture for render errors, effect errors, event handler errors, router loader failures, and SSR failures. OneKit now exposes `createErrorReport`, `setErrorReporter`, and `errorHandler`; reporters receive a normalized `{ context, error: { name, message, stack? } }` payload, are opt-in, and are isolated so reporter failures cannot break application execution. When DevTools is enabled, failures also produce a `runtime:error` diagnostic event containing the normalized payload. The `onekit-error` DOM event remains available for browser integrations, while applications should avoid forwarding reports to external services unless they have reviewed and redacted their own messages and stacks.
 
 ### 8. Release safely
 

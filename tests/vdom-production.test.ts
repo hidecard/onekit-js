@@ -116,13 +116,28 @@ describe('M3 renderer production contract', () => {
     expect(fragment.tag).toBe(Fragment);
   });
 
-  it('assigns refs to rendered elements', () => {
+  it('assigns and clears refs across replacement', () => {
     const root = document.createElement('div');
-    const ref: { current?: Element } = {};
+    const ref: { current?: Element | null } = {};
     const vnode = createElement('input', { ref });
 
     patch(root, vnode);
-
     expect(ref.current).toBe(root.firstElementChild);
+
+    patch(root, createElement('span', {}, 'replacement'), vnode);
+    expect(ref.current).toBeNull();
+  });
+
+  it('keeps controlled input properties synchronized', () => {
+    const root = document.createElement('div');
+    const first = createElement('input', { value: 'first', checked: true });
+    const next = createElement('input', { value: 'second', checked: false });
+
+    patch(root, first);
+    patch(root, next, first);
+
+    const input = root.firstElementChild as HTMLInputElement;
+    expect(input.value).toBe('second');
+    expect(input.checked).toBe(false);
   });
 });

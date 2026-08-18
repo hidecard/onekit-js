@@ -1,11 +1,55 @@
 // Error handling system
+import { recordDevToolsError } from './devtools';
+
+export interface ErrorReport {
+  context: string;
+  error: {
+    name: string;
+    message: string;
+    stack?: string;
+  };
+}
+
+export type ErrorReporter = (report: ErrorReport) => void;
+
+let errorReporter: ErrorReporter | null = null;
+
+function toError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error));
+}
+
+export function setErrorReporter(reporter: ErrorReporter | null): () => void {
+  const previous = errorReporter;
+  errorReporter = reporter;
+  return () => { errorReporter = previous; };
+}
+
+export function createErrorReport(error: unknown, context = 'Unknown'): ErrorReport {
+  const normalized = toError(error);
+  return {
+    context,
+    error: {
+      name: normalized.name || 'Error',
+      message: normalized.message,
+      ...(normalized.stack ? { stack: normalized.stack } : {})
+    }
+  };
+}
+
 export function errorHandler(error: Error | string | unknown, context: string = 'Unknown'): null {
   console.error(`OneKit Error [${context}]:`, error);
+  const report = createErrorReport(error, context);
+  recordDevToolsError(error, context);
+  try {
+    errorReporter?.(report);
+  } catch {
+    // User-provided reporters must never break application execution.
+  }
 
   // Dispatch a custom error event only when a DOM is available.
   if (typeof document !== 'undefined' && typeof CustomEvent !== 'undefined') {
     const event = new CustomEvent('onekit-error', {
-      detail: { error, context },
+      detail: { error, context, report },
       bubbles: true,
       cancelable: true
     });
@@ -44,10 +88,6 @@ export interface ErrorBoundary<T> {
   render: (work: () => T, context?: string) => T;
   renderAsync: (work: () => Promise<T>, context?: string) => Promise<T>;
   reset: () => void;
-}
-
-function toError(error: unknown): Error {
-  return error instanceof Error ? error : new Error(String(error));
 }
 
 export function createErrorBoundary<T>(options: ErrorBoundaryOptions<T>): ErrorBoundary<T> {

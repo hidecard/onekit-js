@@ -50,6 +50,15 @@ export type DevToolsEvent =
       name: string;
       duration: number;
       status: 'success' | 'error';
+    }
+  | {
+      type: 'runtime:error';
+      context: string;
+      error: {
+        name: string;
+        message: string;
+        stack?: string;
+      };
     };
 
 export type DevToolsListener = (event: DevToolsEvent) => void;
@@ -205,6 +214,19 @@ export function measureDevTools<T>(name: string, task: () => T | Promise<T>): T 
     emitDevToolsEvent({ type: 'performance:measure', name, duration: Math.max(0, now() - startedAt), status: 'error' });
     throw error;
   }
+}
+
+export function recordDevToolsError(error: unknown, context = 'Unknown'): void {
+  const normalized = error instanceof Error ? error : new Error(String(error));
+  emitDevToolsEvent({
+    type: 'runtime:error',
+    context,
+    error: {
+      name: normalized.name || 'Error',
+      message: normalized.message,
+      ...(normalized.stack ? { stack: normalized.stack } : {})
+    }
+  });
 }
 
 export function onDevToolsEvent(listener: DevToolsListener): () => void {
