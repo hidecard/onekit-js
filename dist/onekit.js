@@ -3648,6 +3648,10 @@
     function defineRoute(path, route = {}) {
         return { ...route, path };
     }
+    /** Define a parent route whose component is composed around its child matches. */
+    function defineLayoutRoute(path, layout, children, route = {}) {
+        return { ...route, path, layout, children: [...children] };
+    }
     /** Convert a file-system-like module key into a router path. */
     function filePathToRoutePath(filePath, root = '') {
         let value = filePath.replace(/\\/g, '/');
@@ -3698,9 +3702,8 @@
         })
             .sort((left, right) => left.path.localeCompare(right.path));
     }
-    /** Build a URL from a route pattern and named params. */
     function routeHref(path, params = {}) {
-        return path.replace(/:([A-Za-z0-9_]+)/g, (_, key) => encodeURIComponent(String(params[key] ?? ''))).replace(/\/\*/g, encodeURIComponent(String(params.wildcard ?? '')));
+        return path.replace(/:([A-Za-z0-9_]+)\??/g, (_, key) => encodeURIComponent(String(params[key] ?? ''))).replace(/\*/g, encodeURIComponent(String(params.wildcard ?? '')));
     }
 
     // Storage Utilities Module
@@ -5574,6 +5577,7 @@ ${bodyContent}
     exports.debounce = debounce;
     exports.deepClone = deepClone;
     exports.defineComponent = defineComponent;
+    exports.defineLayoutRoute = defineLayoutRoute;
     exports.defineRoute = defineRoute;
     exports.defineStore = defineStore;
     exports.del = del;

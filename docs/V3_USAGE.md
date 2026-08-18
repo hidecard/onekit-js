@@ -362,6 +362,28 @@ const reports = defineRoute('/reports/:id', {
 
 The helper only discovers and normalizes route definitions; it does not import modules itself, enforce authorization, or replace a framework-specific build plugin. This keeps the API compatible with Vite, Rollup, Webpack, and custom code generators.
 
+For typed route parameters, use `RouteParamsFor<Path>` with a route literal. Static paths require no parameters, named segments such as `:id` become required string properties, optional segments such as `:tab?` become optional properties, and catch-all segments use the `wildcard` property:
+
+```ts
+import { routeHref, type RouteParamsFor } from 'onekit-js';
+
+const params: RouteParamsFor<'/users/:id'> = { id: '42' };
+const href = routeHref('/users/:id', params); // /users/42
+```
+
+Nested layouts can be declared without changing the normal `Route[]` contract. `defineLayoutRoute` keeps the parent layout and its child route literals together so the existing router and route manifest can compose them parent-to-leaf:
+
+```ts
+import { defineLayoutRoute, defineRoute } from 'onekit-js';
+
+const dashboard = defineLayoutRoute('/dashboard', DashboardLayout, [
+  defineRoute('/settings', { component: SettingsPage }),
+  defineRoute('/billing', { component: BillingPage }),
+]);
+```
+
+The layout helper is metadata and composition information; it does not impose a rendering strategy. Applications may render `layout`, `components`, and matched route data using their preferred renderer while retaining compatibility with the standard router.
+
 ## 8. Stores and plugins
 
 ### Stores

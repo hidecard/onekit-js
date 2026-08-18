@@ -1,8 +1,10 @@
 import {
   createFileRoutes,
+  defineLayoutRoute,
   defineRoute,
   filePathToRoutePath,
   routeHref,
+  type RouteParamsFor,
 } from '../src';
 
 describe('file route helpers', () => {
@@ -30,5 +32,17 @@ describe('file route helpers', () => {
     expect(route.path).toBe('/reports/:id');
     expect(createFileRoutes({ '/generated/reports.ts': route })).toEqual([route]);
     expect(routeHref(route.path, { id: 'q1/summary' })).toBe('/reports/q1%2Fsummary');
+  });
+
+  it('retains typed params and composes nested layouts', () => {
+    const params: RouteParamsFor<'/users/:id'> = { id: 'u-1' };
+    expect(routeHref('/users/:id', params)).toBe('/users/u-1');
+
+    const layout = defineLayoutRoute('/dashboard', 'DashboardLayout', [
+      defineRoute('/settings', { component: 'SettingsPage' }),
+    ] as const);
+
+    expect(layout.layout).toBe('DashboardLayout');
+    expect(layout.children[0].path).toBe('/settings');
   });
 });

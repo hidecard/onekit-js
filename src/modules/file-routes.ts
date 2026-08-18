@@ -16,12 +16,43 @@ export interface FileRouteOptions {
 
 export type TypedRoute<Path extends string> = Omit<Route, 'path'> & { path: Path };
 
+type SegmentParams<Segment extends string> = Segment extends `:${infer Param}`
+  ? Param extends `${infer Name}?`
+    ? { [Key in Name]?: string }
+    : { [Key in Param]: string }
+  : Segment extends '*'
+    ? { wildcard: string }
+    : Record<never, never>;
+
+export type ExtractRouteParams<Path extends string> = string extends Path
+  ? Record<string, string>
+  : Path extends `${infer Segment}/${infer Rest}`
+    ? SegmentParams<Segment> & ExtractRouteParams<Rest>
+    : SegmentParams<Path>;
+
+export type RouteParamsFor<Path extends string> = ExtractRouteParams<Path>;
+
+export type LayoutRoute<Path extends string, Children extends readonly Route[]> = TypedRoute<Path> & {
+  layout: unknown;
+  children: Children;
+};
+
 /**
  * Preserve a route literal so TypeScript can retain its path type in generated
  * route tables while keeping the runtime representation compatible with Route.
  */
 export function defineRoute<const Path extends string>(path: Path, route: Omit<Route, 'path'> = {}): TypedRoute<Path> {
   return { ...route, path } as TypedRoute<Path>;
+}
+
+/** Define a parent route whose component is composed around its child matches. */
+export function defineLayoutRoute<const Path extends string, const Children extends readonly Route[]>(
+  path: Path,
+  layout: unknown,
+  children: Children,
+  route: Omit<Route, 'path' | 'layout' | 'children'> = {},
+): LayoutRoute<Path, Children> {
+  return { ...route, path, layout, children: [...children] } as LayoutRoute<Path, Children>;
 }
 
 /** Convert a file-system-like module key into a router path. */
@@ -77,6 +108,8 @@ export function createFileRoutes(
 }
 
 /** Build a URL from a route pattern and named params. */
+export function routeHref<const Path extends string>(path: Path): string;
+export function routeHref<const Path extends string>(path: Path, params: RouteParamsFor<Path> & Record<string, string | number>): string;
 export function routeHref<const Path extends string>(path: Path, params: Record<string, string | number> = {}): string {
-  return path.replace(/:([A-Za-z0-9_]+)/g, (_, key: string) => encodeURIComponent(String(params[key] ?? ''))).replace(/\/\*/g, encodeURIComponent(String(params.wildcard ?? '')));
+  return path.replace(/:([A-Za-z0-9_]+)\??/g, (_, key: string) => encodeURIComponent(String(params[key] ?? ''))).replace(/\*/g, encodeURIComponent(String(params.wildcard ?? '')));
 }
