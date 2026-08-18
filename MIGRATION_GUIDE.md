@@ -1,11 +1,27 @@
 # OneKit JS V3 Migration Guide
 
-**Target release:** OneKit JS V3 / `3.1.17`
+**Target release:** OneKit JS V3 / `3.1.18`
 **Package:** `onekit-js`
 **Runtime:** Browser-first JavaScript and TypeScript
 **Audience:** OneKit 2.x or legacy single-file users moving to V3, and teams adopting V3 in a new application
 
 > This guide explains the migration decisions that matter in a real application: package installation, imports, state, components, templates, routing, stores, SSR, CLI workflows, testing, security, and release verification.
+
+## V3.1.18 update at a glance
+
+OneKit JS `3.1.18` is a compatible V3-line upgrade. Existing V3 applications should update the package, run the normal validation pipeline, and review the new router context contract if they want dependency injection or stronger TypeScript inference. The companion starter package is `create-onekit@1.0.8`.
+
+| Area | Migration action |
+|---|---|
+| Router callbacks | Existing `to` and `from` usage remains valid. Add `RouterOptions.context` only when guards, loaders, query keys, or handlers need request/application services. |
+| Typed loaders | Use `defineRoute()` for path literals, `RouteContextFor<Path, AppContext>` for explicit callback types, and `RouteLoaderData<typeof loader>` for awaited loader results. |
+| Nested routes | Use `defineLayoutRoute()` for layout metadata and `MatchedRoute.dataByRoute` when parent-to-leaf loader data is needed. |
+| SSR preload | Replace ad-hoc route serialization with `createRouteManifest()` or `router.getManifest()`. Treat manifests as preload metadata, never as access control. |
+| Query and hydration | Use query `dehydrate()`/`hydrate()` for request-scoped handoff and connect hydration mismatch diagnostics in development or CI. |
+| Runtime checks | Use `isServerRuntime()`, `isClientRuntime()`, `serverOnly()`, and `clientOnly()` around environment-specific code. |
+| Starter projects | New projects should use `create-onekit@1.0.8`; existing projects should update the starter dependency to `onekit-js@^3.1.18` before regenerating or comparing files. |
+
+A detailed release summary is available in [V3 Release Notes](docs/V3_RELEASE_NOTES.md).
 
 ## 1. Migration at a glance
 
@@ -402,6 +418,33 @@ Use `patch(parent, nextVNode, previousVNode)` when the application owns an exist
 
 ## 10. Router migration
 
+### 10.1 Typed loader context and application services
+
+V3.1.18 adds an optional application context to router callbacks without changing the existing `to`/`from` fields. Pass request-scoped or application-scoped services through `RouterOptions.context` rather than importing mutable service state from a shared module:
+
+```ts
+import {
+  createRouter,
+  defineRoute,
+  type RouteContextFor,
+  type RouteLoaderData,
+} from "onekit-js";
+
+type Services = { api: { getUser(id: string): Promise<{ id: string }> } };
+declare const services: Services;
+const loadUser = async ({ to, context }: RouteContextFor<"/users/:id", Services>) =>
+  context.api.getUser(to.params.id);
+type UserData = RouteLoaderData<typeof loadUser>;
+
+const router = createRouter([
+  defineRoute("/users/:id", { loader: loadUser }),
+], { mode: "memory", context: services });
+```
+
+The context is available to `beforeEach`, `beforeEnter`, `loader`, `queryKey`, `handler`, and `afterEach`. `MatchedRoute.data` remains the leaf result for compatibility, and `dataByRoute` contains parent-to-leaf results.
+
+### 10.2 Existing router migration
+
 The V3 router is created with `createRouter`. It resolves routes, params, queries, guards, redirects, loaders, and navigation state. It does **not** automatically render a route component; the application connects the matched result to its renderer or component layer.
 
 ```ts
@@ -729,7 +772,7 @@ my-app/
     "test": "jest --runInBand"
   },
   "dependencies": {
-    "onekit-js": "^3.1.17"
+    "onekit-js": "^3.1.18"
   },
   "devDependencies": {
     "vite": "latest",

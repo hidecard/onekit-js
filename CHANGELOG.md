@@ -3,12 +3,18 @@
 ## [3.1.18] - 2026-08-17
 
 ### Added
+- Add typed route parameters, nested layout helpers, typed loader contexts, awaited loader-result inference, and optional application context injection through `RouterOptions.context`.
+- Add file-based route discovery through `createFileRoutes()`, `RouteParamsFor<Path>`, `routeHref()`, `defineRoute()`, and `defineLayoutRoute()`.
 - Add the SSR route manifest release surface through `createRouteManifest()` and `Router.getManifest()` for preload planning and hydration optimization.
+- Add structured hydration diagnostics with mismatch callbacks and opt-in throw behavior, plus streaming renderer error handoff through `onError`.
+- Extend the query client with invalidation, mutations, retries, cancellation, optimistic updates, and typed SSR dehydrate/hydrate lifecycle support.
+- Add explicit server/client runtime boundary helpers: `isServerRuntime`, `isClientRuntime`, `serverOnly`, and `clientOnly`.
 - Refresh the generated starter application with a polished Vite/React-inspired responsive workspace, live reactive counter, quick-start guidance, and feature cards.
 
 ### Changed
 - Update the generated starter dependency to `onekit-js@^3.1.18`.
 - Prepare the companion `create-onekit` package for version `1.0.8`.
+- Synchronize `MIGRATION_GUIDE.md`, `docs/V3_USAGE.md`, `docs/V3_RELEASE_NOTES.md`, and package declarations with the published V3 API surface.
 
 All notable changes to OneKit will be documented in this file.
 

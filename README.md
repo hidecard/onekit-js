@@ -19,7 +19,7 @@ OneKit is designed for developers who want a framework that is easy to learn but
 | [Mental model](#the-onekit-mental-model) | [Framework architecture](docs/FRAMEWORK_GUIDE.md) |
 | [Feature map](#v3-feature-map) | [Production readiness](docs/PRODUCTION_READINESS.md) |
 | [CLI reference](#cli-reference) | [Migration guide](MIGRATION_GUIDE.md) |
-| [Contributing](#contributing-to-onekit) | [Changelog](CHANGELOG.md) |
+| [Contributing](#contributing-to-onekit) | [Release notes](docs/V3_RELEASE_NOTES.md) |
 
 ## Why developers choose OneKit
 
@@ -623,6 +623,7 @@ Push the branch and open a pull request against `V3`. A useful pull request desc
 | [Framework Guide](docs/FRAMEWORK_GUIDE.md) | Architecture and application conventions. |
 | [Migration Guide](MIGRATION_GUIDE.md) | Moving from older OneKit versions and comparing patterns. |
 | [Production Readiness](docs/PRODUCTION_READINESS.md) | Runtime contracts, security guarantees, and release guidance. |
+| [Release notes](docs/V3_RELEASE_NOTES.md) | Human-readable `3.1.18` upgrade summary and compatibility notes. |
 | [Changelog](CHANGELOG.md) | Version history and release notes. |
 | [Issue tracker](https://github.com/hidecard/onekit-js/issues) | Bugs, feature proposals, and questions. |
 | [GitHub repository](https://github.com/hidecard/onekit-js) | Source, tests, examples, and pull requests. |
