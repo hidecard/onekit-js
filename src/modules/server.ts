@@ -15,6 +15,7 @@ export interface ServerRequestContext {
   text(data: string, init?: ResponseInit): Response;
   ok(data: unknown): Response;
   fail(message: string, status?: number): Response;
+  body<T = unknown>(): Promise<T>;
 }
 
 export type ServerHandler = (
@@ -28,6 +29,15 @@ export interface ServerRouteDefinition {
   method: ServerMethod;
   path: string;
   handlers: readonly ServerHandler[];
+}
+
+/** Concise CRUD registration for common JSON resources. Each handler receives the normal server context. */
+export interface ResourceHandlers {
+  list?: ServerHandler;
+  get?: ServerHandler;
+  create?: ServerHandler;
+  update?: ServerHandler;
+  remove?: ServerHandler;
 }
 
 export interface DatabaseExecutionResult {
@@ -69,6 +79,7 @@ export interface ServerApp {
   put(path: string, ...handlers: ServerHandler[]): this;
   patch(path: string, ...handlers: ServerHandler[]): this;
   delete(path: string, ...handlers: ServerHandler[]): this;
+  resource(path: string, handlers: ResourceHandlers): this;
   handle(request: Request): Promise<Response>;
 }
 
@@ -166,7 +177,7 @@ export function validateBody<T>(validator: (value: unknown) => T): ServerMiddlew
   return async (context, next) => {
     let value: unknown;
     try {
-      value = await context.request.clone().json();
+      value = await context.body();
     } catch {
       return json({ error: 'Invalid JSON body' }, { status: 400 });
     }
@@ -199,10 +210,24 @@ export function createServerApp(options: ServerAppOptions = {}): ServerApp {
     put(path, ...handlers) { return app.route('PUT', path, ...handlers); },
     patch(path, ...handlers) { return app.route('PATCH', path, ...handlers); },
     delete(path, ...handlers) { return app.route('DELETE', path, ...handlers); },
+    resource(path, handlers) {
+      const base = path === '/' ? '' : `/${path.replace(/^\/+|\/+$/g, '')}`;
+      if (handlers.list) app.get(base || '/', handlers.list);
+      if (handlers.get) app.get(`${base}/:id`, handlers.get);
+      if (handlers.create) app.post(base || '/', handlers.create);
+      if (handlers.update) {
+        app.put(`${base}/:id`, handlers.update);
+        app.patch(`${base}/:id`, handlers.update);
+      }
+      if (handlers.remove) app.delete(`${base}/:id`, handlers.remove);
+      return app;
+    },
     async handle(request) {
       const url = new URL(request.url);
       const method = request.method.toUpperCase();
       const route = compiled.find(item => (item.definition.method === '*' || item.definition.method === method) && item.match(url.pathname));
+      let parsedBody: unknown;
+      let bodyLoaded = false;
       const context: ServerRequestContext = {
         request,
         method,
@@ -215,7 +240,14 @@ export function createServerApp(options: ServerAppOptions = {}): ServerApp {
         json: jsonResponse,
         text: textResponse,
         ok: (data) => jsonResponse(data),
-        fail: (message, status = 400) => jsonResponse({ error: message }, { status })
+        fail: (message, status = 400) => jsonResponse({ error: message }, { status }),
+        async body<T = unknown>() {
+          if (!bodyLoaded) {
+            bodyLoaded = true;
+            parsedBody = await request.clone().json();
+          }
+          return parsedBody as T;
+        }
       };
       if (!route) return json({ error: 'Not Found' }, { status: 404 });
       const handlers = [...middleware, ...route.definition.handlers];

@@ -143,6 +143,31 @@ describe('full-stack server production contract', () => {
     expect(second.headers.get('retry-after')).toBeTruthy();
   });
 
+  it('supports one-read typed body helpers and concise resource routes', async () => {
+    const app = createApi();
+    app.resource('/todos', {
+      list: ({ ok }) => ok({ action: 'list' }),
+      get: ({ params, ok }) => ok({ action: 'get', id: params.id }),
+      create: async ({ body, ok }) => ok({ action: 'create', input: await body<{ title: string }>() }),
+      update: ({ params, ok }) => ok({ action: 'update', id: params.id }),
+      remove: ({ params, ok }) => ok({ action: 'remove', id: params.id }),
+    });
+
+    const list = await app.handle(new Request('http://localhost/todos'));
+    const item = await app.handle(new Request('http://localhost/todos/t1'));
+    const created = await app.handle(new Request('http://localhost/todos', {
+      method: 'POST',
+      body: JSON.stringify({ title: 'Learn OneKit' }),
+      headers: { 'content-type': 'application/json' },
+    }));
+    const removed = await app.handle(new Request('http://localhost/todos/t1', { method: 'DELETE' }));
+
+    expect(await list.json()).toEqual({ action: 'list' });
+    expect(await item.json()).toEqual({ action: 'get', id: 't1' });
+    expect(await created.json()).toEqual({ action: 'create', input: { title: 'Learn OneKit' } });
+    expect(await removed.json()).toEqual({ action: 'remove', id: 't1' });
+  });
+
   it('adds CORS and request ids through built-in middleware', async () => {
     const app = createServerApp();
     app.use(serverMiddleware.requestId(), serverMiddleware.cors({ origin: 'https://example.test' }));

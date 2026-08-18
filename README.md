@@ -71,7 +71,7 @@ The examples in this README are written against the published V3.1.19 package su
 | Published declarations | `npm run verify:declarations` | `scripts/verify-declarations.mjs` |
 | Clean package verification | `npm run verify:package` | Clean install, CLI smoke check, export verification, and vulnerability audit |
 
-The latest V3 audit passes strict TypeScript checking, **30 Jest suites / 158 tests**, production build, declaration verification across 27 relative exports, clean package verification with zero reported vulnerabilities, and `git diff --check`. The Vite plugin build may print non-fatal externalization notices for `node:fs`, `node:path`, and `typescript`; these are expected tooling/server externals and do not indicate a failed build.
+The latest V3 audit passes strict TypeScript checking, **30 Jest suites / 159 tests**, production build, declaration verification across 27 relative exports, clean package verification with zero reported vulnerabilities, and `git diff --check`. The Vite plugin build may print non-fatal externalization notices for `node:fs`, `node:path`, and `typescript`; these are expected tooling/server externals and do not indicate a failed build.
 
 If an example is copied into an application, replace placeholder values such as `HomePage`, `loadReports`, and `createProject` with application-owned implementations. The framework APIs and signatures shown here are the verified part of each example.
 
@@ -371,7 +371,7 @@ import { createNodeHandler } from "onekit-js";
 createServer(createNodeHandler(app)).listen(3000);
 ```
 
-The server context exposes `request`, method/path, decoded `params`, `URLSearchParams` query values, per-request `state`, a scoped `DependencyInjector`, an optional typed `database` adapter, and concise response helpers: `ok(data)`, `json(data, init)`, `text(data, init)`, and `fail(message, status)`. Security helpers are intentionally explicit: `securityMiddleware.authenticate(resolveUser)` stores a verified application user in `state.user`, `securityMiddleware.session(provider)` and `securityMiddleware.token(provider)` adapt application-owned identity providers, `securityMiddleware.authorize(rule)` enforces a permission rule, and `securityMiddleware.rateLimit({ max, windowMs, key })` adds bounded in-memory limits and standard rate-limit headers. Use `app.get`, `app.post`, `app.put`, `app.patch`, `app.delete`, or `app.route` for endpoints; use `app.use` for cross-cutting middleware. `validateBody` parses JSON from a cloned request and turns validation failures into a `400` response. Unhandled route errors return a generic `500` response by default so internal messages are not leaked; provide `onError` to integrate application-owned logging and error reporting.
+The server context exposes `request`, method/path, decoded `params`, `URLSearchParams` query values, per-request `state`, a scoped `DependencyInjector`, an optional typed `database` adapter, a one-read typed `body<T>()` helper, and concise response helpers: `ok(data)`, `json(data, init)`, `text(data, init)`, and `fail(message, status)`. Security helpers are intentionally explicit: `securityMiddleware.authenticate(resolveUser)` stores a verified application user in `state.user`, `securityMiddleware.session(provider)` and `securityMiddleware.token(provider)` adapt application-owned identity providers, `securityMiddleware.authorize(rule)` enforces a permission rule, and `securityMiddleware.rateLimit({ max, windowMs, key })` adds bounded in-memory limits and standard rate-limit headers. Use `app.get`, `app.post`, `app.put`, `app.patch`, `app.delete`, or `app.route` for endpoints; use `app.use` for cross-cutting middleware. `validateBody` parses JSON from a cloned request and turns validation failures into a `400` response. Unhandled route errors return a generic `500` response by default so internal messages are not leaked; provide `onError` to integrate application-owned logging and error reporting.
 
 ```ts
 app.get(
@@ -386,6 +386,21 @@ app.post(
   securityMiddleware.rateLimit({ max: 10, windowMs: 60_000, key: ({ request }) => request.headers.get("x-client-key") ?? "anonymous" }),
   loginHandler,
 );
+```
+
+For CRUD-shaped APIs, `app.resource('/todos', { list, get, create, update, remove })` registers the conventional collection and `/:id` routes in one readable declaration. Use `context.body<T>()` when validation is already handled by a trusted boundary, or combine it with `validateBody()` when the input schema must be checked before the handler runs.
+
+```ts
+app.resource('/todos', {
+  list: ({ database, ok }) => database
+    ? database.query<Todo>('select * from todos').then((todos) => ok({ todos }))
+    : ok({ todos: [] }),
+  get: ({ params, database, ok, fail }) => database
+    ? database.query<Todo>('select * from todos where id = ?', [params.id])
+        .then(([todo]) => todo ? ok(todo) : fail('Todo not found', 404))
+    : fail('Database is not configured', 503),
+  create: async ({ body, ok }) => ok(await body<CreateTodo>()),
+});
 ```
 
 This backend layer is intentionally additive and does not replace the existing client router, SSR helpers, QueryClient, or component APIs. It now includes a small Node HTTP bridge, explicit security middleware contracts, and typed adapter contracts for database access and identity providers, but remains a foundation rather than a promise of full NestJS decorators, a built-in ORM, managed sessions, or a distributed persistence layer. Applications must verify tokens or sessions with their own trusted server-only logic, implement provider-specific credential handling, use a distributed rate-limit store when running multiple instances, and keep secrets out of client bundles. Applications should keep database drivers, authentication, authorization, and secrets in server-only modules and choose the adapter appropriate to their deployment target.
