@@ -46,7 +46,7 @@ onekit preview
 onekit test
 ```
 
-The create command generates a Vite-compatible TypeScript starter by default. Use `--javascript` or `--template js` for a JavaScript starter. The build command detects a TypeScript or JavaScript application entrypoint and emits a production bundle. `onekit dev` delegates to the project `dev` script, `onekit preview` requires a `dist` directory and delegates to the `preview` script, and `onekit test` delegates to the project `test` script while preserving the child process exit code. Use `--cwd <directory>` to run commands from another project and pass additional arguments after the command.
+The create command generates a Vite-compatible TypeScript starter by default. Use `--javascript` or `--template js` for a JavaScript starter. For a generated Vite project, `onekit build` delegates to the project `build` script because the starter entrypoint is `src/main.ts` or `src/main.js`. For a library project with `source`, `src/index.ts`, or `src/index.js`, it uses OneKit's bundle builder. `onekit dev` delegates to the project `dev` script, `onekit preview` requires a `dist` directory and delegates to the `preview` script, and `onekit test` delegates to the project `test` script while preserving the child process exit code. Use `--cwd <directory>` to run commands from another project and pass additional arguments after the command.
 
 ```bash
 onekit dev --cwd ./my-app -- --host 0.0.0.0
@@ -54,7 +54,7 @@ onekit preview --cwd ./my-app -- --port 4173
 onekit test --cwd ./my-app -- --watch
 ```
 
-Use `onekit --help` after a global install, or `npx --yes --package=onekit-js onekit --help` without a global install.
+Use `onekit help` or `onekit --help` after a global install, or `npx --yes --package=onekit-js onekit help` without a global install.
 
 ### CLI diagnostics and error codes
 
@@ -799,7 +799,7 @@ Keep the package version, `VERSION` constant, README, CHANGELOG, examples, and w
 | `Invalid target element` | The selector did not resolve | Ensure the target exists before mounting and run after DOM creation. |
 | State changes but the DOM does not update | No effect is subscribed, or a component was mutated without `update()` | Use `effect`, or call the component instance's `update()` after a method mutation. |
 | SSR output differs from browser output | Browser-only APIs run during server rendering | Guard with `isClient()` and keep SSR context request-scoped. |
-| CLI build cannot find an entrypoint | The project uses a non-standard source filename | Add the expected `src/main.ts`, `src/main.tsx`, `src/index.ts`, or `src/index.js` entrypoint. |
+| CLI build cannot find an entrypoint | The project has no library entrypoint and no `build` script | For a Vite-style app, add a `build` script; for a library, configure `source` or use `src/index.ts`/`src/index.js`, then run the command from the project directory. |
 | User HTML appears unsafe | External markup was rendered directly | Sanitize it and keep untrusted content out of executable attributes. |
 | Focus escapes a modal | Focus trap was not released or the container is not mounted | Call `trapFocus` after mount and invoke the returned cleanup function on teardown. |
 

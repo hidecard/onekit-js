@@ -605,10 +605,12 @@ Enable strict TypeScript checking during migration where possible. V3 code is ea
 
 ## 15. CLI and build migration
 
-The V3 CLI commands are project-oriented:
+The V3 CLI commands are project-oriented. Run them from the generated project directory after installing dependencies:
 
 ```bash
-onekit create my-app
+onekit create my-app --typescript
+cd my-app
+npm install
 onekit dev
 onekit build
 onekit preview
@@ -623,7 +625,7 @@ onekit preview --cwd ./my-app -- --port 4173
 onekit test --cwd ./my-app -- --watch
 ```
 
-The application build command expects a conventional source entrypoint such as `src/main.ts`, `src/main.tsx`, `src/index.ts`, or `src/index.js`. If a legacy project uses a different entrypoint, either rename it or configure a project-specific build flow before migrating the CLI command.
+For a generated Vite project, `onekit build` delegates to the project's `build` script because the starter entrypoint is `src/main.ts` or `src/main.js`. For a library project, it uses the package `source` field or falls back to `src/index.ts`/`src/index.js` and emits the OneKit bundle formats. If a legacy project uses a different entrypoint and has no compatible `build` script, either rename it or configure a project-specific build flow before migrating the CLI command.
 
 The library repository itself uses these release checks:
 
@@ -1295,7 +1297,7 @@ npm test -- --runInBand
 For a generated project, use the project test command through the CLI:
 
 ```bash
-onekit test --cwd ./my-app -- --runInBand
+onekit test --cwd ./my-app -- --watch
 ```
 
 ## 28. Example-by-example migration order
