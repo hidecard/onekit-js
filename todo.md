@@ -10,9 +10,12 @@
 - [x] Add the main-package provenance workflow for `v3.1.18`.
 - [x] Add or update the creator-package provenance workflow for `create-onekit-v1.0.8`.
 - [x] Validate type-check, Jest, production build, declarations, package contents, documentation links, and generated starter build.
-- [ ] Publish `onekit-js@3.1.18` from the `v3.1.18` tag and verify the npm registry tarball.
-- [ ] Publish `create-onekit@1.0.8` from the `create-onekit-v1.0.8` tag after the framework package is available.
-- [ ] Run post-publish clean-install checks against the registry packages and record the result.
+- [x] Publish `onekit-js@3.1.18` from the `v3.1.18` tag and verify the npm registry tarball.
+  - [x] Registry metadata, tarball contents, root/ESM/SSR/router/query exports, `VERSION`, and CLI help verified from a clean temporary install.
+- [x] Publish `create-onekit@1.0.8` from the `create-onekit-v1.0.8` tag after the framework package is available.
+  - [x] Registry metadata, creator CLI help, and installed dependency versions verified from a clean temporary install.
+- [x] Run post-publish clean-install checks against the registry packages and record the result.
+  - [x] Clean install resolved `onekit-js@3.1.18` and `create-onekit@1.0.8`; runtime exports and both CLI binaries passed.
 
 ## Fresh CLI Generated Project End-to-End Test
 
