@@ -69,6 +69,9 @@ The examples in this README are written against the published V3.1.19 package su
 | CLI workflow | `onekit create`, `onekit dev`, `onekit build`, `onekit preview`, `onekit test` | `bin/onekit.js` and CLI tests |
 | Runtime validation | `npm test -- --runInBand` | Jest configuration and repository test suites |
 | Published declarations | `npm run verify:declarations` | `scripts/verify-declarations.mjs` |
+| Clean package verification | `npm run verify:package` | Clean install, CLI smoke check, export verification, and vulnerability audit |
+
+The latest V3 audit passes strict TypeScript checking, **30 Jest suites / 154 tests**, production build, declaration verification across 27 relative exports, clean package verification with zero reported vulnerabilities, and `git diff --check`. The Vite plugin build may print non-fatal externalization notices for `node:fs`, `node:path`, and `typescript`; these are expected tooling/server externals and do not indicate a failed build.
 
 If an example is copied into an application, replace placeholder values such as `HomePage`, `loadReports`, and `createProject` with application-owned implementations. The framework APIs and signatures shown here are the verified part of each example.
 

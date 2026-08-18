@@ -17,6 +17,7 @@ OneKit JS V3 is a usable compact browser framework and a credible foundation for
 | Router | `Router` with dynamic params, query parsing, history/hash/memory modes, guards, nested layouts, lazy components, loaders, prefetch, scroll behavior, cancellation guards, route-level head metadata composition, and query-client integration | M2 browser/memory baseline is substantially covered; remaining work includes broader browser compatibility coverage, streamed SSR adapter integration, and framework-level route cache policies beyond the query-client contract. |
 | Stores | Named stores and actions are available | Needs lifecycle, reset, subscriptions, dev inspection, persistence policy, and SSR request isolation. |
 | CLI | `create`, `build`, `dev`, `preview`, and `test` commands work | Core workflow has acceptance coverage for delegated exit codes, cwd/argument passthrough, missing preview output, inline `--cwd=`/`--out-dir=` syntax, absolute output paths, structured error codes, and actionable hints. Plugin hooks and richer diagnostics remain future work. |
+| Backend | Fetch-compatible `createApi()`/`createServerApp()`, route methods, middleware, validation, DI context, safe responses, CORS, and request IDs | Beginner-friendly backend foundation is implemented and tested. Node/serverless/edge adapters, authentication, authorization, database contracts, rate limiting, and decorator-based modules remain future work. |
 | Package/release | TypeScript declarations, subpath exports, build checks, tests, and npm metadata exist | Release foundation is present; package export matrix, Node/browser compatibility, changelog discipline, and npm publish verification remain. |
 | Documentation | V3 usage guide, framework guide, getting started guide, migration/release notes, and OneKit-only docs page exist | Strong baseline; progressive SSR boundaries, query persistence/revalidation, production caveats, and API stability labels are documented. |
 
@@ -48,11 +49,15 @@ The current options-style component API is useful, but production applications n
 
 The CLI should provide `create`, `dev`, `build`, `preview`, and `test` commands with consistent exit codes and helpful diagnostics. Core failures now include stable error codes and hints for unknown commands, invalid options, invalid projects, and child-process startup failures. The starter should include TypeScript configuration, an application entrypoint, a production build, a test example, and a clear SSR option. CLI acceptance tests should run on Linux, macOS, and Windows path conventions where possible. The current suite covers inline option syntax and absolute output paths in addition to POSIX-style cwd and exit-code checks.
 
-### 7. Add production observability and failure boundaries
+### 7. Establish the backend application layer
+
+OneKit now has an adapter-neutral backend foundation. The beginner path is `createApi()` with concise `context.ok()`, `context.json()`, `context.text()`, and `context.fail()` helpers. The lower-level `createServerApp()` API supports ordered middleware, decoded route params, query values, JSON validation, request state, and the existing dependency injector. This is intentionally not yet a complete NestJS replacement: production adoption still requires an official Node adapter, authentication/authorization contracts, rate limiting, database adapter guidance, and server-only secret handling.
+
+### 8. Add production observability and failure boundaries
 
 Applications need framework-level error capture for render errors, effect errors, event handler errors, router loader failures, and SSR failures. OneKit now exposes `createErrorReport`, `setErrorReporter`, and `errorHandler`; reporters receive a normalized `{ context, error: { name, message, stack? } }` payload, are opt-in, and are isolated so reporter failures cannot break application execution. When DevTools is enabled, failures also produce a `runtime:error` diagnostic event containing the normalized payload. The `onekit-error` DOM event remains available for browser integrations, while applications should avoid forwarding reports to external services unless they have reviewed and redacted their own messages and stacks.
 
-### 8. Release safely
+### 9. Release safely
 
 Before publishing a new release, the package should pass type-checking, all tests, production build, package dry-run, subpath import checks, and a clean-install smoke test from the generated tarball. A changelog entry, migration notes, and a versioned API stability matrix should accompany the release. The actual npm publish remains a user-authenticated step.
 
@@ -65,11 +70,12 @@ Before publishing a new release, the package should pass type-checking, all test
 | M3 | Renderer 1.0 | Keyed reconciliation, fragments, event cleanup, refs, and component error handling are stable. |
 | M4 | SSR 1.0 | Server/client parity suite, mismatch diagnostics, safe metadata handling, context isolation, hydration disposal, boundary primitives, and streaming error/abort semantics are implemented; async scheduling remains follow-up work. |
 | M5 | CLI 1.0 | Create/dev/build/preview/test workflow works from a clean install and generated starter; child exit codes, `--cwd`, argument passthrough, inline options, and absolute output paths are implemented and covered. |
-| M6 | Release 3.x | Package export matrix, changelog, migration guide, clean-install smoke test, and npm release verification are complete. |
+| M6 | Backend foundation | `createApi()`, route/middleware contracts, validation, DI context, safe defaults, and adapter-neutral `Request`/`Response` behavior are documented and tested. Official runtime adapters and production security middleware remain follow-up work. |
+| M7 | Release 3.x | Package export matrix, changelog, migration guide, clean-install smoke test, and npm release verification are complete. |
 
 ## What OneKit should not promise yet
 
-OneKit should not currently claim to be a drop-in React replacement, a Next.js replacement, or a full server application platform. It should describe itself as a **compact TypeScript-first reactive framework with components, templates, JSX, stores, routing, SSR utilities, and a practical CLI**. That positioning is accurate and gives the project room to grow without creating compatibility expectations it cannot yet satisfy.
+OneKit should not currently claim to be a drop-in React replacement, a Next.js replacement, or a complete NestJS/Express server platform. It should describe itself as a **compact TypeScript-first full-stack framework foundation with components, templates, JSX, stores, routing, SSR utilities, a beginner-friendly backend API, and a practical CLI**. That positioning is accurate and gives the project room to grow without creating compatibility expectations it cannot yet satisfy.
 
 ## Adoption recommendation
 

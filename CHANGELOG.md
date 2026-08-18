@@ -26,6 +26,8 @@ The V3 branch continues production hardening after `3.1.19` without changing the
 ### Validation
 
 - The focused observability, VDOM, and server suites pass, together with strict TypeScript checking and the full Jest matrix; the server regression suite now covers six tests.
+- The latest audit passes `type-check`, **30 Jest suites / 154 tests**, production build, declaration verification across 27 relative exports, package verification with a clean install and zero reported vulnerabilities, and `git diff --check`.
+- The Vite plugin build still prints expected non-fatal externalization notices for `node:fs`, `node:path`, and `typescript`; these are intentional server/tooling externals and do not fail the build.
 
 ## [3.1.19] - 2026-08-18
 
