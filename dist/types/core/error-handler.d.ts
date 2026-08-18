@@ -1,3 +1,14 @@
+export interface ErrorReport {
+    context: string;
+    error: {
+        name: string;
+        message: string;
+        stack?: string;
+    };
+}
+export type ErrorReporter = (report: ErrorReport) => void;
+export declare function setErrorReporter(reporter: ErrorReporter | null): () => void;
+export declare function createErrorReport(error: unknown, context?: string): ErrorReport;
 export declare function errorHandler(error: Error | string | unknown, context?: string): null;
 export declare function safeMethod<T extends (...args: any[]) => any>(method: T): T;
 export interface BoundaryState {

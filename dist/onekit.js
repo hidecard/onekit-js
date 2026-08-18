@@ -4,124 +4,6 @@
     (global = typeof globalThis !== 'undefined' ? globalThis : global || self, factory(global.OneKit = {}));
 })(this, (function (exports) { 'use strict';
 
-    // Error handling system
-    function errorHandler(error, context = 'Unknown') {
-        console.error(`OneKit Error [${context}]:`, error);
-        // Dispatch a custom error event only when a DOM is available.
-        if (typeof document !== 'undefined' && typeof CustomEvent !== 'undefined') {
-            const event = new CustomEvent('onekit-error', {
-                detail: { error, context },
-                bubbles: true,
-                cancelable: true
-            });
-            document.dispatchEvent(event);
-        }
-        return null;
-    }
-    // Safe method wrapper
-    function safeMethod(method) {
-        return function (...args) {
-            try {
-                return method.apply(this, args);
-            }
-            catch (error) {
-                errorHandler(error, method.name);
-                return this; // Return this for method chaining
-            }
-        };
-    }
-    function toError(error) {
-        return error instanceof Error ? error : new Error(String(error));
-    }
-    function createErrorBoundary(options) {
-        const state = { error: null, pending: false };
-        let runToken = 0;
-        const reset = () => {
-            runToken += 1;
-            state.error = null;
-            state.pending = false;
-        };
-        const report = (error, context) => {
-            const normalized = toError(error);
-            state.error = normalized;
-            options.onError?.(normalized, context);
-            errorHandler(normalized, context);
-            return normalized;
-        };
-        const run = (work, context = 'boundary') => {
-            runToken += 1;
-            try {
-                state.error = null;
-                return work();
-            }
-            catch (error) {
-                throw report(error, context);
-            }
-        };
-        const runAsync = async (work, context = 'boundary') => {
-            const token = ++runToken;
-            state.pending = true;
-            state.error = null;
-            try {
-                const value = await work();
-                return value;
-            }
-            catch (error) {
-                if (token !== runToken)
-                    throw toError(error);
-                throw report(error, context);
-            }
-            finally {
-                if (token === runToken)
-                    state.pending = false;
-            }
-        };
-        const render = (work, context = 'render') => {
-            try {
-                return run(work, context);
-            }
-            catch (error) {
-                return options.fallback(toError(error), reset);
-            }
-        };
-        const renderAsync = async (work, context = 'render') => {
-            try {
-                return await runAsync(work, context);
-            }
-            catch (error) {
-                return options.fallback(toError(error), reset);
-            }
-        };
-        return { state, run, runAsync, render, renderAsync, reset };
-    }
-    function createLoadingBoundary() {
-        const state = { error: null, pending: false };
-        let value;
-        let runToken = 0;
-        const run = async (work) => {
-            const token = ++runToken;
-            state.pending = true;
-            state.error = null;
-            try {
-                const nextValue = await work();
-                if (token === runToken)
-                    value = nextValue;
-                return nextValue;
-            }
-            catch (error) {
-                if (token === runToken)
-                    state.error = toError(error);
-                throw toError(error);
-            }
-            finally {
-                if (token === runToken)
-                    state.pending = false;
-            }
-        };
-        const render = (loading, ready) => state.pending ? loading : (value ?? ready);
-        return { state, run, render };
-    }
-
     // OneKit DevTools foundation: opt-in, browser/SSR-safe event inspection.
     const DEFAULT_HISTORY_SIZE = 100;
     const DEFAULT_GLOBAL_NAME = '__ONEKIT_DEVTOOLS__';
@@ -231,6 +113,18 @@
             throw error;
         }
     }
+    function recordDevToolsError(error, context = 'Unknown') {
+        const normalized = error instanceof Error ? error : new Error(String(error));
+        emitDevToolsEvent({
+            type: 'runtime:error',
+            context,
+            error: {
+                name: normalized.name || 'Error',
+                message: normalized.message,
+                ...(normalized.stack ? { stack: normalized.stack } : {})
+            }
+        });
+    }
     function onDevToolsEvent(listener) {
         listeners.add(listener);
         return () => listeners.delete(listener);
@@ -322,6 +216,149 @@
                 // DevTools must never break application execution.
             }
         });
+    }
+
+    // Error handling system
+    let errorReporter = null;
+    function toError(error) {
+        return error instanceof Error ? error : new Error(String(error));
+    }
+    function setErrorReporter(reporter) {
+        const previous = errorReporter;
+        errorReporter = reporter;
+        return () => { errorReporter = previous; };
+    }
+    function createErrorReport(error, context = 'Unknown') {
+        const normalized = toError(error);
+        return {
+            context,
+            error: {
+                name: normalized.name || 'Error',
+                message: normalized.message,
+                ...(normalized.stack ? { stack: normalized.stack } : {})
+            }
+        };
+    }
+    function errorHandler(error, context = 'Unknown') {
+        console.error(`OneKit Error [${context}]:`, error);
+        const report = createErrorReport(error, context);
+        recordDevToolsError(error, context);
+        try {
+            errorReporter?.(report);
+        }
+        catch {
+            // User-provided reporters must never break application execution.
+        }
+        // Dispatch a custom error event only when a DOM is available.
+        if (typeof document !== 'undefined' && typeof CustomEvent !== 'undefined') {
+            const event = new CustomEvent('onekit-error', {
+                detail: { error, context, report },
+                bubbles: true,
+                cancelable: true
+            });
+            document.dispatchEvent(event);
+        }
+        return null;
+    }
+    // Safe method wrapper
+    function safeMethod(method) {
+        return function (...args) {
+            try {
+                return method.apply(this, args);
+            }
+            catch (error) {
+                errorHandler(error, method.name);
+                return this; // Return this for method chaining
+            }
+        };
+    }
+    function createErrorBoundary(options) {
+        const state = { error: null, pending: false };
+        let runToken = 0;
+        const reset = () => {
+            runToken += 1;
+            state.error = null;
+            state.pending = false;
+        };
+        const report = (error, context) => {
+            const normalized = toError(error);
+            state.error = normalized;
+            options.onError?.(normalized, context);
+            errorHandler(normalized, context);
+            return normalized;
+        };
+        const run = (work, context = 'boundary') => {
+            runToken += 1;
+            try {
+                state.error = null;
+                return work();
+            }
+            catch (error) {
+                throw report(error, context);
+            }
+        };
+        const runAsync = async (work, context = 'boundary') => {
+            const token = ++runToken;
+            state.pending = true;
+            state.error = null;
+            try {
+                const value = await work();
+                return value;
+            }
+            catch (error) {
+                if (token !== runToken)
+                    throw toError(error);
+                throw report(error, context);
+            }
+            finally {
+                if (token === runToken)
+                    state.pending = false;
+            }
+        };
+        const render = (work, context = 'render') => {
+            try {
+                return run(work, context);
+            }
+            catch (error) {
+                return options.fallback(toError(error), reset);
+            }
+        };
+        const renderAsync = async (work, context = 'render') => {
+            try {
+                return await runAsync(work, context);
+            }
+            catch (error) {
+                return options.fallback(toError(error), reset);
+            }
+        };
+        return { state, run, runAsync, render, renderAsync, reset };
+    }
+    function createLoadingBoundary() {
+        const state = { error: null, pending: false };
+        let value;
+        let runToken = 0;
+        const run = async (work) => {
+            const token = ++runToken;
+            state.pending = true;
+            state.error = null;
+            try {
+                const nextValue = await work();
+                if (token === runToken)
+                    value = nextValue;
+                return nextValue;
+            }
+            catch (error) {
+                if (token === runToken)
+                    state.error = toError(error);
+                throw toError(error);
+            }
+            finally {
+                if (token === runToken)
+                    state.pending = false;
+            }
+        };
+        const render = (loading, ready) => state.pending ? loading : (value ?? ready);
+        return { state, run, render };
     }
 
     let activeScope = null;
@@ -2721,6 +2758,7 @@
     }
 
     /* OneKit style: predictable DOM ownership, keyed updates, explicit prop diffing, and small renderer primitives. */
+    const eventListeners = new WeakMap();
     function createElement(tag, props = {}, ...children) {
         const normalized = children.flat(Infinity).filter(child => child !== null && child !== undefined && child !== false).map(child => typeof child === 'object' ? child : String(child));
         return {
@@ -2735,6 +2773,12 @@
         if (prop === 'key' || prop === 'children')
             return;
         if (prop === 'ref') {
+            if (oldValue && oldValue !== value) {
+                if (typeof oldValue === 'function')
+                    oldValue(null);
+                else if (typeof oldValue === 'object')
+                    oldValue.current = null;
+            }
             if (typeof value === 'function')
                 value(element);
             else if (value && typeof value === 'object')
@@ -2743,10 +2787,21 @@
         }
         if (/^on/i.test(prop)) {
             const event = prop.slice(2).toLowerCase();
-            if (oldValue && typeof oldValue === 'function' && oldValue !== value)
+            const registered = eventListeners.get(element);
+            const previousListener = registered?.get(event);
+            if (previousListener && previousListener !== value) {
+                element.removeEventListener(event, previousListener);
+                registered?.delete(event);
+            }
+            else if (oldValue && typeof oldValue === 'function' && oldValue !== value) {
                 element.removeEventListener(event, oldValue);
-            if (typeof value === 'function' && value !== oldValue)
+            }
+            if (typeof value === 'function' && value !== oldValue) {
                 element.addEventListener(event, value);
+                const listeners = registered ?? new Map();
+                listeners.set(event, value);
+                eventListeners.set(element, listeners);
+            }
             return;
         }
         if (prop === 'className') {
@@ -2769,6 +2824,13 @@
                     style.removeProperty(key);
             });
             return;
+        }
+        const propertyNames = new Set(['value', 'checked', 'selected', 'selectedIndex', 'disabled', 'readOnly', 'required', 'multiple', 'muted', 'hidden']);
+        if (propertyNames.has(prop) && prop in element) {
+            try {
+                element[prop] = value == null ? (typeof value === 'boolean' ? false : '') : value;
+            }
+            catch { /* fall through to attribute */ }
         }
         if (value == null || value === false) {
             element.removeAttribute(prop);
@@ -2830,6 +2892,8 @@
             return domNode;
         }
         if (typeof next === 'string' || typeof previous === 'string' || typeof next.tag === 'function' || typeof previous.tag === 'function') {
+            if (typeof previous !== 'string')
+                cleanupVNode(previous, domNode);
             const created = render(next);
             parent.replaceChild(created, domNode);
             return created;
@@ -2850,6 +2914,7 @@
             return created.nodeType === Node.DOCUMENT_FRAGMENT_NODE ? parent.childNodes[Math.max(0, Array.from(parent.childNodes).indexOf(anchor) - 1)] ?? null : created;
         }
         if (next.tag !== previous.tag || next.key !== previous.key) {
+            cleanupVNode(previous, domNode);
             const created = render(next);
             parent.replaceChild(created, domNode);
             return created;
@@ -2894,8 +2959,31 @@
                     used.add(created);
             }
         });
-        Array.from(parent.childNodes).forEach(node => { if (!used.has(node))
-            parent.removeChild(node); });
+        Array.from(parent.childNodes).forEach(node => {
+            if (!used.has(node)) {
+                const oldVNode = node._vnode;
+                if (oldVNode)
+                    cleanupVNode(oldVNode, node);
+                parent.removeChild(node);
+            }
+        });
+    }
+    function cleanupVNode(vnode, domNode) {
+        if (typeof vnode === 'string')
+            return;
+        const element = domNode.nodeType === Node.ELEMENT_NODE ? domNode : null;
+        if (element) {
+            const listeners = eventListeners.get(element);
+            listeners?.forEach((listener, event) => element.removeEventListener(event, listener));
+            eventListeners.delete(element);
+        }
+        if (vnode.props.ref)
+            setProp(domNode, 'ref', undefined, vnode.props.ref);
+        vnode.children.forEach((child, index) => {
+            const childNode = domNode.childNodes[index];
+            if (childNode)
+                cleanupVNode(child, childNode);
+        });
     }
     function patch$1(parent, newVNode, oldVNode) {
         patchNode(parent, parent.firstChild, newVNode, oldVNode);
@@ -3303,7 +3391,7 @@
         const fullPath = `${path}${queryString.toString() ? `?${queryString}` : ''}${hash}`;
         return { path, fullPath, params: {}, query, hash };
     }
-    function compilePath(pattern) {
+    function compilePath$1(pattern) {
         const keys = [];
         const path = normalizePath(pattern);
         const source = path.split('/').map(segment => {
@@ -3320,7 +3408,7 @@
         return { regex: new RegExp(`^${source || '/'}/?$`), keys };
     }
     function matchRoute(route, location) {
-        const { regex, keys } = compilePath(route.path);
+        const { regex, keys } = compilePath$1(route.path);
         const match = location.path.match(regex);
         if (!match)
             return null;
@@ -5254,6 +5342,147 @@ ${bodyContent}
         return result;
     }
 
+    function escapeRegex(segment) {
+        return segment.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+    function compilePath(path) {
+        const normalized = path === '/' ? '/' : `/${path.replace(/^\/+|\/+$/g, '')}`;
+        const names = [];
+        const pattern = normalized.split('/').map((segment, index) => {
+            if (index === 0)
+                return '';
+            if (segment.startsWith(':')) {
+                names.push(segment.slice(1));
+                return '([^/]+)';
+            }
+            if (segment.startsWith('*')) {
+                names.push(segment.slice(1) || 'splat');
+                return '(.*)';
+            }
+            return escapeRegex(segment);
+        }).join('/');
+        const regex = new RegExp(`^${pattern || '/'}${normalized !== '/' ? '/?' : ''}$`);
+        return (value) => {
+            const match = regex.exec(value);
+            if (!match)
+                return null;
+            return Object.fromEntries(names.map((name, index) => [name, decodeURIComponent(match[index + 1])]));
+        };
+    }
+    function json(data, init = {}) {
+        const headers = new Headers(init.headers);
+        if (!headers.has('content-type'))
+            headers.set('content-type', 'application/json; charset=utf-8');
+        return new Response(JSON.stringify(data), { ...init, headers });
+    }
+    function jsonResponse(data, init = {}) {
+        return json(data, init);
+    }
+    function textResponse(data, init = {}) {
+        const headers = new Headers(init.headers);
+        if (!headers.has('content-type'))
+            headers.set('content-type', 'text/plain; charset=utf-8');
+        return new Response(data, { ...init, headers });
+    }
+    function defineMiddleware(handler) {
+        return handler;
+    }
+    function validateBody(validator) {
+        return async (context, next) => {
+            let value;
+            try {
+                value = await context.request.clone().json();
+            }
+            catch {
+                return json({ error: 'Invalid JSON body' }, { status: 400 });
+            }
+            try {
+                context.state.body = validator(value);
+                return next();
+            }
+            catch (error) {
+                return json({ error: error instanceof Error ? error.message : 'Validation failed' }, { status: 400 });
+            }
+        };
+    }
+    function createServerApp(options = {}) {
+        const injector = options.injector ?? new DependencyInjector();
+        const middleware = [];
+        const routes = [];
+        const compiled = [];
+        const app = {
+            get routes() { return routes; },
+            use(...handlers) { middleware.push(...handlers); return app; },
+            route(method, path, ...handlers) {
+                const definition = { method, path, handlers };
+                routes.push(definition);
+                compiled.push({ definition, match: compilePath(path) });
+                return app;
+            },
+            get(path, ...handlers) { return app.route('GET', path, ...handlers); },
+            post(path, ...handlers) { return app.route('POST', path, ...handlers); },
+            put(path, ...handlers) { return app.route('PUT', path, ...handlers); },
+            patch(path, ...handlers) { return app.route('PATCH', path, ...handlers); },
+            delete(path, ...handlers) { return app.route('DELETE', path, ...handlers); },
+            async handle(request) {
+                const url = new URL(request.url);
+                const method = request.method.toUpperCase();
+                const route = compiled.find(item => (item.definition.method === '*' || item.definition.method === method) && item.match(url.pathname));
+                const context = {
+                    request,
+                    method,
+                    path: url.pathname,
+                    params: route ? itemMatch(route, url.pathname) : {},
+                    query: url.searchParams,
+                    state: {},
+                    services: injector
+                };
+                if (!route)
+                    return json({ error: 'Not Found' }, { status: 404 });
+                const handlers = [...middleware, ...route.definition.handlers];
+                let index = -1;
+                const dispatch = async (position) => {
+                    if (position <= index)
+                        throw new Error('next() called multiple times');
+                    index = position;
+                    const handler = handlers[position];
+                    if (!handler)
+                        return json({ error: 'Handler did not return a response' }, { status: 500 });
+                    return handler(context, () => dispatch(position + 1));
+                };
+                try {
+                    return await dispatch(0);
+                }
+                catch (error) {
+                    if (options.onError)
+                        return options.onError(error, context);
+                    return json({ error: 'Internal Server Error' }, { status: 500 });
+                }
+            }
+        };
+        return app;
+    }
+    function itemMatch(route, path) {
+        return route.match(path) ?? {};
+    }
+    const serverMiddleware = {
+        cors(options = {}) {
+            return async (_context, next) => {
+                const response = await next();
+                const headers = new Headers(response.headers);
+                headers.set('access-control-allow-origin', options.origin ?? '*');
+                return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+            };
+        },
+        requestId(header = 'x-request-id') {
+            return async (context, next) => {
+                const runtimeCrypto = globalThis.crypto;
+                context.state.requestId = context.request.headers.get(header) ?? runtimeCrypto?.randomUUID?.() ?? `req-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+                return next();
+            };
+        }
+    };
+
     /** Runtime environment helpers for code that is shared by SSR and browser builds. */
     /** Return the environment in which the current module is executing. */
     function getRuntimeEnvironment() {
@@ -5724,6 +5953,7 @@ ${bodyContent}
     exports.createApp = createApp;
     exports.createElement = createElement;
     exports.createErrorBoundary = createErrorBoundary;
+    exports.createErrorReport = createErrorReport;
     exports.createFileRoutes = createFileRoutes;
     exports.createForm = createForm;
     exports.createHeadManager = createHeadManager;
@@ -5733,6 +5963,7 @@ ${bodyContent}
     exports.createRouteManifest = createRouteManifest;
     exports.createRouter = createRouter;
     exports.createSSRContext = createSSRContext;
+    exports.createServerApp = createServerApp;
     exports.createSkipLink = createSkipLink;
     exports.createStorage = createStorage;
     exports.createStore = createStore;
@@ -5741,6 +5972,7 @@ ${bodyContent}
     exports.deepClone = deepClone;
     exports.defineComponent = defineComponent;
     exports.defineLayoutRoute = defineLayoutRoute;
+    exports.defineMiddleware = defineMiddleware;
     exports.defineRoute = defineRoute;
     exports.defineStore = defineStore;
     exports.del = del;
@@ -5780,6 +6012,7 @@ ${bodyContent}
     exports.isDevToolsEnabled = isDevToolsEnabled;
     exports.isServer = isServer;
     exports.isServerRuntime = isServerRuntime;
+    exports.jsonResponse = jsonResponse;
     exports.jsx = jsx$1;
     exports.jsxDEV = jsxDEV$1;
     exports.jsxRuntime = jsx;
@@ -5810,6 +6043,7 @@ ${bodyContent}
     exports.put = put;
     exports.reactive = reactive;
     exports.recordDevToolsDependency = recordDevToolsDependency;
+    exports.recordDevToolsError = recordDevToolsError;
     exports.register = register;
     exports.registerDevToolsInspector = registerDevToolsInspector;
     exports.registerDevToolsResource = registerDevToolsResource;
@@ -5830,20 +6064,24 @@ ${bodyContent}
     exports.routeHref = routeHref;
     exports.router = router;
     exports.safeMethod = safeMethod;
+    exports.serverMiddleware = serverMiddleware;
     exports.serverOnly = serverOnly;
     exports.sessionStorage = sessionStorage;
     exports.setAriaAttributes = setAriaAttributes;
+    exports.setErrorReporter = setErrorReporter;
     exports.setMeta = setMeta;
     exports.setupComponent = setupComponent;
     exports.skipToContent = skipToContent;
     exports.snapshot = snapshot;
     exports.state = state;
     exports.stop = stop;
+    exports.textResponse = textResponse;
     exports.throttle = throttle;
     exports.trapFocus = trapFocus;
     exports.unmount = unmount;
     exports.useStore = useStore;
     exports.validateAccessibility = validateAccessibility;
+    exports.validateBody = validateBody;
     exports.vdomPatch = patch$1;
     exports.waitFor = waitFor;
     exports.watch = watch;

@@ -41,6 +41,7 @@ OneKit does not try to hide the browser. DOM elements, events, selectors, reques
 | Components | Typed props, component lifecycle, registration, mount/unmount, dependency injection | `onekit-js` |
 | Rendering | Templates, directives, JSX, automatic JSX runtime, VDOM patching, fragments | `onekit-js/jsx`, `onekit-js/jsx-runtime` |
 | Routing | History/hash/memory modes, typed params, file discovery, nested layouts, guards, loaders, manifests, prefetch, scroll restoration | `onekit-js` and `onekit-js/router` |
+| Backend | Fetch-compatible server app, route methods, middleware composition, params/query parsing, JSON responses, body validation, DI services, CORS, request IDs, and safe error responses | `onekit-js` |
 | Server rendering | Request-scoped SSR, streaming, async rendering, hydration diagnostics, error/loading boundaries, safe route manifests | `onekit-js/ssr` |
 | Data and forms | HTTP helpers, retry/timeout/cancellation, query invalidation, mutations, optimistic updates, SSR handoff, typed forms, validation | `onekit-js/api`, `onekit-js/query`, `onekit-js/forms` |
 | Runtime boundaries | Explicit server/client detection and guarded callbacks for shared modules | `onekit-js` |
@@ -327,6 +328,45 @@ await router.navigate("/projects/onekit/settings");
 ```
 
 Use `RouteParamsFor<Path>` and `routeHref()` when constructing typed links, `createFileRoutes()` when discovering routes from a bundler module map, and `createRouteManifest()` or `router.getManifest()` for SSR preload and hydration planning. Keep route loaders and guards abortable. OneKit protects the application from stale asynchronous navigation committing after a newer navigation wins. Use `prefetch()` to warm route data without changing the current URL or committed route state.
+
+## Backend and full-stack applications
+
+OneKit V3 now includes a Fetch-compatible backend foundation for applications that want one framework for browser UI, SSR, APIs, and server-side composition. It follows familiar Express-style route and middleware conventions while reusing OneKit's dependency-injection and TypeScript contracts. It is adapter-friendly: the same `ServerApp.handle(request)` method can be connected to Node HTTP, serverless functions, edge runtimes, or other platforms that can provide a standard `Request` and consume a `Response`.
+
+```ts
+import {
+  createServerApp,
+  jsonResponse,
+  validateBody,
+  serverMiddleware,
+} from "onekit-js";
+
+const app = createServerApp();
+
+app.use(serverMiddleware.requestId());
+
+app.get("/api/health", async (context) =>
+  jsonResponse({ ok: true, requestId: context.state.requestId }),
+);
+
+app.post(
+  "/api/projects",
+  validateBody((value) => {
+    if (!value || typeof value !== "object" || typeof (value as { name?: unknown }).name !== "string") {
+      throw new Error("name is required");
+    }
+    return value as { name: string };
+  }),
+  async (context) => jsonResponse({ project: context.state.body }, { status: 201 }),
+);
+
+// Node, serverless, or edge adapters call:
+const response = await app.handle(request);
+```
+
+The server context exposes `request`, method/path, decoded `params`, `URLSearchParams` query values, per-request `state`, and a scoped `DependencyInjector`. Use `app.get`, `app.post`, `app.put`, `app.patch`, `app.delete`, or `app.route` for endpoints; use `app.use` for cross-cutting middleware. `validateBody` parses JSON from a cloned request and turns validation failures into a `400` response. Unhandled route errors return a generic `500` response by default so internal messages are not leaked; provide `onError` to integrate application-owned logging and error reporting.
+
+This backend layer is intentionally additive and does not replace the existing client router, SSR helpers, QueryClient, or component APIs. It is a foundation rather than a promise of full NestJS decorators, a built-in ORM, or a deployment-specific server adapter. Applications should keep database drivers, authentication, authorization, and secrets in server-only modules and choose the adapter appropriate to their deployment target.
 
 ## Stores, query data, and forms
 

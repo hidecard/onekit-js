@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-The V3 branch continues production hardening after `3.1.19` without changing the published version contract.
+The V3 branch continues production hardening after `3.1.19` without changing the published version contract. This release line now includes the first all-in-one backend foundation for full-stack applications.
 
 ### Added
 
@@ -10,15 +10,19 @@ The V3 branch continues production hardening after `3.1.19` without changing the
 - Add the DevTools `runtime:error` event with bounded, detached diagnostic snapshots when the opt-in bridge is enabled.
 - Dispose VDOM event listeners across replaced subtrees, including descendant nodes, alongside existing ref cleanup.
 - Add regression coverage for reporter isolation, error normalization, DevTools runtime errors, and stale listener disposal.
+- Add a Fetch-compatible `createServerApp()` with Express-style route methods, ordered middleware, decoded route params, query parsing, safe JSON/text responses, per-request state, and adapter-neutral `Request`/`Response` handling.
+- Add `validateBody()` for JSON body validation and built-in `serverMiddleware.requestId()` and `serverMiddleware.cors()` helpers.
+- Reuse the existing `DependencyInjector` through each server request context for Nest-style service composition without introducing decorators or a deployment-specific runtime.
 
 ### Documentation
 
 - Update the README feature map and production-parity guidance for runtime diagnostics and VDOM teardown behavior.
 - Keep production-readiness guidance explicit about reviewing and redacting error messages and stack traces before external forwarding.
+- Document the all-in-one backend workflow, adapter boundary, server-only responsibilities, and current limits in the README.
 
 ### Validation
 
-- The focused observability and VDOM suites pass, together with strict TypeScript checking and the full Jest matrix.
+- The focused observability, VDOM, and server suites pass, together with strict TypeScript checking and the full Jest matrix.
 
 ## [3.1.19] - 2026-08-18
 

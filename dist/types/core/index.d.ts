@@ -1,4 +1,4 @@
-export { errorHandler, safeMethod, createErrorBoundary, createLoadingBoundary } from './error-handler';
+export { errorHandler, safeMethod, createErrorBoundary, createLoadingBoundary, createErrorReport, setErrorReporter } from './error-handler';
 export * from './devtools';
 export * from './scope';
 export interface OneKitConfig {

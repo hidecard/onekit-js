@@ -16,6 +16,7 @@ export * from './modules/store';
 export * from './modules/query';
 export * from './modules/forms';
 export * from './modules/ssr';
+export * from './modules/server';
 export * from './modules/environment';
 export * from './modules/head';
 export * from './modules/template';

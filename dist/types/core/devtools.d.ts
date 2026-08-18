@@ -40,6 +40,14 @@ export type DevToolsEvent = {
     name: string;
     duration: number;
     status: 'success' | 'error';
+} | {
+    type: 'runtime:error';
+    context: string;
+    error: {
+        name: string;
+        message: string;
+        stack?: string;
+    };
 };
 export type DevToolsListener = (event: DevToolsEvent) => void;
 export interface DevToolsOptions {
@@ -81,6 +89,7 @@ export declare function isDevToolsEnabled(): boolean;
 export declare function enableDevTools(options?: DevToolsOptions): DevToolsBridge;
 export declare function measureDevTools<T>(name: string, task: () => T): T;
 export declare function measureDevTools<T>(name: string, task: () => Promise<T>): Promise<T>;
+export declare function recordDevToolsError(error: unknown, context?: string): void;
 export declare function onDevToolsEvent(listener: DevToolsListener): () => void;
 export declare function getDevToolsTargetId(target: object): number;
 export declare function getDevToolsScopeId(scope: object): number;
