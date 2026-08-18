@@ -82,7 +82,7 @@ onekit test
 onekit build --no-minify
 ```
 
-`onekit create` and `npm create onekit@latest` generate Vite-compatible TypeScript or JavaScript starters. `onekit dev`, `onekit preview`, and `onekit test` delegate to the current project's scripts, preserve child exit codes, support `--cwd <directory>`, and forward arguments after `--`. Preview requires a `dist` output directory. `onekit build` reads the current package's `source` field, or falls back to `src/index.js`, and emits ESM, CommonJS, browser, source-map, and optional minified artifacts.
+`onekit create` and `npm create onekit@latest` generate Vite-compatible TypeScript or JavaScript starters. From the generated project directory, run `npm install`, then use `onekit dev`, `onekit preview`, and `onekit test`; these commands delegate to the current project's scripts, preserve child exit codes, support `--cwd <directory>`, and forward arguments after `--`. Preview requires a `dist` output directory. `onekit build` delegates to a project's `build` script when the project has no library entrypoint, which makes the generated `src/main.ts` or `src/main.js` starter use `vite build` correctly. For library projects, it reads the package `source` field or falls back to `src/index.ts`/`src/index.js`, then emits ESM, CommonJS, browser, source-map, and optional minified artifacts.
 
 CLI failures use stable bracketed codes such as `UNKNOWN_COMMAND`, `INVALID_OPTION`, `INVALID_PROJECT`, `COMMAND_FAILED`, and `CLI_ERROR`, followed by an actionable `Hint:` line. The complete reference, including Windows-compatible inline options and troubleshooting guidance, is in the [V3 Usage Guide](V3_USAGE.md#cli-diagnostics-and-error-codes).
 

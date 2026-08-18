@@ -52,6 +52,20 @@ describe('OneKit CLI', () => {
     }
   });
 
+  it('delegates build to a Vite-style project script when no library entrypoint exists', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'onekit-cli-build-'));
+    try {
+      await writePackage(root, {
+        name: 'vite-style-fixture',
+        scripts: { build: 'node -e "require(\\"node:fs\\").writeFileSync(\\"build-marker.txt\\", \\"ok\\")"' },
+      });
+      await run(process.execPath, [path.resolve('bin/onekit.js'), 'build'], { cwd: root });
+      await expect(readFile(path.join(root, 'build-marker.txt'), 'utf8')).resolves.toBe('ok');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('delegates dev, preview, and test scripts with cwd and exit codes', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'onekit-cli-runners-'));
     try {
