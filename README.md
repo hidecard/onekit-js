@@ -553,6 +553,53 @@ app.post("/api/projects", async ({ database: db, body, ok }) => {
 
 The adapter acquires a dedicated pool client for transactions and releases it in a `finally` block. Install `pg` separately, keep credentials in server-only configuration, use parameterized values, and let `app.stop()` close the pool. The framework does not manage migrations, schemas, retries, or connection secrets.
 
+### Optional MySQL adapter
+
+For Node applications using a `mysql2`-compatible pool, `createMySQLAdapter()` maps pool queries, prepared execution results, transactions, rollback/release behavior, insert IDs, and pool shutdown to the relational `DatabaseAdapter` contract.
+
+```ts
+import mysql from "mysql2/promise";
+import { createApi, createMySQLAdapter } from "onekit-js";
+
+const pool = mysql.createPool({ uri: process.env.DATABASE_URL });
+const app = createApi({ database: createMySQLAdapter(pool) });
+
+app.get("/api/projects", async ({ database: db, ok }) =>
+  ok({ rows: await db!.query("select id, name from projects where active = ?", [true]) }),
+);
+```
+
+Install `mysql2` separately, keep the pool in a server-only module, use placeholders for user input, and let `app.stop()` close the pool. The adapter does not manage migrations, schemas, retries, credentials, or pool tuning.
+
+### Optional MongoDB adapter
+
+MongoDB is document-oriented, so it is intentionally exposed through a document-native `MongoDatabaseAdapter` rather than forced into the relational `DatabaseAdapter` interface. `createMongoDBAdapter()` wraps a `mongodb`-compatible client and provides typed collections, `find().toArray()`, `insertOne()`, `updateOne()`, `deleteOne()`, and client close behavior.
+
+```ts
+import { MongoClient } from "mongodb";
+import { createMongoDBAdapter } from "onekit-js";
+
+type Project = { _id: string; name: string; active: boolean };
+const client = new MongoClient(process.env.MONGODB_URI!);
+await client.connect();
+const database = createMongoDBAdapter(client, process.env.MONGODB_DATABASE);
+const projects = database.collection<Project>("projects");
+
+const active = await projects.find({ active: true }).toArray();
+await projects.insertOne({ _id: "p1", name: "OneKit", active: true });
+await database.close();
+```
+
+Install `mongodb` separately and keep the client server-only. MongoDB transactions, indexes, aggregation, retry policy, and schema validation remain application responsibilities because the core must stay adapter-neutral and browser/edge-safe.
+
+| Database | OneKit V3 support | Adapter contract | Driver owned by |
+|---|---|---|---|
+| SQLite | Available | `DatabaseAdapter` via `createSQLiteAdapter()` | Application |
+| PostgreSQL | Available | `DatabaseAdapter` via `createPostgreSQLAdapter()` | Application |
+| MySQL/MariaDB | Available | `DatabaseAdapter` via `createMySQLAdapter()` | Application |
+| MongoDB | Available | Document-native `MongoDatabaseAdapter` via `createMongoDBAdapter()` | Application |
+| Redis | Available for distributed rate limiting | `RateLimitStore` via `createRedisRateLimitStore()` | Application |
+
 ## Stores, query data, and forms
 
 ### Stores
