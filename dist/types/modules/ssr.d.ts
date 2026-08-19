@@ -46,10 +46,15 @@ export interface HydrationResult {
     dispose: () => void;
 }
 export declare function hydrate(rootElement: Element, vnode: VNode, options?: HydrationOptions): HydrationResult;
+export type StreamingBoundaryTask = () => Promise<void>;
+/** Allows an adapter to control when deferred boundary payloads are rendered. */
+export type StreamingBoundaryScheduler = (task: StreamingBoundaryTask, boundary: StreamingBoundary) => Promise<void> | void;
 export interface StreamingRenderOptions {
     signal?: AbortSignal;
     /** Receive the original rendering error before the stream is aborted. */
     onError?: (error: unknown) => void;
+    /** Schedule deferred boundary work; defaults to immediate FIFO scheduling. */
+    scheduleBoundary?: StreamingBoundaryScheduler;
 }
 export declare class StreamingRenderer {
     private context;

@@ -1,5 +1,23 @@
 import { DependencyInjector } from '../core/di';
 export type ServerMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'OPTIONS' | 'HEAD' | '*';
+export interface ServerErrorOptions {
+    status?: number;
+    code?: string;
+    details?: unknown;
+    expose?: boolean;
+    headers?: HeadersInit;
+}
+/** Safe, typed application error for Fetch-compatible route handlers. */
+export declare class ServerError extends Error {
+    readonly status: number;
+    readonly code: string;
+    readonly details?: unknown;
+    readonly expose: boolean;
+    readonly headers?: HeadersInit;
+    constructor(message: string, options?: ServerErrorOptions);
+}
+export declare function createServerError(message: string, options?: ServerErrorOptions): ServerError;
+export declare function serverErrorResponse(error: unknown, fallbackMessage?: string): Response;
 export interface ServerRequestContext {
     request: Request;
     method: string;
@@ -30,6 +48,33 @@ export interface ResourceHandlers {
     update?: ServerHandler;
     remove?: ServerHandler;
 }
+export interface ServerProvider {
+    name: string;
+    factory: (...dependencies: unknown[]) => unknown;
+    dependencies?: readonly string[];
+    singleton?: boolean;
+}
+export interface ServerControllerRoute {
+    method: ServerMethod;
+    path: string;
+    handlers: readonly ServerHandler[];
+}
+/** Functional controller contract; decorators are intentionally optional and not required. */
+export interface ServerController {
+    prefix?: string;
+    middleware?: readonly ServerMiddleware[];
+    routes: readonly ServerControllerRoute[];
+}
+export interface ServerModule {
+    imports?: readonly ServerModule[];
+    providers?: readonly ServerProvider[];
+    middleware?: readonly ServerMiddleware[];
+    controllers?: readonly ServerController[];
+    routes?: readonly ServerRouteDefinition[];
+    configure?: (app: ServerApp) => void;
+}
+export declare function defineController(controller: ServerController): ServerController;
+export declare function defineModule(module: ServerModule): ServerModule;
 export interface DatabaseExecutionResult {
     affectedRows: number;
     insertId?: string | number;
@@ -53,6 +98,8 @@ export interface ServerAppOptions {
     injector?: DependencyInjector;
     database?: DatabaseAdapter;
     onError?: (error: unknown, context: ServerRequestContext) => Response | Promise<Response>;
+    /** Controls the final safe response when a handler or custom error hook fails. */
+    errorResponse?: (error: unknown, context: ServerRequestContext) => Response | Promise<Response>;
     onStart?: (app: ServerApp) => void | Promise<void>;
     onStop?: (app: ServerApp) => void | Promise<void>;
 }
@@ -66,6 +113,7 @@ export interface ServerApp {
     patch(path: string, ...handlers: ServerHandler[]): this;
     delete(path: string, ...handlers: ServerHandler[]): this;
     resource(path: string, handlers: ResourceHandlers): this;
+    module(module: ServerModule): this;
     start(): Promise<void>;
     stop(): Promise<void>;
     handle(request: Request): Promise<Response>;

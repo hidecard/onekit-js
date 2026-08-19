@@ -5130,7 +5130,7 @@ class StreamingRenderer {
             else
                 options.signal.addEventListener('abort', onAbort, { once: true });
         }
-        this.renderAsync(vnode, writer, options.signal, abortStream, () => { terminated = true; }, reportError)
+        this.renderAsync(vnode, writer, options.signal, abortStream, () => { terminated = true; }, reportError, options.scheduleBoundary)
             .catch(error => {
             reportError(error);
             if (!(error instanceof Error && error.name === 'AbortError'))
@@ -5140,7 +5140,7 @@ class StreamingRenderer {
             .finally(() => options.signal?.removeEventListener('abort', onAbort));
         return readable;
     }
-    async renderAsync(vnode, writer, signal, abortStream, markComplete, reportError) {
+    async renderAsync(vnode, writer, signal, abortStream, markComplete, reportError, scheduleBoundary) {
         try {
             if (signal?.aborted)
                 throw createSSRAbortError();
@@ -5150,7 +5150,7 @@ class StreamingRenderer {
             }
             else {
                 const pendingBoundaries = [];
-                await this.renderVNodeAsync(vnode, writer, signal, pendingBoundaries);
+                await this.renderVNodeAsync(vnode, writer, signal, pendingBoundaries, scheduleBoundary);
                 await Promise.all(pendingBoundaries);
             }
             await writer.close();
@@ -5162,17 +5162,18 @@ class StreamingRenderer {
             throw error;
         }
     }
-    async renderVNodeAsync(vnode, writer, signal, pendingBoundaries = []) {
+    async renderVNodeAsync(vnode, writer, signal, pendingBoundaries = [], scheduleBoundary = (task) => task()) {
         if (signal?.aborted)
             throw createSSRAbortError();
         if (isStreamingBoundary(vnode)) {
             await writer.write(`<div data-okjs-boundary="${escapeHtml$1(vnode.id)}">${await this.renderVNodeToStringAsync(vnode.fallback, signal)}</div>`);
-            pendingBoundaries.push((async () => {
+            const task = async () => {
                 if (signal?.aborted)
                     throw createSSRAbortError();
                 const content = await this.renderVNodeToStringAsync(vnode.content, signal);
                 await writer.write(`<template data-okjs-boundary-content="${escapeHtml$1(vnode.id)}">${content}</template>`);
-            })());
+            };
+            pendingBoundaries.push(Promise.resolve(scheduleBoundary(task, vnode)));
             return;
         }
         const resolved = await vnode;
@@ -5184,7 +5185,7 @@ class StreamingRenderer {
         // Handle async components
         if (typeof tag === 'function') {
             const componentResult = await tag(props);
-            return this.renderVNodeAsync(componentResult, writer, signal, pendingBoundaries);
+            return this.renderVNodeAsync(componentResult, writer, signal, pendingBoundaries, scheduleBoundary);
         }
         const attrs = renderAttributes(props);
         const tagHtml = `<${tag}${attrs}>`;
@@ -5195,7 +5196,7 @@ class StreamingRenderer {
                 await writer.write(escapeHtml$1(child));
             }
             else {
-                await this.renderVNodeAsync(child, writer, signal, pendingBoundaries);
+                await this.renderVNodeAsync(child, writer, signal, pendingBoundaries, scheduleBoundary);
             }
         }
         if (!isSelfClosingTag(tag)) {
@@ -5336,6 +5337,53 @@ function withCache(key, renderFn, ttl = 300000 // 5 minutes
     return result;
 }
 
+/** Safe, typed application error for Fetch-compatible route handlers. */
+class ServerError extends Error {
+    status;
+    code;
+    details;
+    expose;
+    headers;
+    constructor(message, options = {}) {
+        super(message);
+        this.name = 'ServerError';
+        const status = options.status ?? 500;
+        this.status = Number.isInteger(status) && status >= 400 && status <= 599 ? status : 500;
+        this.code = options.code ?? 'SERVER_ERROR';
+        this.details = options.details;
+        this.expose = options.expose ?? this.status < 500;
+        this.headers = options.headers;
+    }
+}
+function createServerError(message, options) {
+    return new ServerError(message, options);
+}
+function serverErrorResponse(error, fallbackMessage = 'Internal Server Error') {
+    const typed = error instanceof ServerError ? error : undefined;
+    const headers = new Headers(typed?.headers);
+    if (!headers.has('content-type'))
+        headers.set('content-type', 'application/json; charset=utf-8');
+    const body = {
+        error: typed?.expose ? typed.message : fallbackMessage,
+    };
+    if (typed?.expose && typed.code)
+        body.code = typed.code;
+    if (typed?.expose && typed.details !== undefined)
+        body.details = typed.details;
+    return new Response(JSON.stringify(body), { status: typed?.status ?? 500, headers });
+}
+function defineController(controller) {
+    return controller;
+}
+function defineModule(module) {
+    return module;
+}
+function joinServerPath(prefix, path) {
+    const left = prefix?.replace(/^\/+|\/+$/g, '') ?? '';
+    const right = path.replace(/^\/+/, '');
+    const joined = [left, right].filter(Boolean).join('/');
+    return joined ? `/${joined}` : '/';
+}
 function escapeRegex(segment) {
     return segment.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -5422,6 +5470,7 @@ function createServerApp(options = {}) {
     const middleware = [];
     const routes = [];
     const compiled = [];
+    const appliedModules = new Set();
     let started = false;
     let stopping;
     const app = {
@@ -5452,6 +5501,28 @@ function createServerApp(options = {}) {
             }
             if (handlers.remove)
                 app.delete(`${base}/:id`, handlers.remove);
+            return app;
+        },
+        module(moduleDefinition) {
+            if (appliedModules.has(moduleDefinition))
+                return app;
+            appliedModules.add(moduleDefinition);
+            for (const imported of moduleDefinition.imports ?? [])
+                app.module(imported);
+            for (const provider of moduleDefinition.providers ?? []) {
+                injector.register(provider.name, provider.factory, [...(provider.dependencies ?? [])], provider.singleton ?? true);
+            }
+            for (const handler of moduleDefinition.middleware ?? [])
+                app.use(handler);
+            moduleDefinition.configure?.(app);
+            for (const controller of moduleDefinition.controllers ?? []) {
+                const middleware = [...(controller.middleware ?? [])];
+                for (const route of controller.routes) {
+                    app.route(route.method, joinServerPath(controller.prefix, route.path), ...middleware, ...route.handlers);
+                }
+            }
+            for (const route of moduleDefinition.routes ?? [])
+                app.route(route.method, route.path, ...route.handlers);
             return app;
         },
         async start() {
@@ -5532,9 +5603,22 @@ function createServerApp(options = {}) {
                 return await dispatch(0);
             }
             catch (error) {
-                if (options.onError)
-                    return options.onError(error, context);
-                return json({ error: 'Internal Server Error' }, { status: 500 });
+                try {
+                    if (options.onError)
+                        return await options.onError(error, context);
+                }
+                catch (hookError) {
+                    error = hookError;
+                }
+                if (options.errorResponse) {
+                    try {
+                        return await options.errorResponse(error, context);
+                    }
+                    catch {
+                        return serverErrorResponse(error);
+                    }
+                }
+                return serverErrorResponse(error);
             }
         }
     };
@@ -5687,6 +5771,321 @@ const serverMiddleware = {
         };
     }
 };
+
+function defaultKey(input) {
+    if (typeof input === 'string')
+        return input;
+    try {
+        return JSON.stringify(input);
+    }
+    catch {
+        return String(input);
+    }
+}
+function createAbortSignal(signal) {
+    const controller = new AbortController();
+    if (!signal)
+        return { signal: controller.signal, dispose: () => undefined };
+    if (signal.aborted)
+        controller.abort(signal.reason);
+    else
+        signal.addEventListener('abort', () => controller.abort(signal.reason), { once: true });
+    return { signal: controller.signal, dispose: () => undefined };
+}
+/**
+ * Creates a small server-safe data resource with request deduplication, optional
+ * TTL caching, invalidation, and an injectable distributed cache contract.
+ */
+function createServerData(options) {
+    const keyFor = options.key ?? defaultKey;
+    const pending = new Map();
+    const localCache = new Map();
+    const cache = options.cache;
+    const get = async (key) => {
+        const external = cache ? await cache.get(key) : undefined;
+        const entry = external ?? localCache.get(key);
+        if (!entry)
+            return undefined;
+        if (entry.expiresAt !== undefined && entry.expiresAt <= Date.now()) {
+            await cache?.delete?.(key);
+            localCache.delete(key);
+            return undefined;
+        }
+        return entry;
+    };
+    return {
+        async load(input, requestOptions = {}) {
+            const key = keyFor(input);
+            const cached = await get(key);
+            if (cached && (options.staleTime === undefined || Date.now() - cached.updatedAt < options.staleTime))
+                return cached.data;
+            const existing = pending.get(key);
+            if (existing)
+                return existing;
+            const { signal, dispose } = createAbortSignal(requestOptions.signal);
+            const promise = Promise.resolve(options.load(input, { request: requestOptions.request, signal }))
+                .then(async (data) => {
+                const updatedAt = Date.now();
+                const entry = {
+                    data,
+                    updatedAt,
+                    expiresAt: options.staleTime === undefined ? undefined : updatedAt + Math.max(0, options.staleTime),
+                };
+                localCache.set(key, entry);
+                await cache?.set(key, entry);
+                return data;
+            })
+                .finally(() => {
+                dispose();
+                pending.delete(key);
+            });
+            pending.set(key, promise);
+            return promise;
+        },
+        async invalidate(input) {
+            if (input === undefined) {
+                localCache.clear();
+                await cache?.clear?.();
+                return;
+            }
+            const key = keyFor(input);
+            localCache.delete(key);
+            await cache?.delete?.(key);
+        },
+        async clear() {
+            pending.clear();
+            localCache.clear();
+            await cache?.clear?.();
+        },
+    };
+}
+function createMemoryServerDataCache() {
+    const entries = new Map();
+    return {
+        get: (key) => entries.get(key),
+        set: (key, entry) => { entries.set(key, entry); },
+        delete: key => { entries.delete(key); },
+        clear: () => { entries.clear(); },
+    };
+}
+
+function normalizeInsertId(value, stringifyBigIntIds) {
+    if (typeof value !== 'bigint')
+        return value;
+    return stringifyBigIntIds ? value.toString() : Number(value);
+}
+function createTransaction$2(handle, options) {
+    return {
+        async query(statement, parameters = []) {
+            return handle.prepare(statement).all(...parameters);
+        },
+        async execute(statement, parameters = []) {
+            const result = handle.prepare(statement).run(...parameters);
+            return {
+                affectedRows: result.changes ?? 0,
+                insertId: normalizeInsertId(result.lastInsertRowid, options.stringifyBigIntIds ?? true),
+            };
+        },
+    };
+}
+/**
+ * Wraps a better-sqlite3-compatible handle without bundling or importing a
+ * SQLite driver. This keeps the core Fetch/browser build portable while making
+ * the Node integration explicit and easy to replace with another driver.
+ */
+function createSQLiteAdapter(handle, options = {}) {
+    const transaction = createTransaction$2(handle, options);
+    return {
+        query: transaction.query,
+        execute: transaction.execute,
+        async transaction(work) {
+            await transaction.execute('BEGIN');
+            try {
+                const value = await work(transaction);
+                await transaction.execute('COMMIT');
+                return value;
+            }
+            catch (error) {
+                try {
+                    await transaction.execute('ROLLBACK');
+                }
+                catch {
+                    // Preserve the original transaction failure.
+                }
+                throw error;
+            }
+        },
+        async close() {
+            await handle.close?.();
+        },
+    };
+}
+
+function executionResult(result, options) {
+    const row = result.rows[0];
+    const insertId = options.insertIdColumn ? row?.[options.insertIdColumn] : undefined;
+    return {
+        affectedRows: result.rowCount ?? 0,
+        ...(typeof insertId === 'number' || typeof insertId === 'string' ? { insertId } : {}),
+    };
+}
+function createTransaction$1(client, options) {
+    return {
+        async query(statement, parameters = []) {
+            const result = await client.query(statement, parameters);
+            return result.rows;
+        },
+        async execute(statement, parameters = []) {
+            return executionResult(await client.query(statement, parameters), options);
+        },
+    };
+}
+/**
+ * Wraps a pg-compatible pool/client without bundling a PostgreSQL driver.
+ * The application owns connection configuration, pooling, and credentials.
+ */
+function createPostgreSQLAdapter(pool, options = {}) {
+    const queryTransaction = createTransaction$1(pool, options);
+    return {
+        query: queryTransaction.query,
+        execute: queryTransaction.execute,
+        async transaction(work) {
+            const client = pool.connect ? await pool.connect() : pool;
+            const transaction = createTransaction$1(client, options);
+            await client.query('BEGIN');
+            try {
+                const value = await work(transaction);
+                await client.query('COMMIT');
+                return value;
+            }
+            catch (error) {
+                try {
+                    await client.query('ROLLBACK');
+                }
+                catch {
+                    // Preserve the original transaction failure.
+                }
+                throw error;
+            }
+            finally {
+                if (pool.connect)
+                    await client.release?.();
+            }
+        },
+        async close() {
+            await pool.end?.();
+        },
+    };
+}
+
+function rowsFrom(result) {
+    return Array.isArray(result) ? result[0] : result;
+}
+function mapRows(result) {
+    const rows = rowsFrom(result);
+    return Array.isArray(rows) ? rows : [];
+}
+function mapExecution(result) {
+    const metadata = Array.isArray(result) ? result[0] : result;
+    const affectedRows = Number(metadata?.affectedRows ?? 0);
+    const insertId = metadata?.insertId;
+    return {
+        affectedRows: Number.isFinite(affectedRows) ? affectedRows : 0,
+        ...(typeof insertId === 'string' || typeof insertId === 'number' ? { insertId } : {}),
+    };
+}
+function createTransaction(connection) {
+    return {
+        async query(statement, parameters) {
+            return mapRows(await connection.query(statement, parameters));
+        },
+        async execute(statement, parameters) {
+            return mapExecution(await connection.execute(statement, parameters));
+        },
+    };
+}
+/** Creates an optional mysql2-compatible DatabaseAdapter without bundling a MySQL driver. */
+function createMySQLAdapter(pool) {
+    return {
+        async query(statement, parameters) {
+            return mapRows(await pool.query(statement, parameters));
+        },
+        async execute(statement, parameters) {
+            return mapExecution(await pool.execute(statement, parameters));
+        },
+        async transaction(work) {
+            const connection = await pool.getConnection();
+            try {
+                await connection.beginTransaction();
+                const result = await work(createTransaction(connection));
+                await connection.commit();
+                return result;
+            }
+            catch (error) {
+                await connection.rollback();
+                throw error;
+            }
+            finally {
+                connection.release();
+            }
+        },
+        async close() {
+            await pool.end?.();
+        },
+    };
+}
+
+/**
+ * Creates a document-native MongoDB adapter around a mongodb-compatible client.
+ * MongoDB is intentionally not forced into the relational DatabaseAdapter contract.
+ */
+function createMongoDBAdapter(client, databaseName) {
+    const database = client.db(databaseName);
+    return {
+        collection(name) {
+            return database.collection(name);
+        },
+        async close() {
+            await client.close?.();
+        },
+    };
+}
+
+const incrementScript = `
+local count = redis.call('INCR', KEYS[1])
+if count == 1 then
+  redis.call('PEXPIRE', KEYS[1], ARGV[1])
+end
+local ttl = redis.call('PTTL', KEYS[1])
+return { count, ttl }
+`;
+function parseResult(value) {
+    if (!Array.isArray(value) || value.length < 2) {
+        throw new Error('Redis rate-limit EVAL returned an invalid result');
+    }
+    const count = Number(value[0]);
+    const ttl = Number(value[1]);
+    if (!Number.isFinite(count) || !Number.isFinite(ttl)) {
+        throw new Error('Redis rate-limit EVAL returned non-numeric values');
+    }
+    return [count, Math.max(1, ttl)];
+}
+/**
+ * Creates a distributed RateLimitStore backed by an ioredis-compatible EVAL client.
+ * The Lua script keeps INCR and key expiry atomic across application instances.
+ */
+function createRedisRateLimitStore(client, options = {}) {
+    const prefix = options.prefix ?? 'onekit:ratelimit:';
+    const now = options.now ?? Date.now;
+    return {
+        async increment(key, windowMs) {
+            const ttlMs = Math.max(1, Math.floor(windowMs));
+            const result = await client.eval(incrementScript, 1, `${prefix}${key}`, String(ttlMs));
+            const [count, ttl] = parseResult(result);
+            return { count, resetAt: now() + ttl };
+        },
+    };
+}
 
 /** Runtime environment helpers for code that is shared by SSR and browser builds. */
 /** Return the environment in which the current module is executing. */
@@ -6122,5 +6521,5 @@ const jsxDEV = jsx;
 // Version info
 const VERSION = '3.1.19';
 
-export { API, DependencyInjector, Fragment, HydrationMismatchError, OneKit, OneKitWebComponent, QueryClient, Router, StreamingRenderer, VERSION, addScript, addStorePlugin, addStyle, addToBody, addToHead, animations, announce, patch as apiPatch, applyHead, assertClient, assertServer, autorun, batch, bind, cache, cleanup, clearDevToolsDependencies, clientOnly, compileOkjs, compileTemplate, component, computed, create, createApi, createApp, createElement, createErrorBoundary, createErrorReport, createFileRoutes, createForm, createHeadManager, createLandmarks, createLoadingBoundary, createMemoryRateLimitStore, createNodeHandler, createQueryClient, createRouteManifest, createRouter, createSSRContext, createServerApp, createSkipLink, createStorage, createStore, createStreamingBoundary, debounce, deepClone, defineComponent, defineHandler, defineLayoutRoute, defineMiddleware, defineRoute, defineStore, del, derive, destroy, devToolsSnapshot, di, disableScopeLeakWarnings, disposeDevToolsResource, effect, effectScope, emitDevToolsEvent, enableDevTools, enableScopeLeakWarnings, errorHandler, filePathToRoutePath, fireEvent, flush, generateId, get, getActiveScopeDiagnostics, getAllStores, getCurrentScope, getDependencyGraph, getDevToolsEffectId, getDevToolsScopeId, getDevToolsTargetId, getInstance, getResourceGraph, getRuntimeEnvironment, h, hotUpdateComponent, hydrate, initTemplateEngine, isClient, isClientRuntime, isDevToolsEnabled, isServer, isServerRuntime, jsonResponse, jsx$1 as jsx, jsxDEV$1 as jsxDEV, jsx as jsxRuntime, jsxDEV as jsxRuntimeDEV, jsxs, localStorage, makeFocusable, makeUnfocusable, manageTabOrder, measureDevTools, mount, nextTick, ok, okjs, onDestroyed, onDevToolsEvent, onMounted, onPropsChanged, onScopeDispose, onUpdated, parseOkjs, patch$1 as patch, pluginManager, post, preloadModule, preloadScript, preloadStyle, put, reactive, recordDevToolsDependency, recordDevToolsError, register, registerDevToolsInspector, registerDevToolsResource, registerDirective, registerDisposable, registerWebComponent, removeStore, render, renderHead, renderMeta$1 as renderMeta, renderOpenGraph, renderTest, renderTitle, renderToString, request, resumeStreamingBoundary, resumeStreamingBoundaryChunk, routeHref, router, safeMethod, securityMiddleware, serverMiddleware, serverOnly, sessionStorage, setAriaAttributes, setErrorReporter, setMeta, setupComponent, skipToContent, snapshot, state, stop, textResponse, throttle, trapFocus, unmount, useStore, validateAccessibility, validateBody, patch$1 as vdomPatch, waitFor, watch, watchEffect, withCache, withScope };
+export { API, DependencyInjector, Fragment, HydrationMismatchError, OneKit, OneKitWebComponent, QueryClient, Router, ServerError, StreamingRenderer, VERSION, addScript, addStorePlugin, addStyle, addToBody, addToHead, animations, announce, patch as apiPatch, applyHead, assertClient, assertServer, autorun, batch, bind, cache, cleanup, clearDevToolsDependencies, clientOnly, compileOkjs, compileTemplate, component, computed, create, createApi, createApp, createElement, createErrorBoundary, createErrorReport, createFileRoutes, createForm, createHeadManager, createLandmarks, createLoadingBoundary, createMemoryRateLimitStore, createMemoryServerDataCache, createMongoDBAdapter, createMySQLAdapter, createNodeHandler, createPostgreSQLAdapter, createQueryClient, createRedisRateLimitStore, createRouteManifest, createRouter, createSQLiteAdapter, createSSRContext, createServerApp, createServerData, createServerError, createSkipLink, createStorage, createStore, createStreamingBoundary, debounce, deepClone, defineComponent, defineController, defineHandler, defineLayoutRoute, defineMiddleware, defineModule, defineRoute, defineStore, del, derive, destroy, devToolsSnapshot, di, disableScopeLeakWarnings, disposeDevToolsResource, effect, effectScope, emitDevToolsEvent, enableDevTools, enableScopeLeakWarnings, errorHandler, filePathToRoutePath, fireEvent, flush, generateId, get, getActiveScopeDiagnostics, getAllStores, getCurrentScope, getDependencyGraph, getDevToolsEffectId, getDevToolsScopeId, getDevToolsTargetId, getInstance, getResourceGraph, getRuntimeEnvironment, h, hotUpdateComponent, hydrate, initTemplateEngine, isClient, isClientRuntime, isDevToolsEnabled, isServer, isServerRuntime, jsonResponse, jsx$1 as jsx, jsxDEV$1 as jsxDEV, jsx as jsxRuntime, jsxDEV as jsxRuntimeDEV, jsxs, localStorage, makeFocusable, makeUnfocusable, manageTabOrder, measureDevTools, mount, nextTick, ok, okjs, onDestroyed, onDevToolsEvent, onMounted, onPropsChanged, onScopeDispose, onUpdated, parseOkjs, patch$1 as patch, pluginManager, post, preloadModule, preloadScript, preloadStyle, put, reactive, recordDevToolsDependency, recordDevToolsError, register, registerDevToolsInspector, registerDevToolsResource, registerDirective, registerDisposable, registerWebComponent, removeStore, render, renderHead, renderMeta$1 as renderMeta, renderOpenGraph, renderTest, renderTitle, renderToString, request, resumeStreamingBoundary, resumeStreamingBoundaryChunk, routeHref, router, safeMethod, securityMiddleware, serverErrorResponse, serverMiddleware, serverOnly, sessionStorage, setAriaAttributes, setErrorReporter, setMeta, setupComponent, skipToContent, snapshot, state, stop, textResponse, throttle, trapFocus, unmount, useStore, validateAccessibility, validateBody, patch$1 as vdomPatch, waitFor, watch, watchEffect, withCache, withScope };
 //# sourceMappingURL=onekit.esm.js.map
