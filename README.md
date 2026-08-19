@@ -488,6 +488,24 @@ const app = createApi().module(projectsModule);
 
 `module()` is intentionally a composition helper rather than a dependency container replacement. Providers use the existing injector, database and authentication contracts remain adapter-owned, and applications can still register routes directly with `app.get()` or `app.resource()`.
 
+### Optional SQLite adapter
+
+The core package does not bundle a native database driver. For Node applications that use a better-sqlite3-compatible handle, `createSQLiteAdapter()` maps prepared `query()`/`run()` calls, async transaction boundaries, insert IDs, and graceful close behavior to OneKit's `DatabaseAdapter` contract.
+
+```ts
+import Database from "better-sqlite3";
+import { createApi, createSQLiteAdapter } from "onekit-js";
+
+const database = createSQLiteAdapter(new Database("./data/app.db"));
+const app = createApi({ database });
+
+app.get("/api/projects", async ({ database: db, ok }) =>
+  ok({ rows: await db!.query("select id, name from projects order by name") }),
+);
+```
+
+Install the driver separately in the Node application, keep the database module server-only, use parameterized SQL, and close it through `app.stop()`. The adapter is deliberately driver-injected so browser and edge builds do not acquire native SQLite dependencies; PostgreSQL and other databases can follow the same `DatabaseAdapter` contract.
+
 ## Stores, query data, and forms
 
 ### Stores
