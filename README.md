@@ -42,7 +42,7 @@ OneKit does not try to hide the browser. DOM elements, events, selectors, reques
 | Rendering | Templates, directives, JSX, automatic JSX runtime, VDOM patching, fragments | `onekit-js/jsx`, `onekit-js/jsx-runtime` |
 | Routing | History/hash/memory modes, typed params, file discovery, nested layouts, guards, loaders, manifests, prefetch, scroll restoration | `onekit-js` and `onekit-js/router` |
 | Backend | Fetch-compatible server app, route methods, middleware composition, params/query parsing, JSON responses, body validation, DI services, typed database adapter context, session/token provider contracts, authentication/authorization, portable rate-limit stores, CORS, request IDs, lifecycle hooks, and safe error responses | `onekit-js` |
-| Server rendering | Request-scoped SSR, streaming, async rendering, hydration diagnostics, error/loading boundaries, safe route manifests | `onekit-js/ssr` |
+| Server rendering | Request-scoped SSR, streaming, async rendering, hydration diagnostics, error/loading boundaries, safe route manifests, adapter-level boundary scheduling | `onekit-js/ssr` |
 | Data and forms | HTTP helpers, retry/timeout/cancellation, query invalidation, mutations, optimistic updates, SSR handoff, typed forms, validation | `onekit-js/api`, `onekit-js/query`, `onekit-js/forms` |
 | Runtime boundaries | Explicit server/client detection and guarded callbacks for shared modules | `onekit-js` |
 | Browser integration | Storage, accessibility helpers, animations, Web Components | `onekit-js/storage`, `onekit-js/a11y`, `onekit-js/web-components` |
@@ -58,6 +58,19 @@ The current V3 branch also hardens failure handling and teardown behavior for pr
 VDOM subtree replacement now disposes registered event listeners in addition to clearing refs, including listeners on descendant nodes. This makes long-lived applications safer during keyed updates and subtree replacement. These behaviors are covered by the production test matrix.
 
 Backend rate limiting now accepts a portable `RateLimitStore` contract through `securityMiddleware.rateLimit()` or the beginner-friendly `serverMiddleware.rateLimit()` alias. The default store is process-local memory; distributed deployments can provide a Redis, database, or edge-store adapter through `store.increment(key, windowMs)`.
+
+SSR adapters can control when deferred progressive-boundary payloads are emitted without changing the renderer contract. Pass `scheduleBoundary(task, boundary)` to `StreamingRenderer.renderToStream()` when the deployment needs queueing, back-pressure, or platform-specific chunk scheduling:
+
+```ts
+const stream = await new StreamingRenderer().renderToStream(vnode, {
+  scheduleBoundary: async (task, boundary) => {
+    await platformQueue.enqueue({ id: boundary.id });
+    await task();
+  },
+});
+```
+
+The scheduler is optional and backward compatible. Without it, OneKit preserves its existing in-order streaming behavior. Applications remain responsible for queue limits, cancellation propagation, and platform response back-pressure.
 
 ### Verified V3.1.19 contract
 

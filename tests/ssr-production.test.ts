@@ -99,6 +99,33 @@ describe('SSR production contracts', () => {
     expect(chunks.join('')).toContain('<template data-okjs-boundary-content="profile"><span>ready</span></template>');
   });
 
+  it('allows adapters to schedule deferred boundary payloads', async () => {
+    const boundaries: string[] = [];
+    const renderer = new StreamingRenderer();
+    const stream = await renderer.renderToStream(h('main', {}, createStreamingBoundary(
+      Promise.resolve(h('span', {}, 'scheduled')),
+      h('span', {}, 'loading'),
+      { id: 'scheduled-boundary' },
+    )), {
+      scheduleBoundary: async (task, boundary) => {
+        boundaries.push(boundary.id);
+        await Promise.resolve();
+        await task();
+      },
+    });
+    const reader = stream.getReader();
+    let html = '';
+    while (true) {
+      const result = await reader.read();
+      if (result.done) break;
+      html += result.value;
+    }
+
+    expect(boundaries).toEqual(['scheduled-boundary']);
+    expect(html).toContain('<div data-okjs-boundary="scheduled-boundary"><span>loading</span></div>');
+    expect(html).toContain('<template data-okjs-boundary-content="scheduled-boundary"><span>scheduled</span></template>');
+  });
+
   it('resumes a streamed boundary chunk in the client shell', () => {
     document.body.innerHTML = '<main><div data-okjs-boundary="profile"><span>loading</span></div></main>';
     const applied = resumeStreamingBoundaryChunk(

@@ -447,10 +447,20 @@ function createSSRAbortError(): Error {
   return error;
 }
 
+export type StreamingBoundaryTask = () => Promise<void>;
+
+/** Allows an adapter to control when deferred boundary payloads are rendered. */
+export type StreamingBoundaryScheduler = (
+  task: StreamingBoundaryTask,
+  boundary: StreamingBoundary,
+) => Promise<void> | void;
+
 export interface StreamingRenderOptions {
   signal?: AbortSignal;
   /** Receive the original rendering error before the stream is aborted. */
   onError?: (error: unknown) => void;
+  /** Schedule deferred boundary work; defaults to immediate FIFO scheduling. */
+  scheduleBoundary?: StreamingBoundaryScheduler;
 }
 
 export class StreamingRenderer {
@@ -486,7 +496,7 @@ export class StreamingRenderer {
       else options.signal.addEventListener('abort', onAbort, { once: true });
     }
 
-    this.renderAsync(vnode, writer, options.signal, abortStream, () => { terminated = true; }, reportError)
+    this.renderAsync(vnode, writer, options.signal, abortStream, () => { terminated = true; }, reportError, options.scheduleBoundary)
       .catch(error => {
         reportError(error);
         if (!(error instanceof Error && error.name === 'AbortError')) console.error('SSR streaming error:', error);
@@ -504,6 +514,7 @@ export class StreamingRenderer {
     abortStream: (error: unknown) => Promise<void>,
     markComplete: () => void,
     reportError: (error: unknown) => void,
+    scheduleBoundary?: StreamingBoundaryScheduler,
   ): Promise<void> {
     try {
       if (signal?.aborted) throw createSSRAbortError();
@@ -512,7 +523,7 @@ export class StreamingRenderer {
         await writer.write(escapeHtml(vnode));
       } else {
         const pendingBoundaries: Array<Promise<void>> = [];
-        await this.renderVNodeAsync(vnode, writer, signal, pendingBoundaries);
+        await this.renderVNodeAsync(vnode, writer, signal, pendingBoundaries, scheduleBoundary);
         await Promise.all(pendingBoundaries);
       }
       await writer.close();
@@ -529,15 +540,17 @@ export class StreamingRenderer {
     writer: WritableStreamDefaultWriter<string>,
     signal?: AbortSignal,
     pendingBoundaries: Array<Promise<void>> = [],
+    scheduleBoundary: StreamingBoundaryScheduler = (task) => task(),
   ): Promise<void> {
     if (signal?.aborted) throw createSSRAbortError();
     if (isStreamingBoundary(vnode)) {
       await writer.write(`<div data-okjs-boundary="${escapeHtml(vnode.id)}">${await this.renderVNodeToStringAsync(vnode.fallback, signal)}</div>`);
-      pendingBoundaries.push((async () => {
+      const task: StreamingBoundaryTask = async () => {
         if (signal?.aborted) throw createSSRAbortError();
         const content = await this.renderVNodeToStringAsync(vnode.content, signal);
         await writer.write(`<template data-okjs-boundary-content="${escapeHtml(vnode.id)}">${content}</template>`);
-      })());
+      };
+      pendingBoundaries.push(Promise.resolve(scheduleBoundary(task, vnode)));
       return;
     }
     const resolved = await vnode;
@@ -550,7 +563,7 @@ export class StreamingRenderer {
     // Handle async components
     if (typeof tag === 'function') {
       const componentResult = await (tag as Function)(props);
-      return this.renderVNodeAsync(componentResult, writer, signal, pendingBoundaries);
+      return this.renderVNodeAsync(componentResult, writer, signal, pendingBoundaries, scheduleBoundary);
     }
 
     const attrs = renderAttributes(props);
@@ -563,7 +576,7 @@ export class StreamingRenderer {
       if (typeof child === 'string') {
         await writer.write(escapeHtml(child));
       } else {
-        await this.renderVNodeAsync(child, writer, signal, pendingBoundaries);
+        await this.renderVNodeAsync(child, writer, signal, pendingBoundaries, scheduleBoundary);
       }
     }
 
