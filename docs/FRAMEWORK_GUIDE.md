@@ -1,6 +1,6 @@
 # OneKit JS Framework Guide
 
-OneKit JS V3.1.18 is a small, browser-first JavaScript and TypeScript framework with reactive state, component lifecycle hooks, a store, routing, server-side rendering, JSX helpers, web components, and a zero-configuration CLI. The API is intentionally modular: applications may start with a single `reactive` object and grow into component- and route-based projects without adopting a large runtime. For copy-ready signatures and runnable usage for every public area, continue with [V3_USAGE.md](V3_USAGE.md).
+OneKit JS V3.1.19 is a small, browser-first TypeScript-first full-stack framework with reactive state, component lifecycle hooks, stores, routing, server-side rendering, JSX helpers, web components, a beginner-friendly backend API, and a zero-configuration CLI. The API is intentionally modular: applications may start with a single `reactive` object and grow into component-, route-, and server-based projects without adopting a large runtime. For copy-ready signatures and runnable usage for every public area, continue with [V3_USAGE.md](V3_USAGE.md).
 
 ## Recommended application shape
 
@@ -99,6 +99,14 @@ import { defineComponent } from 'onekit-js/components';
 
 All subpaths point to the same browser-safe distribution while exposing focused declaration files for editor tooling.
 
+## Backend composition and adapters
+
+For a compact backend, start with `createApi()` and `app.handle(request)`. Larger applications can group providers, middleware, imports, and routes with decorator-free `defineModule()` and `defineController()`; this is an organizational layer over OneKit's injector and router, not a decorator-metadata compatibility promise. The backend remains Fetch-compatible, so Node applications may add `createNodeHandler()` while serverless and edge deployments can call `app.handle(request)` directly.
+
+Database support is adapter-neutral and driver-injected. `createSQLiteAdapter()`, `createPostgreSQLAdapter()`, `createMySQLAdapter()`, and the document-native `createMongoDBAdapter()` wrap application-owned compatible clients without bundling native database drivers. Credentials, migrations, indexes, retries, schemas, and pool lifecycle remain application responsibilities. For distributed rate limiting, inject `createRedisRateLimitStore()` into the portable `RateLimitStore` contract; the Redis client is likewise supplied by the application.
+
+For progressive SSR, `StreamingRenderer.renderToStream()` accepts an optional `scheduleBoundary(task, boundary)` hook. Use it only when the deployment needs platform-specific queueing, back-pressure, or chunk scheduling; the default renderer remains backward compatible and the hook does not provide a built-in distributed scheduler.
+
 ## Security and production guidance
 
 OneKit sanitizes template HTML, rejects unsafe storage keys, filters unsafe URL/event/CSS values at VDOM and SSR boundaries, and avoids dynamic template code execution. Applications should still treat remote content as untrusted, validate API responses, avoid passing untrusted strings to raw-markup helpers, and configure a Content Security Policy in production. Use `batch` for coordinated state changes and `nextTick` when code must observe the post-update DOM.
@@ -112,6 +120,7 @@ npm run type-check
 npm test -- --runInBand
 npm run build
 npm run verify:package
+npm pack --dry-run
 npm audit --omit=dev
 npm run cli -- help
 npm run cli -- dev --cwd ./examples/counter

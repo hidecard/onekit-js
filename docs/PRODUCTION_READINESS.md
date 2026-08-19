@@ -18,7 +18,7 @@ OneKit JS V3 is a usable compact browser framework and a credible foundation for
 | Stores | Named stores and actions are available | Needs lifecycle, reset, subscriptions, dev inspection, persistence policy, and SSR request isolation. |
 | CLI | `create`, `build`, `dev`, `preview`, and `test` commands work, with optional `--full-stack` scaffolding | Core workflow has acceptance coverage for delegated exit codes, cwd/argument passthrough, missing preview output, inline `--cwd=`/`--out-dir=` syntax, absolute output paths, custom Vite output forwarding, structured error codes, actionable hints, and full-stack server generation. Plugin hooks and richer diagnostics remain future work. |
 | Backend | Fetch-compatible `createApi()`/`createServerApp()`, Node HTTP bridge, route methods, middleware, validation, DI context, safe responses, typed errors, resilient error hooks, CORS, request IDs, authentication, authorization, bounded rate limiting, typed database adapter context, and session/token provider contracts | Beginner-friendly backend foundation is implemented and tested. Global middleware now runs before the not-found fallback, CORS handles browser preflight requests, lifecycle hooks are idempotent, and `ServerError` provides safe public error envelopes with production redaction. `createNodeHandler()` covers Node HTTP; `app.handle(request)` remains the adapter-neutral serverless/edge contract. Optional driver-injected SQLite, PostgreSQL, MySQL/MariaDB, MongoDB, and Redis rate-limit adapters are documented and tested without bundling vendor drivers; applications still own credentials, migrations, indexes, retries, and pool lifecycle. |
-| Package/release | TypeScript declarations, subpath exports, build checks, tests, and npm metadata exist | Release foundation is present; package export matrix, Node/browser compatibility, changelog discipline, and npm publish verification remain. |
+| Package/release | TypeScript declarations, subpath exports, build checks, tests, npm metadata, `v3.1.19` tag, and pre-publish package verification exist | The 3.1.19 source release is release-ready and the Git tag is synchronized with `origin/V3`; npm registry publication and post-publish clean-install verification remain user-authenticated operational steps. |
 | Documentation | V3 usage guide, framework guide, getting started guide, migration/release notes, and OneKit-only docs page exist | Strong baseline; progressive SSR boundaries, query persistence/revalidation, production caveats, and API stability labels are documented. |
 
 ## Highest-priority work before production adoption
@@ -29,7 +29,7 @@ Every exported API needs a documented signature, return value, lifecycle rule, e
 
 ### 2. Harden reactivity
 
-The reactive engine needs deterministic effect cleanup, a documented scheduler, stoppable watchers, cleanup callbacks, deep traversal rules, array mutation coverage, and protection against stale dependencies. The current V3 work adds proxy identity caching, dependency cleanup for reruns, an explicit `stop` helper, array length/index invalidation, and deep-watch coverage for array additions and nested mutations. Cleanup callbacks and a fully formal scheduler contract remain follow-up work.
+The reactive engine needs deterministic effect cleanup, a documented scheduler, stoppable watchers, cleanup callbacks, deep traversal rules, array mutation coverage, and protection against stale dependencies. The current V3 work adds proxy identity caching, dependency cleanup for reruns, an explicit `stop` helper, array length/index invalidation, and deep-watch coverage for array additions and nested mutations. Cleanup callbacks and additional scheduler guarantees remain follow-up work; the core scheduling behavior is already covered by the current regression suite.
 
 ### 3. Replace the minimal router with an application router
 
@@ -59,7 +59,7 @@ Applications need framework-level error capture for render errors, effect errors
 
 ### 9. Release safely
 
-Before publishing a new release, the package should pass type-checking, all tests, production build, package dry-run, subpath import checks, and a clean-install smoke test from the generated tarball. A changelog entry, migration notes, and a versioned API stability matrix should accompany the release. The SSR scheduling hook is additive and backward compatible, while vendor database/Redis drivers remain optional peer-side application dependencies. The actual npm publish remains a user-authenticated step.
+Before publishing a new release, the package should pass type-checking, all tests, production build, package dry-run, subpath import checks, and a clean-install smoke test from the generated tarball. For 3.1.19, these pre-publish checks pass: 35 Jest suites and 184 tests, declaration verification, clean package installation, and `onekit-js-3.1.19.tgz` generation. A changelog entry, migration notes, and a versioned API stability matrix accompany the release. The SSR scheduling hook is additive and backward compatible, while vendor database/Redis drivers remain optional application dependencies. The Git tag is present, but npm publication and post-publish registry verification remain user-authenticated steps.
 
 ## Suggested implementation order
 
@@ -68,10 +68,10 @@ Before publishing a new release, the package should pass type-checking, all test
 | M1 | Reactive contract and tests | Conditional effects, cleanup, watch stop, computed chains, batching, and arrays pass deterministic tests. |
 | M2 | Router 1.0 | Factory API, dynamic params, history, guards, 404, and SSR matching are documented and tested. |
 | M3 | Renderer 1.0 | Keyed reconciliation, fragments, event cleanup, refs, and component error handling are stable. |
-| M4 | SSR 1.0 | Server/client parity suite, mismatch diagnostics, safe metadata handling, context isolation, hydration disposal, boundary primitives, and streaming error/abort semantics are implemented; async scheduling remains follow-up work. |
+| M4 | SSR 1.0 | Server/client parity suite, mismatch diagnostics, safe metadata handling, context isolation, hydration disposal, boundary primitives, streaming error/abort semantics, and the additive adapter-level `scheduleBoundary()` hook are implemented; built-in queue, back-pressure, and broader platform scheduling policies remain follow-up work. |
 | M5 | CLI 1.0 | Create/dev/build/preview/test workflow works from a clean install and generated starter; child exit codes, `--cwd`, argument passthrough, inline options, and absolute output paths are implemented and covered. |
 | M6 | Backend foundation | `createApi()`, `app.resource()`, typed body helpers, route/middleware contracts, validation, DI context, safe defaults, `createNodeHandler()`, authentication/authorization contracts, session/token provider adapters, typed database adapter context, bounded rate limiting with a portable store contract, optional Redis-backed rate limiting, typed `ServerError` responses, resilient error hooks, the optional full-stack CLI starter, `createServerData()` with injectable caching, decorator-free module/controller composition, driver-injected optional SQLite, PostgreSQL, and MySQL adapters, document-native MongoDB collections, and adapter-neutral `Request`/`Response` behavior are documented and tested. Identity storage, decorator metadata, migration tooling, framework-owned persistence, and non-Redis distributed store variants remain follow-up work. |
-| M7 | Release 3.x | Package export matrix, changelog, migration guide, clean-install smoke test, and npm release verification are complete. |
+| M7 | Release 3.x | Package export matrix, changelog, migration guide, tag, package dry-run, declaration checks, and clean-install pre-publish verification are complete for 3.1.19; npm registry publication and post-publish install verification remain. |
 
 ## What OneKit should not promise yet
 

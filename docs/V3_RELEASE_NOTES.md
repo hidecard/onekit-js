@@ -8,24 +8,24 @@
 
 ## Overview
 
-OneKit JS `3.1.19` is a production-parity V3 patch release that extends the 3.1.18 foundation with progressive SSR boundaries, client continuation, persisted query state, and automatic focus/reconnect revalidation. The release remains compact and browser-first while providing clearer contracts for applications that need nested layouts, request-scoped data, typed route parameters, and controlled server/client boundaries.
+OneKit JS `3.1.19` is a V3 production-hardening release candidate that extends the 3.1.18 foundation with progressive SSR boundaries, client continuation, typed backend errors, a full-stack CLI starter, server-data caching, functional modules/controllers, optional SQLite/PostgreSQL/MySQL/MongoDB adapters, Redis-backed distributed rate limiting, and configurable SSR boundary scheduling. The release remains compact and browser-first while providing clearer contracts for applications that need nested layouts, request-scoped data, typed route parameters, and controlled server/client boundaries. The source release is tagged and validated on the `V3` branch; npm registry publication remains a separate user-authenticated step.
 
 This is a **compatible V3-line release**. Existing V3 applications can upgrade from earlier V3 versions by updating the package version and reviewing the migration notes below. Applications migrating from OneKit 2.x or the legacy global runtime should follow the full [Migration Guide](../MIGRATION_GUIDE.md), because the V3 module and lifecycle model contains broader changes.
 
-> **Recommended upgrade:** update `onekit-js` to `3.1.19`, regenerate starters if needed, run the type-check and full test suite, then verify the packed package in a clean install.
+> **Recommended upgrade:** after npm publication, update `onekit-js` to `3.1.19`, regenerate starters if needed, run the type-check and full test suite, then verify the packed package in a clean install. Before publication, the V3 branch has passed 35 Jest suites and 184 tests, production build, declaration verification, package dry-run, and clean-install checks.
 
 ## Highlights
 
 | Area | What is included in `3.1.19` | Why it matters |
 |---|---|---|
 | Routing | JSON-safe manifests, file-based route discovery, typed path parameters, nested layout metadata, and typed loader contexts | Makes route trees easier to preload, compose, and maintain in TypeScript. |
-| SSR and hydration | Structured hydration diagnostics and streaming error handoff | Makes mismatches and streaming failures observable without forcing an application-wide policy. |
-| Data fetching | Query invalidation, mutations, retries, cancellation, optimistic updates, persistence-oriented lifecycle hooks, and route-loader integration | Provides a practical cache lifecycle while preserving uncached loader behavior by default. |
+| SSR and hydration | Structured hydration diagnostics, streaming error/abort handoff, progressive boundaries, client continuation, and optional `scheduleBoundary()` scheduling | Makes mismatches and streaming failures observable while allowing adapters to provide queue or back-pressure policy. |
+| Data fetching | Query invalidation, mutations, retries, cancellation, optimistic updates, route-loader integration, and adapter-neutral `createServerData()` deduplication/TTL caching | Provides practical client and server cache contracts while preserving uncached loader behavior by default. |
 | Runtime boundaries | `isServerRuntime`, `isClientRuntime`, `serverOnly`, and `clientOnly` | Makes browser/server assumptions explicit and safer during SSR. |
-| CLI starter | Updated Vite/React-inspired responsive starter with dark indigo/lavender visual language and quick-start guidance | Gives new projects a more useful production-like starting point. |
+| CLI starter | Vite-compatible starter plus optional `onekit create <name> --full-stack` generation with `server.mjs`, health route, scripts, `.env.example`, and graceful shutdown | Gives frontend-only and full-stack projects a minimal production-oriented starting point. |
 | Progressive SSR | Visible fallback shells, deferred content chunks, abort/error handoff, and import-safe client continuation | Allows useful HTML to arrive early while async boundaries continue on the client. |
-| Query persistence | Configurable storage, cache key, max age, restore, focus/reconnect revalidation, and disposal | Preserves useful server data across reloads while keeping freshness explicit. |
-| Documentation and validation | Synchronized V3 guide, production readiness guide, declarations, package verification, and release workflow | Reduces drift between source APIs and published artifacts. |
+| Query persistence | Query invalidation, mutations, retries, cancellation, optimistic updates, dehydrate/hydrate, and route-loader integration | Provides explicit query lifecycle behavior; broader persistence and automatic focus/reconnect revalidation remain future work. |
+| Documentation and validation | Synchronized V3 guide, production-readiness guide, declarations, package verification, release notes, and pre-publish workflow | Reduces drift between source APIs and the 3.1.19 package artifacts. |
 
 ## New and expanded APIs
 
@@ -90,9 +90,9 @@ const dashboard = defineLayoutRoute("/dashboard", DashboardLayout, routes);
 
 Hydration diagnostics can report mismatches through a callback and can be configured to throw when an application treats mismatches as deployment failures. Streaming renderers can hand errors to an `onError` callback so the server can record, format, or terminate the stream according to its policy.
 
-### Query lifecycle
+### Query and server-data lifecycle
 
-The V3 query client supports invalidation, mutations, retry policies, cancellation, optimistic updates, and typed dehydrate/hydrate handoff. Route loaders may use `queryKey`, `queryOptions`, and a router-level `queryClient`; routes without a query key continue to execute normally without implicit caching.
+The V3 query client supports invalidation, mutations, retry policies, cancellation, optimistic updates, and typed dehydrate/hydrate handoff. Route loaders may use `queryKey`, `queryOptions`, and a router-level `queryClient`; routes without a query key continue to execute normally without implicit caching. The server-side `createServerData()` contract adds request/abort context, concurrent-load deduplication, optional TTL caching, invalidation, and an injectable cache boundary. Persistent storage and vendor-specific distributed caches remain application responsibilities.
 
 ### Environment boundaries
 
@@ -102,7 +102,7 @@ Use `isServerRuntime()` and `isClientRuntime()` for conditional checks, and use 
 
 The release does not intentionally remove public V3 APIs. The following behavior should nevertheless be reviewed during an upgrade:
 
-| Existing code | Recommended `3.1.18` review |
+| Existing code | Recommended `3.1.19` review |
 |---|---|
 | Router callbacks only use `to` and `from` | They may now read the optional `context` value from `RouterOptions.context`. |
 | Route loaders return untyped values | Use `defineRoute()`, `RouteLoaderData`, or an explicit `RouteLoader<Params, Data, AppContext>` type where the result is consumed elsewhere. |
@@ -117,7 +117,7 @@ The release does not intentionally remove public V3 APIs. The following behavior
 First update both package identities that your project uses:
 
 ```bash
-npm install onekit-js@3.1.18
+npm install onekit-js@3.1.19
 # Only when using the standalone creator package:
 npm install -D create-onekit@1.0.8
 ```
@@ -138,11 +138,11 @@ For SSR applications, verify that each request creates isolated query, router, a
 
 ## Validation status
 
-The V3 branch release artifacts were validated with strict TypeScript compilation, the complete Jest suite, production library builds, declaration verification, clean package installation, and package entrypoint checks. The router typed-loader milestone added a regression test for application context propagation and was pushed to `origin/V3`.
+The 3.1.19 V3 branch was validated with strict TypeScript compilation, **35 Jest suites and 184 tests**, production library builds, declaration verification, clean package installation, package entrypoint checks, and package dry-run output. The branch is tagged `v3.1.19` and synchronized with `origin/V3`; npm registry publication and post-publish registry verification remain user-authenticated steps.
 
 ## Known boundaries
 
-OneKit’s router resolves navigation and data but does not automatically render route components. Applications must connect `MatchedRoute` values to their renderer. Route manifests are preload and hydration planning metadata; they are not an authorization mechanism. Query persistence and automatic focus/reconnect revalidation remain follow-up parity work rather than assumptions of this release.
+OneKit’s router resolves navigation and data but does not automatically render route components. Applications must connect `MatchedRoute` values to their renderer. Route manifests are preload and hydration planning metadata; they are not an authorization mechanism. The SSR `scheduleBoundary()` hook is additive and adapter-controlled; built-in queue, back-pressure, timeout, and platform-specific scheduling policies remain application or adapter responsibilities. Query persistence and automatic focus/reconnect revalidation remain follow-up parity work rather than assumptions of this release. Database and Redis drivers are optional application dependencies and are not bundled into the core package.
 
 ## Related documentation
 
