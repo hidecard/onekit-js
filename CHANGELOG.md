@@ -24,6 +24,7 @@ The V3 branch continues production hardening after `3.1.19` without changing the
 - Add regression coverage for resource routes, body helpers, database context, and provider middleware contracts.
 - Add bounded in-memory `securityMiddleware.rateLimit()` with configurable keying, `429` responses, retry hints, and standard rate-limit headers.
 - Add a portable `RateLimitStore` contract, `createMemoryRateLimitStore()` helper, and beginner-friendly `serverMiddleware.rateLimit()` alias so Redis, database, or edge-backed counters can be injected without changing route code.
+- Add optional driver-injected `createRedisRateLimitStore()` using one atomic EVAL script for distributed counters and expiry, without bundling a Redis client into the core package.
 - Forward custom `onekit build --out-dir <directory>` values to delegated Vite-style project build scripts while preserving default build-script compatibility.
 - Harden global middleware dispatch so middleware runs for missing routes, and add configurable CORS preflight handling with `204` responses and standard method/header/credential/max-age headers.
 - Add idempotent `app.start()`/`app.stop()` lifecycle hooks with `onStart`/`onStop` callbacks, concurrent shutdown coalescing, and automatic closing of the optional database adapter after application shutdown.
@@ -43,12 +44,12 @@ The V3 branch continues production hardening after `3.1.19` without changing the
 - Document the all-in-one backend workflow, adapter boundary, server-only responsibilities, and current limits in the README.
 - Make the shortest backend learning path the default README example, while retaining the lower-level API for advanced applications.
 - Document the Node HTTP adapter, security middleware, typed database adapter, session/token providers, `context.body<T>()`, and `app.resource()` examples while keeping provider verification, distributed stores, and decorator-module boundaries explicit.
-- Document typed server errors, safe error serialization, resilient error hooks, the optional full-stack CLI starter workflow, server-data/cache boundaries, functional module/controller organization, and the optional SQLite and PostgreSQL adapter boundaries for Node deployments.
+- Document typed server errors, safe error serialization, resilient error hooks, the optional full-stack CLI starter workflow, server-data/cache boundaries, functional module/controller organization, optional SQLite and PostgreSQL adapter boundaries, and the optional Redis rate-limit store boundary for Node deployments.
 
 ### Validation
 
 - The focused observability, VDOM, CLI, and server suites pass, together with strict TypeScript checking and the full Jest matrix; the CLI suite covers ten tests and the server regression suite covers fourteen tests.
-- The latest focused validation passes strict `type-check`; the server production suite covers **18 tests**, and the SQLite and PostgreSQL adapter suites add **6 tests** for query/execute mapping, transactions, rollback, insert IDs, pool/client lifecycle, and close behavior. The full release matrix is run after documentation and integration changes are complete. The generated TypeScript starter also passes npm install, type-check, its smoke test, and Vite production build.
+- The latest focused validation passes strict `type-check`; the server production suite covers **18 tests**, and the SQLite, PostgreSQL, and Redis adapter suites add **9 tests** for database mapping, transactions, rollback, pool/client lifecycle, distributed counter/TTL mapping, and malformed backend results. The full release matrix is run after documentation and integration changes are complete. The generated TypeScript starter also passes npm install, type-check, its smoke test, and Vite production build.
 - The Vite plugin build still prints expected non-fatal externalization notices for `node:fs`, `node:path`, and `typescript`; these are intentional server/tooling externals and do not fail the build.
 
 ## [3.1.19] - 2026-08-18

@@ -26,6 +26,7 @@ export * from './modules/server';
 export * from './modules/server-data';
 export * from './modules/sqlite';
 export * from './modules/postgres';
+export * from './modules/redis-rate-limit';
 export * from './modules/environment';
 export * from './modules/head';
 export * from './modules/template';

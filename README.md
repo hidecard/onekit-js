@@ -403,6 +403,27 @@ app.post(
 );
 ```
 
+For production deployments with multiple Node instances, inject `createRedisRateLimitStore()` into the existing rate-limit middleware. It uses one atomic Redis `EVAL` script to increment a counter and apply the expiry, so route code remains unchanged.
+
+```ts
+import Redis from "ioredis";
+import { createRedisRateLimitStore, securityMiddleware } from "onekit-js";
+
+const redisStore = createRedisRateLimitStore(
+  new Redis(process.env.REDIS_URL),
+  { prefix: "my-app:ratelimit:" },
+);
+
+app.use(securityMiddleware.rateLimit({
+  max: 100,
+  windowMs: 60_000,
+  store: redisStore,
+  key: ({ request }) => request.headers.get("x-client-key") ?? "anonymous",
+}));
+```
+
+Install the Redis client separately and keep its connection server-only. The adapter currently targets an ioredis-compatible `eval(script, keyCount, ...keysAndArguments)` client; it does not manage Redis credentials, reconnect policy, prefixes outside its configured namespace, or high-availability topology.
+
 For CRUD-shaped APIs, `app.resource('/todos', { list, get, create, update, remove })` registers the conventional collection and `/:id` routes in one readable declaration. Use `context.body<T>()` when validation is already handled by a trusted boundary, or combine it with `validateBody()` when the input schema must be checked before the handler runs.
 
 ```ts
