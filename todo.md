@@ -1,21 +1,21 @@
 # OneKit JS V3 — Current Release Status
 
-> **Current local release candidate:** `onekit-js@3.1.18` and `create-onekit@1.0.8`.
+> **Current local release candidate:** `onekit-js@3.1.19` and `create-onekit@1.0.8`.
 >
-> **Branch:** `V3` — source, documentation, generated distribution artifacts, tests, and publish workflows are committed and pushed.
+> **Branch:** `V3` — source, documentation, generated distribution artifacts, tests, and publish workflows are committed and pushed. GitHub tag `v3.1.19` and the `V3` branch are synchronized.
 >
-> **Remaining operational blocker:** npm registry publication and post-publish clean-install verification. Do not mark registry checks complete until `onekit-js@3.1.18` and `create-onekit@1.0.8` are confirmed on npm.
+> **Remaining operational blocker:** npm registry publication and post-publish clean-install verification. The registry currently reports `onekit-js@3.1.18`; do not mark the 3.1.19 registry checks complete until the authenticated publish and clean-install verification finish.
 
 - [x] Synchronize package versions, lockfiles, public `VERSION`, README, guides, and changelog.
-- [x] Add the main-package provenance workflow for `v3.1.18`.
+- [x] Add the main-package provenance workflow for `v3.1.19`.
 - [x] Add or update the creator-package provenance workflow for `create-onekit-v1.0.8`.
 - [x] Validate type-check, Jest, production build, declarations, package contents, documentation links, and generated starter build.
-- [x] Publish `onekit-js@3.1.18` from the `v3.1.18` tag and verify the npm registry tarball.
-  - [x] Registry metadata, tarball contents, root/ESM/SSR/router/query exports, `VERSION`, and CLI help verified from a clean temporary install.
+- [ ] Publish `onekit-js@3.1.19` from the `v3.1.19` tag and verify the npm registry tarball.
+  - [ ] Registry metadata, tarball contents, root/ESM/SSR/router/query exports, `VERSION`, and CLI help verified from a clean temporary install.
 - [x] Publish `create-onekit@1.0.8` from the `create-onekit-v1.0.8` tag after the framework package is available.
   - [x] Registry metadata, creator CLI help, and installed dependency versions verified from a clean temporary install.
-- [x] Run post-publish clean-install checks against the registry packages and record the result.
-  - [x] Clean install resolved `onekit-js@3.1.18` and `create-onekit@1.0.8`; runtime exports and both CLI binaries passed.
+- [ ] Run post-publish clean-install checks against the registry packages and record the result.
+  - [ ] Clean install must resolve `onekit-js@3.1.19` and `create-onekit@1.0.8`; runtime exports and both CLI binaries must pass.
 
 ## Fresh CLI Generated Project End-to-End Test
 
