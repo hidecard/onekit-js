@@ -34,6 +34,7 @@ The V3 branch continues production hardening after `3.1.19` without changing the
 - Add `createMemoryServerDataCache()` as a small reference cache without coupling the framework to Redis, an ORM, or a database driver.
 - Add decorator-free `defineModule()`, `defineController()`, and `app.module()` composition APIs for nested imports, providers, middleware, controller prefixes, and grouped routes.
 - Add an optional driver-injected `createSQLiteAdapter()` that maps better-sqlite3-compatible prepared statements, async transaction boundaries, insert IDs, and close behavior to `DatabaseAdapter` without bundling a native driver.
+- Add an optional driver-injected `createPostgreSQLAdapter()` that maps pg-compatible pool queries, dedicated-client transactions, rollback/release behavior, pool shutdown, and optional `RETURNING` insert IDs without bundling `pg`.
 
 ### Documentation
 
@@ -42,12 +43,12 @@ The V3 branch continues production hardening after `3.1.19` without changing the
 - Document the all-in-one backend workflow, adapter boundary, server-only responsibilities, and current limits in the README.
 - Make the shortest backend learning path the default README example, while retaining the lower-level API for advanced applications.
 - Document the Node HTTP adapter, security middleware, typed database adapter, session/token providers, `context.body<T>()`, and `app.resource()` examples while keeping provider verification, distributed stores, and decorator-module boundaries explicit.
-- Document typed server errors, safe error serialization, resilient error hooks, the optional full-stack CLI starter workflow, server-data/cache boundaries, functional module/controller organization, and the optional SQLite adapter boundary for Node deployments.
+- Document typed server errors, safe error serialization, resilient error hooks, the optional full-stack CLI starter workflow, server-data/cache boundaries, functional module/controller organization, and the optional SQLite and PostgreSQL adapter boundaries for Node deployments.
 
 ### Validation
 
 - The focused observability, VDOM, CLI, and server suites pass, together with strict TypeScript checking and the full Jest matrix; the CLI suite covers ten tests and the server regression suite covers fourteen tests.
-- The latest focused validation passes strict `type-check`; the server production suite covers **18 tests**, and the SQLite adapter suite adds **3 tests** for query/execute mapping, transactions, rollback, insert IDs, and close behavior. The full release matrix is run after documentation and integration changes are complete. The generated TypeScript starter also passes npm install, type-check, its smoke test, and Vite production build.
+- The latest focused validation passes strict `type-check`; the server production suite covers **18 tests**, and the SQLite and PostgreSQL adapter suites add **6 tests** for query/execute mapping, transactions, rollback, insert IDs, pool/client lifecycle, and close behavior. The full release matrix is run after documentation and integration changes are complete. The generated TypeScript starter also passes npm install, type-check, its smoke test, and Vite production build.
 - The Vite plugin build still prints expected non-fatal externalization notices for `node:fs`, `node:path`, and `typescript`; these are intentional server/tooling externals and do not fail the build.
 
 ## [3.1.19] - 2026-08-18

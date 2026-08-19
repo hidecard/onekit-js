@@ -506,6 +506,32 @@ app.get("/api/projects", async ({ database: db, ok }) =>
 
 Install the driver separately in the Node application, keep the database module server-only, use parameterized SQL, and close it through `app.stop()`. The adapter is deliberately driver-injected so browser and edge builds do not acquire native SQLite dependencies; PostgreSQL and other databases can follow the same `DatabaseAdapter` contract.
 
+### Optional PostgreSQL adapter
+
+For Node applications using a `pg`-compatible pool, `createPostgreSQLAdapter()` maps pool queries, dedicated-client transactions, rollback/release behavior, pool shutdown, and optional `RETURNING` insert IDs without bundling the `pg` client.
+
+```ts
+import { Pool } from "pg";
+import { createApi, createPostgreSQLAdapter } from "onekit-js";
+
+const database = createPostgreSQLAdapter(new Pool({
+  connectionString: process.env.DATABASE_URL,
+}), { insertIdColumn: "id" });
+
+const app = createApi({ database });
+
+app.post("/api/projects", async ({ database: db, body, ok }) => {
+  const input = await body<{ name: string }>();
+  const result = await db!.execute(
+    "insert into projects(name) values ($1) returning id",
+    [input.name],
+  );
+  return ok({ id: result.insertId });
+});
+```
+
+The adapter acquires a dedicated pool client for transactions and releases it in a `finally` block. Install `pg` separately, keep credentials in server-only configuration, use parameterized values, and let `app.stop()` close the pool. The framework does not manage migrations, schemas, retries, or connection secrets.
+
 ## Stores, query data, and forms
 
 ### Stores
