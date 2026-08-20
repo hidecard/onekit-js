@@ -12,6 +12,18 @@
       "rounds": 4,
       "maxDurationMs": 200,
       "warningRatio": 0.8
+    },
+    "ssr-hydration": {
+      "size": 400,
+      "rounds": 1,
+      "maxDurationMs": 300,
+      "warningRatio": 0.8
+    },
+    "slot-heavy": {
+      "groups": 120,
+      "rounds": 1,
+      "maxDurationMs": 250,
+      "warningRatio": 0.8
     }
   }
 }

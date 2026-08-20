@@ -97,6 +97,41 @@
         return result;
       };
 
+      const buildSsrListMarkup = size => `<main data-ssr-list="true">${Array.from({ length: size }, (_, index) => `<article data-ssr-key="${index}"><h2>Server ${index}</h2><p>Hydrated content ${index}</p></article>`).join('')}</main>`;
+      const buildSsrListVNode = size => h('main', { 'data-ssr-list': 'true' }, ...Array.from({ length: size }, (_, index) => h('article', { key: index, 'data-ssr-key': String(index) }, h('h2', {}, `Server ${index}`), h('p', {}, `Hydrated content ${index}`))));
+      const runSsrHydrationBenchmark = (size = 400, rounds = 1) => {
+        const host = document.createElement('div');
+        host.innerHTML = buildSsrListMarkup(size);
+        document.body.appendChild(host);
+        const target = host.firstElementChild;
+        const vnode = buildSsrListVNode(size);
+        const start = performance.now();
+        let hydration;
+        for (let round = 0; round < rounds; round += 1) hydration = hydrate(target, vnode);
+        const durationMs = performance.now() - start;
+        const result = { size, rounds, durationMs, nodeCount: host.querySelectorAll('[data-ssr-key]').length, mismatches: hydration?.mismatches?.length || 0 };
+        hydration?.dispose();
+        host.remove();
+        return result;
+      };
+      const buildSlotTreeMarkup = groups => `<main data-slot-tree="true">${Array.from({ length: groups }, (_, group) => `<article data-slot-group="${group}"><header slot="header" data-slot="header">Header ${group}</header><div slot="body" data-slot="body"><span>Body ${group} A</span><span>Body ${group} B</span></div><footer slot="footer" data-slot="footer">Footer ${group}</footer></article>`).join('')}</main>`;
+      const buildSlotTreeVNode = groups => h('main', { 'data-slot-tree': 'true' }, ...Array.from({ length: groups }, (_, group) => h('article', { key: group, 'data-slot-group': String(group) }, h('header', { slot: 'header', 'data-slot': 'header' }, `Header ${group}`), h('div', { slot: 'body', 'data-slot': 'body' }, h('span', {}, `Body ${group} A`), h('span', {}, `Body ${group} B`)), h('footer', { slot: 'footer', 'data-slot': 'footer' }, `Footer ${group}`))));
+      const runSlotHeavyBenchmark = (groups = 120, rounds = 1) => {
+        const host = document.createElement('div');
+        host.innerHTML = buildSlotTreeMarkup(groups);
+        document.body.appendChild(host);
+        const target = host.firstElementChild;
+        const vnode = buildSlotTreeVNode(groups);
+        const start = performance.now();
+        let hydration;
+        for (let round = 0; round < rounds; round += 1) hydration = hydrate(target, vnode);
+        const durationMs = performance.now() - start;
+        const result = { groups, rounds, durationMs, groupCount: host.querySelectorAll('[data-slot-group]').length, slotNodeCount: host.querySelectorAll('[data-slot]').length, mismatches: hydration?.mismatches?.length || 0 };
+        hydration?.dispose();
+        host.remove();
+        return result;
+      };
+
       const hydration = hydrate(root, vnode);
       window.OneKitBrowserSmoke = {
         root,
@@ -118,6 +153,8 @@
         },
         runKeyedBenchmark,
         runDomHeavyBenchmark,
+        runSsrHydrationBenchmark,
+        runSlotHeavyBenchmark,
         keyedSnapshot() {
           return Array.from(keyedList.children).map(item => ({
             key: item.dataset.key,

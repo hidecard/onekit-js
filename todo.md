@@ -501,9 +501,11 @@
   - [ ] Broaden scenarios to controlled inputs and slot-heavy trees.
 - [ ] Add browser-based performance scenarios for large keyed lists, hydration of server-rendered trees, slot-heavy component trees, and repeated mount/unmount cycles.
   - [x] Added 500-item keyed-list reorder and 300-card DOM-heavy reverse-patch Playwright scenarios with JSON attachments.
-  - [ ] Add large server-rendered hydration timing and slot-heavy tree scenarios.
+  - [x] Add large server-rendered hydration timing and slot-heavy tree scenarios with zero-mismatch assertions, projection-shape checks, and per-browser JSON reports.
+  - [ ] Add historical trend storage, slot-heavy update/reorder timing, and browser heap snapshots.
   - [x] Added a jsdom cleanup regression covering 100 repeated hydration/dispose cycles, listener cleanup, callback-ref cleanup, and metadata release.
-  - [ ] Add real-browser scenarios and timing baselines for DOM-heavy workloads.
+  - [x] Add real-browser scenarios and timing baselines for DOM-heavy workloads, large SSR hydration, and slot-heavy projection.
+  - [ ] Add stable historical trend comparison and browser heap-snapshot collection.
 - [ ] Add a repeated mount/unmount memory-leak harness that releases application references and records browser heap snapshots where supported.
   - [x] Added the forced-GC Node memory benchmark and lifecycle cleanup guard.
   - [ ] Add browser heap-snapshot collection for supported browser CI environments.

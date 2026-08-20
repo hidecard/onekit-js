@@ -118,6 +118,53 @@ test.describe('OneKit V3 real-browser hydration contracts', () => {
     });
   });
 
+  test('records large SSR hydration timing baseline', async ({ page }, testInfo) => {
+    await page.goto('/tests/browser/fixture.html');
+    const result = await page.evaluate(() => window.OneKitBrowserSmoke.runSsrHydrationBenchmark(400, 1));
+
+    const budget = performanceBudgets.workloads['ssr-hydration'];
+    expect(result.nodeCount).toBe(budget.size);
+    expect(result.rounds).toBe(budget.rounds);
+    expect(result.mismatches).toBe(0);
+    expect(result.durationMs).toBeGreaterThanOrEqual(0);
+    if (result.durationMs > budget.maxDurationMs * budget.warningRatio) {
+      const warning = { ...result, budgetMs: budget.maxDurationMs };
+      console.warn(`[browser-performance-warning] ssr-hydration ${JSON.stringify(warning)}`);
+      process.stdout.write(`::warning title=OneKit browser performance budget::ssr-hydration exceeded warning threshold: ${JSON.stringify(warning)}\\n`);
+    }
+    expect(result.durationMs).toBeLessThanOrEqual(budget.maxDurationMs);
+    const report = { ...result, budgetMs: budget.maxDurationMs, warningThresholdMs: budget.maxDurationMs * budget.warningRatio };
+    console.log(`[browser-performance] ssr-hydration ${JSON.stringify(report)}`);
+    await testInfo.attach('ssr-hydration-performance.json', {
+      body: Buffer.from(JSON.stringify(report, null, 2)),
+      contentType: 'application/json',
+    });
+  });
+
+  test('records slot-heavy hydration timing baseline and projection shape', async ({ page }, testInfo) => {
+    await page.goto('/tests/browser/fixture.html');
+    const result = await page.evaluate(() => window.OneKitBrowserSmoke.runSlotHeavyBenchmark(120, 1));
+
+    const budget = performanceBudgets.workloads['slot-heavy'];
+    expect(result.groupCount).toBe(budget.groups);
+    expect(result.slotNodeCount).toBe(budget.groups * 3);
+    expect(result.rounds).toBe(budget.rounds);
+    expect(result.mismatches).toBe(0);
+    expect(result.durationMs).toBeGreaterThanOrEqual(0);
+    if (result.durationMs > budget.maxDurationMs * budget.warningRatio) {
+      const warning = { ...result, budgetMs: budget.maxDurationMs };
+      console.warn(`[browser-performance-warning] slot-heavy ${JSON.stringify(warning)}`);
+      process.stdout.write(`::warning title=OneKit browser performance budget::slot-heavy exceeded warning threshold: ${JSON.stringify(warning)}\\n`);
+    }
+    expect(result.durationMs).toBeLessThanOrEqual(budget.maxDurationMs);
+    const report = { ...result, budgetMs: budget.maxDurationMs, warningThresholdMs: budget.maxDurationMs * budget.warningRatio };
+    console.log(`[browser-performance] slot-heavy ${JSON.stringify(report)}`);
+    await testInfo.attach('slot-heavy-performance.json', {
+      body: Buffer.from(JSON.stringify(report, null, 2)),
+      contentType: 'application/json',
+    });
+  });
+
   test('disposes listeners, refs, and vnode metadata without rewriting the DOM', async ({ page }) => {
     await page.goto('/tests/browser/fixture.html');
     const original = await page.locator('#app').innerHTML();
