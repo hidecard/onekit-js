@@ -91,9 +91,17 @@
 - [ ] Store all four-browser timing history and compare release-to-release percentiles on stable CI runners.
 - [ ] Extend browser memory measurement to non-Chromium engines when a portable heap-inspection API is available.
 
+## API contract and production adoption
+
+- [x] Publish `docs/API_STABILITY.md` with Stable/Experimental/ownership labels and V3 compatibility policy.
+- [x] Add `npm run verify:api-contract` to validate every advertised runtime export target and ESM/CJS subpath import before release.
+- [x] Correct production documentation to the current **195 Jest tests** state.
+- [ ] Define the route-level data loader/payload/cache contract with cancellation, hydration reuse, invalidation, and error/loading states.
+- [ ] Add file-based route conventions and generated typed route parameters/data.
+
 ## Production-readiness audit
 
-- [ ] Audit public exports, API contracts, and compatibility guarantees against React/Next-like expectations.
+- [x] Audit public exports, API contracts, and compatibility guarantees against React/Next-like expectations.
 - [ ] Audit component lifecycle, event handling, reactivity scheduling, hydration, and SSR edge cases.
 - [ ] Audit router, data-loading, error/loading boundaries, and application composition primitives.
 - [ ] Audit CLI starter/build/dev/test workflows, TypeScript ergonomics, source maps, and package exports.
