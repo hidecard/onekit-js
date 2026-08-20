@@ -4,18 +4,18 @@
 >
 > **Branch:** `V3` — source, documentation, generated distribution artifacts, tests, and publish workflows are committed and pushed. GitHub tag `v3.1.19` and the `V3` branch are synchronized.
 >
-> **Remaining operational blocker:** npm registry publication and post-publish clean-install verification. The registry currently reports `onekit-js@3.1.18`; do not mark the 3.1.19 registry checks complete until the authenticated publish and clean-install verification finish.
+> **Release status:** `onekit-js@3.1.19` is published to npm as the `latest` version and has passed post-publish clean-install verification. The source branch, tag, GitHub Release, package artifacts, and registry package are synchronized.
 
 - [x] Synchronize package versions, lockfiles, public `VERSION`, README, guides, and changelog.
 - [x] Add the main-package provenance workflow for `v3.1.19`.
 - [x] Add or update the creator-package provenance workflow for `create-onekit-v1.0.8`.
 - [x] Validate type-check, Jest, production build, declarations, package contents, documentation links, and generated starter build.
-- [ ] Publish `onekit-js@3.1.19` from the `v3.1.19` tag and verify the npm registry tarball.
-  - [ ] Registry metadata, tarball contents, root/ESM/SSR/router/query exports, `VERSION`, and CLI help verified from a clean temporary install.
+- [x] Publish `onekit-js@3.1.19` from the `v3.1.19` tag and verify the npm registry tarball.
+  - [x] Registry metadata, tarball contents, root/ESM/SSR/router/query exports, `VERSION`, and CLI help verified from a clean temporary install.
 - [x] Publish `create-onekit@1.0.8` from the `create-onekit-v1.0.8` tag after the framework package is available.
   - [x] Registry metadata, creator CLI help, and installed dependency versions verified from a clean temporary install.
-- [ ] Run post-publish clean-install checks against the registry packages and record the result.
-  - [ ] Clean install must resolve `onekit-js@3.1.19` and `create-onekit@1.0.8`; runtime exports and both CLI binaries must pass.
+- [x] Run post-publish clean-install checks against the registry packages and record the result.
+  - [x] Clean install resolved `onekit-js@3.1.19` and `create-onekit@1.0.8`; published runtime exports, package metadata, and the `onekit help` CLI smoke test passed.
 
 ## Fresh CLI Generated Project End-to-End Test
 
