@@ -37,7 +37,7 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Run lifecycle heap snapshot regression
-        run: npx playwright test tests/browser/heap-snapshot.spec.js --project=chromium
+        run: npm run test:browser:heap
 
       - name: Upload lifecycle heap reports and snapshots
         if: always()

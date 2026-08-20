@@ -86,6 +86,7 @@
 - [x] Add a Chromium CDP heap snapshot test for 25 repeated mount/update/unmount cycles with 3 updates and 40 keyed nodes per cycle.
 - [x] Force GC before and after the lifecycle workload, assert zero residual probe hosts/roots, attach before/after `.heapsnapshot` files, and enforce an 8 MiB retained post-GC heap-growth budget.
 - [x] Add `.github/workflows/browser-heap-snapshot.yml` for V3 push/PR/manual runs with Chromium installation, heap test execution, and 14-day diagnostic artifacts.
+- [x] Add the reproducible `npm run test:browser:heap` command for local and CI lifecycle-memory checks.
 - [ ] Store browser timing and heap-growth history and compare release-to-release percentiles on stable CI runners.
 - [ ] Extend browser memory measurement to non-Chromium engines when a portable heap-inspection API is available.
 

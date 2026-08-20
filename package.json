@@ -151,6 +151,7 @@
     "cli": "node ./bin/onekit.js",
     "test": "jest --config jest.config.cjs",
     "test:browser": "playwright test --config=playwright.config.mjs",
+    "test:browser:heap": "playwright test tests/browser/heap-snapshot.spec.js --config=playwright.config.mjs --project=chromium",
     "verify:package": "node scripts/verify-package.cjs",
     "verify:declarations": "node scripts/verify-declarations.mjs",
     "verify:hmr": "npm run build && node scripts/verify-hmr.mjs",
