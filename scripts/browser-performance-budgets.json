@@ -1,5 +1,9 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
+  "history": {
+    "maxRegressionRatio": 0.25,
+    "maxRecords": 1000
+  },
   "workloads": {
     "keyed-list": {
       "size": 500,

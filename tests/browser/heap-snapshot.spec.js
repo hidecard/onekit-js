@@ -67,8 +67,10 @@ test.describe('OneKit V3 browser lifecycle heap snapshots', () => {
       warningThresholdBytes: budget.maxRetainedHeapGrowthBytes * budget.warningRatio,
     };
     console.log(`[browser-memory] lifecycle-heap ${JSON.stringify(report)}`);
+    const reportPath = testInfo.outputPath('lifecycle-heap-performance.json');
+    writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
     await testInfo.attach('lifecycle-heap-performance.json', {
-      body: Buffer.from(JSON.stringify(report, null, 2)),
+      path: reportPath,
       contentType: 'application/json',
     });
     await testInfo.attach('heap-before.heapsnapshot', {

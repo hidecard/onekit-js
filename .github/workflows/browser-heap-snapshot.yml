@@ -36,8 +36,27 @@ jobs:
       - name: Install Chromium and OS dependencies
         run: npx playwright install --with-deps chromium
 
+      - name: Restore browser performance history
+        uses: actions/cache/restore@v4
+        with:
+          path: benchmark-results/browser-history
+          key: onekit-browser-history-${{ github.ref_name }}-${{ github.run_id }}
+          restore-keys: |
+            onekit-browser-history-${{ github.ref_name }}-
+
       - name: Run lifecycle heap snapshot regression
         run: npm run test:browser:heap
+
+      - name: Record browser performance history
+        if: always()
+        run: node scripts/record-browser-history.mjs --browser chromium
+
+      - name: Save browser performance history
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: benchmark-results/browser-history
+          key: onekit-browser-history-${{ github.ref_name }}-${{ github.run_id }}
 
       - name: Upload lifecycle heap reports and snapshots
         if: always()
@@ -50,5 +69,6 @@ jobs:
             test-results/**/lifecycle-heap-performance.json
             test-results/**/*.heapsnapshot
             test-results/**/error-context.md
+            benchmark-results/browser-history/
             playwright-report/
             scripts/browser-performance-budgets.json
