@@ -53,6 +53,50 @@
       );
 
       let vnode = makeVNode();
+
+      const buildBenchmarkList = (order) => h('ul', { className: 'benchmark-list' }, ...order.map(key => h('li', { key, 'data-key': String(key) }, `Item ${key}`)));
+      const runKeyedBenchmark = (size = 500, rounds = 5) => {
+        const host = document.createElement('div');
+        document.body.appendChild(host);
+        let order = Array.from({ length: size }, (_, index) => index);
+        let previous = buildBenchmarkList(order);
+        patch(host, previous);
+        const start = performance.now();
+        for (let round = 0; round < rounds; round += 1) {
+          order = round % 2 === 0 ? order.slice().reverse() : order.slice(1).concat(order[0]);
+          const next = buildBenchmarkList(order);
+          patch(host, next, previous);
+          previous = next;
+        }
+        const durationMs = performance.now() - start;
+        const result = { size, rounds, durationMs, nodeCount: host.firstElementChild?.children.length || 0 };
+        host.remove();
+        return result;
+      };
+      const runDomHeavyBenchmark = (size = 300, rounds = 4) => {
+        const host = document.createElement('div');
+        document.body.appendChild(host);
+        let order = Array.from({ length: size }, (_, index) => index);
+        const buildTree = values => h('main', { className: 'benchmark-tree' }, ...values.map(key => h('article', { key },
+          h('h2', {}, `Card ${key}`),
+          h('p', {}, `Content for card ${key}`),
+          h('span', {}, `Value ${key}`),
+        )));
+        let previous = buildTree(order);
+        patch(host, previous);
+        const start = performance.now();
+        for (let round = 0; round < rounds; round += 1) {
+          order = order.slice().reverse();
+          const next = buildTree(order);
+          patch(host, next, previous);
+          previous = next;
+        }
+        const durationMs = performance.now() - start;
+        const result = { size, rounds, durationMs, nodeCount: host.querySelectorAll('article').length };
+        host.remove();
+        return result;
+      };
+
       const hydration = hydrate(root, vnode);
       window.OneKitBrowserSmoke = {
         root,
@@ -72,6 +116,8 @@
           patch(root.parentElement, next, vnode);
           vnode = next;
         },
+        runKeyedBenchmark,
+        runDomHeavyBenchmark,
         keyedSnapshot() {
           return Array.from(keyedList.children).map(item => ({
             key: item.dataset.key,

@@ -68,6 +68,32 @@ test.describe('OneKit V3 real-browser hydration contracts', () => {
     await expect(page.locator('[data-item="b"]')).toHaveText('B:2');
   });
 
+  test('records large keyed-list reorder timing baseline', async ({ page }, testInfo) => {
+    await page.goto('/tests/browser/fixture.html');
+    const result = await page.evaluate(() => window.OneKitBrowserSmoke.runKeyedBenchmark(500, 5));
+
+    expect(result.nodeCount).toBe(500);
+    expect(result.durationMs).toBeGreaterThanOrEqual(0);
+    console.log(`[browser-performance] keyed-list ${JSON.stringify(result)}`);
+    await testInfo.attach('keyed-list-performance.json', {
+      body: Buffer.from(JSON.stringify(result, null, 2)),
+      contentType: 'application/json',
+    });
+  });
+
+  test('records DOM-heavy patch timing baseline', async ({ page }, testInfo) => {
+    await page.goto('/tests/browser/fixture.html');
+    const result = await page.evaluate(() => window.OneKitBrowserSmoke.runDomHeavyBenchmark(300, 4));
+
+    expect(result.nodeCount).toBe(300);
+    expect(result.durationMs).toBeGreaterThanOrEqual(0);
+    console.log(`[browser-performance] dom-heavy ${JSON.stringify(result)}`);
+    await testInfo.attach('dom-heavy-performance.json', {
+      body: Buffer.from(JSON.stringify(result, null, 2)),
+      contentType: 'application/json',
+    });
+  });
+
   test('disposes listeners, refs, and vnode metadata without rewriting the DOM', async ({ page }) => {
     await page.goto('/tests/browser/fixture.html');
     const original = await page.locator('#app').innerHTML();

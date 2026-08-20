@@ -2,7 +2,7 @@
 
 ## Scope
 
-This document records a reproducible baseline for OneKit JS V3 `3.1.19`. It covers reactive runtime operations, forced-GC heap measurements, and distributable bundle sizes. The benchmark is intended for comparisons across future OneKit revisions on the same machine and Node.js version; it is not a cross-framework ranking.
+This document records a reproducible baseline for OneKit JS V3 `3.1.19`. It covers reactive runtime operations, forced-GC heap measurements, distributable bundle sizes, and real-browser DOM reconciliation timings. The benchmark is intended for comparisons across future OneKit revisions on the same machine and Node.js version; it is not a cross-framework ranking.
 
 ## Test environment
 
@@ -55,19 +55,30 @@ The reactive-object workload intentionally keeps 10,000 reactive objects and the
 
 For browser production delivery, the minified ESM build is the recommended baseline. Its measured compressed transfer footprint is approximately **33.5 KiB before Brotli, HTTP headers, and application code**.
 
+## Real-browser DOM performance baseline
+
+The Playwright matrix runs the same DOM-heavy workloads in Chromium, Firefox, WebKit, and Microsoft Edge. Each browser creates and hydrates the fixture, then measures five reorder patches over a 500-item keyed list and four reverse-order patches over a 300-card DOM-heavy tree. These are timing baselines rather than pass/fail performance budgets; they are intended to detect large regressions on the same runner.
+
+| Browser matrix | Keyed list workload | DOM-heavy workload | Coverage |
+|---|---:|---:|---|
+| Chromium, Firefox, WebKit, Microsoft Edge | 500 keyed items × 5 reorder rounds | 300 article cards × 4 reverse patches | 4 browsers / 8 performance tests |
+
+The local validation run completed **32 browser tests** in **26.3 seconds**, including the eight performance tests. Sample console timings from that run were approximately **21.6–36.0 ms** for the keyed-list workload and **28.4–38.0 ms** for the DOM-heavy workload across the four browser projects. These values are runner-dependent and should not be treated as universal browser benchmarks. CI retains the Playwright report and JSON attachments for each browser project.
+
 ## Interpretation and follow-up
 
 The current baseline shows that batched reactive updates are materially more efficient than issuing the same updates individually. The principal memory cost in this workload comes from retaining reactive objects together with their subscriptions; applications should avoid retaining unnecessary reactive graphs and should dispose scopes when feature lifetimes end.
 
 A jsdom regression harness now exercises 100 repeated hydration/dispose cycles and verifies that event listeners, callback refs, `_vnode`, and component metadata do not remain attached after disposal. This is a lifecycle-cleanup guard rather than a browser heap measurement.
 
-These measurements do not include browser DOM node memory, layout/style cost, event-listener memory, V8 code space, RSS, allocator fragmentation, hydration cost, keyed reconciliation cost, or comparisons against React/Vue/Svelte. The next useful benchmark additions are real-browser DOM reconciliation scenarios, hydration of large server-rendered trees, keyed list reorder workloads, and repeated mount/unmount heap snapshots with application references released.
+These measurements do not include browser DOM node memory, layout/style cost, event-listener memory, V8 code space, RSS, allocator fragmentation, or comparisons against React/Vue/Svelte. The real-browser suite now covers DOM reconciliation and keyed list reorder timing, but it does not yet provide a stable performance budget, large server-rendered hydration timing, or browser heap snapshots after repeated mount/unmount cycles. Those remain follow-up work.
 
 ## Reproduction
 
 ```bash
 npm run benchmark
 npm run benchmark:memory
+npm run test:browser
 ```
 
 Raw machine-generated outputs are stored in `benchmark-results/v3.json` and `benchmark-results/memory-v3.json`.
