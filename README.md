@@ -19,8 +19,9 @@ OneKit is designed for developers who want a framework that is easy to learn but
 | [Mental model](#the-onekit-mental-model) | [Framework architecture](docs/FRAMEWORK_GUIDE.md) |
 | [Feature map](#v3-feature-map) | [Production readiness](docs/PRODUCTION_READINESS.md) |
 | [API stability](docs/API_STABILITY.md) | [Performance benchmarks](docs/PERFORMANCE_BENCHMARKS.md) |
-| [CLI reference](#cli-reference) | [Migration guide](MIGRATION_GUIDE.md) |
-| [Contributing](#contributing-to-onekit) | [Release notes](docs/V3_RELEASE_NOTES.md) |
+| [V3.2.0 roadmap](docs/V3.2.0_ROADMAP.md) | [CLI reference](#cli-reference) |
+| [Migration guide](MIGRATION_GUIDE.md) | [Release notes](docs/V3_RELEASE_NOTES.md) |
+| [Contributing](#contributing-to-onekit) | [API reference](docs/API_STABILITY.md) |
 
 ## Why developers choose OneKit
 
@@ -53,6 +54,10 @@ OneKit does not try to hide the browser. DOM elements, events, selectors, reques
 V3 keeps these capabilities composable. An application can use only the reactive core, or combine components, routes, stores, SSR, testing, and tooling as it grows.
 
 ### Latest production-parity additions
+
+### V3.2.0 roadmap
+
+V3.1.19 is the current stable V3 release. The next planned milestone is documented in [V3.2.0 Roadmap](docs/V3.2.0_ROADMAP.md), with a focus on route-level data loading, SSR payload reuse, cancellation and cache contracts, loading/error/not-found boundaries, typed navigation, optional file-based routes, and explicit CSR/SSR/prerender/hybrid rendering modes. These are roadmap commitments under planning and are not presented as stable V3.1.19 APIs.
 
 The current V3 branch also hardens failure handling and teardown behavior for production applications. `createErrorReport(error, context)` converts unknown failures into a normalized `{ context, error: { name, message, stack? } }` payload. Applications can register an optional reporter with `setErrorReporter(reporter)`; reporter failures are isolated and cannot interrupt the application. When the opt-in DevTools bridge is enabled, runtime failures appear as `runtime:error` events. The browser `onekit-error` event remains available for integrations, but applications should review and redact their own messages and stack traces before sending them to an external service.
 

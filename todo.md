@@ -91,6 +91,13 @@
 - [ ] Store all four-browser timing history and compare release-to-release percentiles on stable CI runners.
 - [ ] Extend browser memory measurement to non-Chromium engines when a portable heap-inspection API is available.
 
+## V3.2.0 roadmap planning
+
+- [x] Create `docs/V3.2.0_ROADMAP.md` with scope pillars, M0-M5 milestones, non-goals, compatibility gates, and open decisions.
+- [x] Link the V3.2.0 roadmap from README without presenting planned APIs as stable V3.1.19 behavior.
+- [ ] Approve the route data lifecycle RFC before implementing new Stable APIs.
+- [ ] Implement route-level data loading, typed navigation, failure boundaries, and SSR payload reuse in milestone order.
+
 ## API contract and production adoption
 
 - [x] Publish `docs/API_STABILITY.md` with Stable/Experimental/ownership labels and V3 compatibility policy.
