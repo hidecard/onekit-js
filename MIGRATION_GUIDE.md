@@ -1,15 +1,15 @@
 # OneKit JS V3 Migration Guide
 
-**Target release:** OneKit JS V3 / `3.1.18`
+**Target release:** OneKit JS V3 / `3.1.19`
 **Package:** `onekit-js`
 **Runtime:** Browser-first JavaScript and TypeScript
 **Audience:** OneKit 2.x or legacy single-file users moving to V3, and teams adopting V3 in a new application
 
 > This guide explains the migration decisions that matter in a real application: package installation, imports, state, components, templates, routing, stores, SSR, CLI workflows, testing, security, and release verification.
 
-## V3.1.18 update at a glance
+## V3.1.19 update at a glance
 
-OneKit JS `3.1.18` is a compatible V3-line upgrade. Existing V3 applications should update the package, run the normal validation pipeline, and review the new router context contract if they want dependency injection or stronger TypeScript inference. The companion starter package is `create-onekit@1.0.8`.
+OneKit JS `3.1.19` is a compatible V3-line upgrade. Existing V3 applications should update the package, run the normal validation pipeline, and review the V3 backend, database adapter, Redis rate-limit, module/controller, and SSR scheduling contracts when adopting those capabilities. The companion starter package is `create-onekit@1.0.8`.
 
 | Area | Migration action |
 |---|---|
@@ -19,7 +19,7 @@ OneKit JS `3.1.18` is a compatible V3-line upgrade. Existing V3 applications sho
 | SSR preload | Replace ad-hoc route serialization with `createRouteManifest()` or `router.getManifest()`. Treat manifests as preload metadata, never as access control. |
 | Query and hydration | Use query `dehydrate()`/`hydrate()` for request-scoped handoff and connect hydration mismatch diagnostics in development or CI. |
 | Runtime checks | Use `isServerRuntime()`, `isClientRuntime()`, `serverOnly()`, and `clientOnly()` around environment-specific code. |
-| Starter projects | New projects should use `create-onekit@1.0.8`; existing projects should update the starter dependency to `onekit-js@^3.1.18` before regenerating or comparing files. |
+| Starter projects | New projects should use `create-onekit@1.0.8`; existing projects should update the starter dependency to `onekit-js@^3.1.19` before regenerating or comparing files. |
 
 A detailed release summary is available in [V3 Release Notes](docs/V3_RELEASE_NOTES.md).
 
@@ -420,7 +420,7 @@ Use `patch(parent, nextVNode, previousVNode)` when the application owns an exist
 
 ### 10.1 Typed loader context and application services
 
-V3.1.18 adds an optional application context to router callbacks without changing the existing `to`/`from` fields. Pass request-scoped or application-scoped services through `RouterOptions.context` rather than importing mutable service state from a shared module:
+V3.1.19 retains the V3.1.18 optional application context for router callbacks without changing the existing `to`/`from` fields. Pass request-scoped or application-scoped services through `RouterOptions.context` rather than importing mutable service state from a shared module:
 
 ```ts
 import {
@@ -774,7 +774,7 @@ my-app/
     "test": "jest --runInBand"
   },
   "dependencies": {
-    "onekit-js": "^3.1.18"
+    "onekit-js": "^3.1.19"
   },
   "devDependencies": {
     "vite": "latest",

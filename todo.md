@@ -471,9 +471,9 @@
 - [x] Fix confirmed errors with focused regression tests and re-run the affected validation.
   - [x] No new confirmed runtime error was found in this pass; no source fix was required. Existing nested-layout regression coverage remains green.
 - [x] Record passed checks, non-blocking warnings, remaining risks, and push verified fixes to `origin/V3`.
-  - [x] Audit result recorded; no code fix was needed, and the checklist-only commit will be synchronized to `origin/V3`. Remaining risks are cross-platform browser CI, npm publication verification, and application-level security/configuration.
+  - [x] Audit result recorded; no code fix was needed, and the checklist-only commit will be synchronized to `origin/V3`. Remaining risks are cross-platform browser CI and application-level security/configuration; npm publication and registry verification are complete for `3.1.19`.
 
-## Production parity progress after V3.1.18
+## Production parity progress delivered in V3.1.19
 
 - [x] Implement progressive SSR boundary fallback/content chunks with visible shells and import-safe client continuation.
   - [x] Add regression coverage for fallback chunks, content chunks, continuation application, abort behavior, and SSR-safe imports.
@@ -482,9 +482,9 @@
   - [x] Add regression coverage for persistence restore, expiry, storage failures, focus/reconnect events, and disposal.
 - [x] Document progressive SSR boundaries and query persistence/revalidation in `docs/V3_USAGE.md` and `docs/PRODUCTION_READINESS.md`.
 - [x] Run type-check, focused SSR/query suites, full Jest suite, production build, declaration verification, package verification, and diff checks.
-- [ ] Implement adapter-level SSR stream scheduling and broader browser compatibility coverage.
+- [x] Implement adapter-level SSR stream scheduling through the optional `scheduleBoundary()` contract. Broader browser compatibility coverage remains follow-up work.
 - [ ] Add production component reconciliation parity: keyed lists, refs, controlled inputs, event ownership, and unmount cleanup.
 - [ ] Add framework-level observability and error reporting integrations without leaking user data.
-- [ ] Publish the next V3 patch release only after versioning, changelog, migration notes, clean-install verification, and registry checks are prepared.
+- [x] Publish the V3.1.19 patch release after versioning, changelog, migration notes, clean-install verification, and registry checks were prepared.
 
-> The current release remains `onekit-js@3.1.18`; the completed production-parity changes are not claimed as published until a new version is tagged and verified.
+> The current published release is `onekit-js@3.1.19`; npm latest, GitHub tag/release, clean-install verification, and the `V3` branch are synchronized.

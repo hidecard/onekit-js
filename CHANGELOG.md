@@ -69,7 +69,7 @@ OneKit JS `3.1.19` is a **V3 production-parity patch release** that adds progres
 
 - Document progressive SSR boundaries and query persistence/revalidation in the V3 Usage Guide.
 - Synchronize the Production Readiness Guide and roadmap with the completed parity milestones.
-- Update the generated Vite starter to use the installable compatibility floor `onekit-js@^3.1.18`; its caret range resolves the newest compatible V3 release, including `3.1.19` once published.
+- Update the generated Vite starter to use the installable compatibility floor `onekit-js@^3.1.18`; its caret range resolves the newest compatible V3 release, including the published `3.1.19` release.
 
 ### Compatibility and boundaries
 
