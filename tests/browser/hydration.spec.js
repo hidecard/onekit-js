@@ -41,6 +41,33 @@ test.describe('OneKit V3 real-browser hydration contracts', () => {
     await expect(page.locator('#controlled-output')).toHaveText('server');
   });
 
+  test('reorders keyed children while preserving DOM node identity', async ({ page }) => {
+    await page.goto('/tests/browser/fixture.html');
+
+    const initial = await page.evaluate(() => {
+      window.OneKitBrowserSmoke.markKeyedNodes();
+      return window.OneKitBrowserSmoke.keyedSnapshot();
+    });
+    await page.evaluate(() => window.OneKitBrowserSmoke.reorder(['c', 'a', 'b']));
+    const reordered = await page.evaluate(() => window.OneKitBrowserSmoke.keyedSnapshot());
+
+    expect(reordered.map(item => item.key)).toEqual(['c', 'a', 'b']);
+    expect(reordered.map(item => item.nodeId)).toEqual([initial[2].nodeId, initial[0].nodeId, initial[1].nodeId]);
+    expect(reordered.map(item => item.text)).toEqual(['C:0', 'A:0', 'B:0']);
+  });
+
+  test('preserves keyed child interaction state after reorder', async ({ page }) => {
+    await page.goto('/tests/browser/fixture.html');
+    await page.evaluate(() => window.OneKitBrowserSmoke.clickKey('b'));
+    await page.evaluate(() => window.OneKitBrowserSmoke.reorder(['c', 'b', 'a']));
+
+    const snapshot = await page.evaluate(() => window.OneKitBrowserSmoke.keyedSnapshot());
+    expect(snapshot.map(item => item.key)).toEqual(['c', 'b', 'a']);
+    expect(snapshot.map(item => item.text)).toEqual(['C:0', 'B:1', 'A:0']);
+    await page.evaluate(() => window.OneKitBrowserSmoke.clickKey('b'));
+    await expect(page.locator('[data-item="b"]')).toHaveText('B:2');
+  });
+
   test('disposes listeners, refs, and vnode metadata without rewriting the DOM', async ({ page }) => {
     await page.goto('/tests/browser/fixture.html');
     const original = await page.locator('#app').innerHTML();

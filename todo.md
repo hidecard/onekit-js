@@ -495,7 +495,8 @@
 
 - [x] Add real-browser CI matrix for Chromium, Firefox, WebKit, and Microsoft Edge, including hydration event/ref cleanup and metadata smoke coverage.
   - [x] Add controlled-input hydration, user-event, programmatic-update, and post-disposal scenarios.
-  - [ ] Extend scenarios for keyed reorders.
+  - [x] Add keyed-reorder identity and interaction scenarios across all four browser projects.
+  - [ ] Extend scenarios with larger keyed lists and browser timing baselines.
 - [ ] Add browser-based performance scenarios for large keyed lists, hydration of server-rendered trees, slot-heavy component trees, and repeated mount/unmount cycles.
   - [x] Added a jsdom cleanup regression covering 100 repeated hydration/dispose cycles, listener cleanup, callback-ref cleanup, and metadata release.
   - [ ] Add real-browser scenarios and timing baselines for DOM-heavy workloads.
