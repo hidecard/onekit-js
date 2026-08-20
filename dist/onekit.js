@@ -2902,6 +2902,7 @@
             if (node.nodeType === Node.ELEMENT_NODE) {
                 node._componentVNode = vnode;
                 node._componentInstance = instance;
+                setProp(node, 'ref', vnode.props.ref);
             }
             return node;
         }
@@ -2909,6 +2910,7 @@
         const node = render(rendered);
         if (node.nodeType === Node.ELEMENT_NODE) {
             node._componentVNode = rendered;
+            setProp(node, 'ref', vnode.props.ref);
         }
         return node;
     }
@@ -2955,6 +2957,8 @@
                 if (isStatefulComponent(next.tag) && element._componentInstance) {
                     const instance = element._componentInstance;
                     const current = updateComponentProps(instance, next.props);
+                    const currentElement = current?.nodeType === Node.ELEMENT_NODE ? current : element;
+                    setProp(currentElement, 'ref', next.props.ref, previous.props.ref);
                     if (current) {
                         current._componentVNode = next;
                         current._componentInstance = instance;
@@ -2976,6 +2980,7 @@
             if (typeof previous !== 'string') {
                 const previousElement = domNode;
                 if (previousIsComponent && previousElement._componentInstance) {
+                    setProp(previousElement, 'ref', undefined, previous.props.ref);
                     destroy(previousElement._componentInstance);
                 }
                 else {
@@ -3091,8 +3096,11 @@
         entries.forEach(entry => {
             if (!entry.used && entry.node.parentNode === parent) {
                 const element = entry.node.nodeType === Node.ELEMENT_NODE ? entry.node : null;
-                if (element?._componentInstance)
+                if (element?._componentInstance) {
+                    const previousRef = typeof entry.vnode === 'string' ? undefined : entry.vnode.props.ref;
+                    setProp(element, 'ref', undefined, previousRef);
                     destroy(element._componentInstance);
+                }
                 else
                     cleanupVNode(entry.vnode, entry.node);
                 if (entry.node.parentNode === parent)

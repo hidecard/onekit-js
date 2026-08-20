@@ -143,6 +143,61 @@ describe('M3 renderer production contract', () => {
     expect(ref.current).toBeNull();
   });
 
+  it('supports callback refs and clears them on replacement', () => {
+    const root = document.createElement('div');
+    const calls: Array<Element | null> = [];
+    const ref = (element: Element | null) => calls.push(element);
+    const vnode = createElement('button', { ref }, 'save');
+
+    patch(root, vnode);
+    const mounted = root.firstElementChild;
+    expect(calls).toEqual([mounted]);
+
+    patch(root, createElement('span', {}, 'replacement'), vnode);
+    expect(calls).toEqual([mounted, null]);
+  });
+
+  it('retains object refs across keyed moves and clears removed refs', () => {
+    const root = document.createElement('div');
+    const firstRef: { current?: Element | null } = {};
+    const secondRef: { current?: Element | null } = {};
+    const first = createElement('ul', {},
+      createElement('li', { key: 'a', ref: firstRef }, 'A'),
+      createElement('li', { key: 'b', ref: secondRef }, 'B'),
+    );
+    patch(root, first);
+    const firstNode = firstRef.current;
+
+    const reordered = createElement('ul', {},
+      createElement('li', { key: 'b', ref: secondRef }, 'B'),
+      createElement('li', { key: 'a', ref: firstRef }, 'A'),
+    );
+    patch(root, reordered, first);
+    expect(firstRef.current).toBe(firstNode);
+    expect(secondRef.current).toBe(root.firstElementChild?.firstElementChild);
+
+    const removed = createElement('ul', {}, createElement('li', { key: 'b', ref: secondRef }, 'B'));
+    patch(root, removed, reordered);
+    expect(firstRef.current).toBeNull();
+  });
+
+  it('assigns a ref to a stateful component root and clears it on unmount', () => {
+    const root = document.createElement('div');
+    const ref: { current?: Element | null } = {};
+    const Card = component({
+      name: 'RefCard',
+      template: '<article>{{label}}</article>',
+    });
+    const first = createElement('section', {}, createElement(Card, { key: 'card', label: 'One', ref }));
+    patch(root, first);
+    const mounted = ref.current;
+    expect(mounted?.tagName).toBe('ARTICLE');
+
+    const empty = createElement('section', {});
+    patch(root, empty, first);
+    expect(ref.current).toBeNull();
+  });
+
   it('keeps controlled input properties synchronized', () => {
     const root = document.createElement('div');
     const first = createElement('input', { value: 'first', checked: true });

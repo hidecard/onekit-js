@@ -115,6 +115,7 @@ function renderComponent(vnode: VNode): RenderNode {
     if (node.nodeType === Node.ELEMENT_NODE) {
       (node as VElement)._componentVNode = vnode;
       (node as VElement)._componentInstance = instance;
+      setProp(node as Element, 'ref', vnode.props.ref);
     }
     return node;
   }
@@ -122,6 +123,7 @@ function renderComponent(vnode: VNode): RenderNode {
   const node = render(rendered);
   if (node.nodeType === Node.ELEMENT_NODE) {
     (node as VElement)._componentVNode = rendered;
+    setProp(node as Element, 'ref', vnode.props.ref);
   }
   return node;
 }
@@ -163,16 +165,18 @@ function patchNode(parent: Node, domNode: Node | null, next: VNode | string, pre
   if (nextIsComponent || previousIsComponent) {
     if (nextIsComponent && previousIsComponent && next.tag === previous.tag && next.key === previous.key && domNode.nodeType === Node.ELEMENT_NODE) {
       const element = domNode as VElement;
-      if (isStatefulComponent(next.tag as Function) && element._componentInstance) {
-        const instance = element._componentInstance;
-        const current = updateComponentProps(instance, next.props);
-        if (current) {
-          (current as VElement)._componentVNode = next;
-          (current as VElement)._componentInstance = instance;
-          return current;
+        if (isStatefulComponent(next.tag as Function) && element._componentInstance) {
+          const instance = element._componentInstance;
+          const current = updateComponentProps(instance, next.props);
+          const currentElement = current?.nodeType === Node.ELEMENT_NODE ? current as Element : element;
+          setProp(currentElement, 'ref', next.props.ref, previous.props.ref);
+          if (current) {
+            (current as VElement)._componentVNode = next;
+            (current as VElement)._componentInstance = instance;
+            return current;
+          }
+          return domNode;
         }
-        return domNode;
-      }
       const previousRendered = element._componentVNode;
       if (previousRendered !== undefined) {
         const nextRendered = (next.tag as (props: VNodeProps) => VNode | string)(next.props);
@@ -187,6 +191,7 @@ function patchNode(parent: Node, domNode: Node | null, next: VNode | string, pre
     if (typeof previous !== 'string') {
       const previousElement = domNode as VElement;
       if (previousIsComponent && previousElement._componentInstance) {
+        setProp(previousElement, 'ref', undefined, previous.props.ref);
         destroy(previousElement._componentInstance);
       } else {
         const renderedPrevious = previousIsComponent ? previousElement._componentVNode : undefined;
@@ -299,8 +304,11 @@ function patchChildren(parent: Node, nextChildren: (VNode | string)[], previousC
   entries.forEach(entry => {
     if (!entry.used && entry.node.parentNode === parent) {
       const element = entry.node.nodeType === Node.ELEMENT_NODE ? entry.node as VElement : null;
-      if (element?._componentInstance) destroy(element._componentInstance);
-      else cleanupVNode(entry.vnode, entry.node);
+      if (element?._componentInstance) {
+        const previousRef = typeof entry.vnode === 'string' ? undefined : entry.vnode.props.ref;
+        setProp(element, 'ref', undefined, previousRef);
+        destroy(element._componentInstance);
+      } else cleanupVNode(entry.vnode, entry.node);
       if (entry.node.parentNode === parent) parent.removeChild(entry.node);
     }
   });
