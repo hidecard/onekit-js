@@ -1,0 +1,54 @@
+name: OneKit V3 Browser Heap Snapshot
+
+on:
+  push:
+    branches: [V3]
+  pull_request:
+    branches: [V3]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: onekit-v3-heap-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  heap-snapshot:
+    name: Chromium lifecycle heap snapshot
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 22.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium and OS dependencies
+        run: npx playwright install --with-deps chromium
+
+      - name: Run lifecycle heap snapshot regression
+        run: npx playwright test tests/browser/heap-snapshot.spec.js --project=chromium
+
+      - name: Upload lifecycle heap reports and snapshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: onekit-v3-lifecycle-heap-${{ github.run_id }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            test-results/**/lifecycle-heap-performance.json
+            test-results/**/*.heapsnapshot
+            test-results/**/error-context.md
+            playwright-report/
+            scripts/browser-performance-budgets.json

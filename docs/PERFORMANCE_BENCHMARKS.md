@@ -82,3 +82,7 @@ npm run test:browser
 ```
 
 Raw machine-generated outputs are stored in `benchmark-results/v3.json` and `benchmark-results/memory-v3.json`.
+
+## GitHub Actions heap-snapshot workflow
+
+The dedicated workflow at `.github/workflows/browser-heap-snapshot.yml` runs on pushes and pull requests targeting `V3`, and can also be started manually with `workflow_dispatch`. It installs Node.js 22, installs Chromium with its operating-system dependencies, executes `npx playwright test tests/browser/heap-snapshot.spec.js --project=chromium`, and uploads the JSON report, before/after `.heapsnapshot` files, failure context, the Playwright report, and the active budget file as a 14-day artifact. The test job has a 15-minute timeout and uses `if: always()` for artifact collection so failed heap-budget regressions retain diagnostic snapshots.
