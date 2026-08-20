@@ -38,6 +38,10 @@ The V3 branch continues production hardening after `3.1.19` without changing the
 - Add an optional driver-injected `createSQLiteAdapter()` that maps better-sqlite3-compatible prepared statements, async transaction boundaries, insert IDs, and close behavior to `DatabaseAdapter` without bundling a native driver.
 - Add an optional driver-injected `createPostgreSQLAdapter()` that maps pg-compatible pool queries, dedicated-client transactions, rollback/release behavior, pool shutdown, and optional `RETURNING` insert IDs without bundling `pg`.
 - Add optional adapter-level SSR boundary scheduling through `StreamingRenderer.renderToStream({ scheduleBoundary })`, preserving the default in-order streaming behavior while allowing platform queues and back-pressure policies to control deferred payload emission.
+- Add a versioned public API stability matrix covering Stable, Experimental, and application-owned contracts across the root package and runtime subpaths.
+- Add `scripts/verify-api-contract.mjs` and `npm run verify:api-contract` to verify all advertised ESM/CJS runtime exports before publishing.
+- Add four-browser Playwright timing coverage for keyed reorders, DOM-heavy patches, SSR hydration, and slot-heavy hydration/update/reorder workloads with warning and hard budgets.
+- Add Chromium CDP lifecycle heap snapshots, retained post-GC heap-growth enforcement, cache-backed trend comparison, and GitHub Actions diagnostic artifacts.
 
 ### Documentation
 
@@ -47,12 +51,14 @@ The V3 branch continues production hardening after `3.1.19` without changing the
 - Make the shortest backend learning path the default README example, while retaining the lower-level API for advanced applications.
 - Document the Node HTTP adapter, security middleware, typed database adapter, session/token providers, `context.body<T>()`, and `app.resource()` examples while keeping provider verification, distributed stores, and decorator-module boundaries explicit.
 - Document typed server errors, safe error serialization, resilient error hooks, the optional full-stack CLI starter workflow, server-data/cache boundaries, functional module/controller organization, optional SQLite/PostgreSQL/MySQL database adapters, the document-native MongoDB adapter boundary, the optional Redis rate-limit store boundary for Node deployments, and SSR adapter-level boundary scheduling with its cancellation/back-pressure responsibilities.
+- Document the public API stability policy, ESM/CJS export contract, browser performance budgets, lifecycle heap methodology, cache-backed trend warnings, and the reproducible CI commands in the README and dedicated guides.
 
 ### Validation
 
 - The focused observability, VDOM, CLI, and server suites pass, together with strict TypeScript checking and the full Jest matrix; the CLI suite covers ten tests and the server regression suite covers fourteen tests.
 - The latest focused validation passes strict `type-check`; the server production suite covers **18 tests**, the SSR production suite covers **12 tests** including adapter scheduling, and the SQLite, PostgreSQL, Redis, MySQL, and MongoDB adapter suites add **12 tests** for database mapping, transactions, rollback, pool/client lifecycle, distributed counter/TTL mapping, and document collection operations. The full release matrix is run after documentation and integration changes are complete. The generated TypeScript starter also passes npm install, type-check, its smoke test, and Vite production build.
 - The Vite plugin build still prints expected non-fatal externalization notices for `node:fs`, `node:path`, and `typescript`; these are intentional server/tooling externals and do not fail the build.
+- The current V3 validation state is **35 Jest suites / 195 tests**, 22 ESM/CJS runtime exports verified, 48 four-browser Playwright tests passed, and one Chromium lifecycle heap test passed with three intentional non-Chromium skips.
 
 ## [3.1.19] - 2026-08-18
 

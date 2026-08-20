@@ -8,11 +8,11 @@
 
 ## Overview
 
-OneKit JS `3.1.19` is a V3 production-hardening release candidate that extends the 3.1.18 foundation with progressive SSR boundaries, client continuation, typed backend errors, a full-stack CLI starter, server-data caching, functional modules/controllers, optional SQLite/PostgreSQL/MySQL/MongoDB adapters, Redis-backed distributed rate limiting, and configurable SSR boundary scheduling. The release remains compact and browser-first while providing clearer contracts for applications that need nested layouts, request-scoped data, typed route parameters, and controlled server/client boundaries. The source release is tagged and validated on the `V3` branch; npm registry publication remains a separate user-authenticated step.
+OneKit JS `3.1.19` is a V3 production-hardening release that extends the 3.1.18 foundation with progressive SSR boundaries, client continuation, typed backend errors, a full-stack CLI starter, server-data caching, functional modules/controllers, optional SQLite/PostgreSQL/MySQL/MongoDB adapters, Redis-backed distributed rate limiting, and configurable SSR boundary scheduling. The release remains compact and browser-first while providing clearer contracts for applications that need nested layouts, request-scoped data, typed route parameters, and controlled server/client boundaries. The source release is tagged, published to npm, and validated on the `V3` branch; post-publish registry metadata, tarball, and clean-install checks are complete.
 
 This is a **compatible V3-line release**. Existing V3 applications can upgrade from earlier V3 versions by updating the package version and reviewing the migration notes below. Applications migrating from OneKit 2.x or the legacy global runtime should follow the full [Migration Guide](../MIGRATION_GUIDE.md), because the V3 module and lifecycle model contains broader changes.
 
-> **Recommended upgrade:** after npm publication, update `onekit-js` to `3.1.19`, regenerate starters if needed, run the type-check and full test suite, then verify the packed package in a clean install. Before publication, the V3 branch has passed 35 Jest suites and 184 tests, production build, declaration verification, package dry-run, and clean-install checks.
+> **Recommended upgrade:** update `onekit-js` to `3.1.19`, regenerate starters if needed, run type-check and the full test suite, run `npm run verify:api-contract`, then verify the packed package in a clean install. The V3 branch has passed 35 Jest suites and **195 tests**, production build, declaration verification, export-map verification, package verification, four-browser Playwright coverage, and Chromium lifecycle heap checks.
 
 ## Highlights
 
@@ -25,7 +25,7 @@ This is a **compatible V3-line release**. Existing V3 applications can upgrade f
 | CLI starter | Vite-compatible starter plus optional `onekit create <name> --full-stack` generation with `server.mjs`, health route, scripts, `.env.example`, and graceful shutdown | Gives frontend-only and full-stack projects a minimal production-oriented starting point. |
 | Progressive SSR | Visible fallback shells, deferred content chunks, abort/error handoff, and import-safe client continuation | Allows useful HTML to arrive early while async boundaries continue on the client. |
 | Query persistence | Query invalidation, mutations, retries, cancellation, optimistic updates, dehydrate/hydrate, and route-loader integration | Provides explicit query lifecycle behavior; broader persistence and automatic focus/reconnect revalidation remain future work. |
-| Documentation and validation | Synchronized V3 guide, production-readiness guide, declarations, package verification, release notes, and pre-publish workflow | Reduces drift between source APIs and the 3.1.19 package artifacts. |
+| Documentation and validation | Synchronized V3 guide, production-readiness guide, API stability matrix, declarations, package verification, export-map contract, browser budgets, and CI workflows | Reduces drift between source APIs and the 3.1.19 package artifacts and makes public compatibility checks repeatable. |
 
 ## New and expanded APIs
 
@@ -98,6 +98,10 @@ The V3 query client supports invalidation, mutations, retry policies, cancellati
 
 Use `isServerRuntime()` and `isClientRuntime()` for conditional checks, and use `serverOnly()` or `clientOnly()` when a callback must fail clearly outside its intended runtime. These helpers are especially useful around browser globals, request-scoped SSR services, and hydration-only event setup.
 
+### Public API stability
+
+The public contract is classified in [API Stability](API_STABILITY.md). Stable APIs receive compatibility protection within the V3 line; experimental APIs are explicitly labeled and may change in a minor release. Run `npm run verify:api-contract` before publishing to verify all advertised ESM/CJS runtime exports and subpaths.
+
 ## Compatibility and migration notes
 
 The release does not intentionally remove public V3 APIs. The following behavior should nevertheless be reviewed during an upgrade:
@@ -130,6 +134,7 @@ npm test
 npm run build
 npm run verify:declarations
 npm run verify:package
+npm run verify:api-contract
 ```
 
 If the project was generated by an earlier CLI, compare its `package.json`, `src/main.ts` or `src/main.tsx`, `index.html`, and `vite.config.*` with a newly generated starter before copying application-specific code back. Do not overwrite application code blindly.
@@ -138,7 +143,7 @@ For SSR applications, verify that each request creates isolated query, router, a
 
 ## Validation status
 
-The 3.1.19 V3 branch was validated with strict TypeScript compilation, **35 Jest suites and 184 tests**, production library builds, declaration verification, clean package installation, package entrypoint checks, and package dry-run output. The branch is tagged `v3.1.19` and synchronized with `origin/V3`; npm registry publication and post-publish registry verification remain user-authenticated steps.
+The 3.1.19 V3 branch was validated with strict TypeScript compilation, **35 Jest suites and 195 tests**, production library builds, declaration verification, API export-map verification (**22 ESM/CJS runtime exports**), clean package installation, package entrypoint checks, package dry-run output, four-browser Playwright coverage, slot-heavy update/reorder budgets, and Chromium CDP lifecycle heap snapshots. The branch is tagged `v3.1.19`, published to npm as `latest`, and synchronized with `origin/V3`; post-publish registry and clean-install verification are complete.
 
 ## Known boundaries
 
@@ -150,6 +155,8 @@ OneKit’s router resolves navigation and data but does not automatically render
 - [V3 Usage Guide](V3_USAGE.md)
 - [Framework Guide](FRAMEWORK_GUIDE.md)
 - [Production Readiness](PRODUCTION_READINESS.md)
+- [API Stability](API_STABILITY.md)
+- [Performance Benchmarks](PERFORMANCE_BENCHMARKS.md)
 - [Changelog](../CHANGELOG.md)
 - [OneKit JS repository](https://github.com/hidecard/onekit-js)
 
