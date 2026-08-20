@@ -19,7 +19,7 @@ This document records a reproducible baseline for OneKit JS V3 `3.1.19`. It cove
 | Memory workload | 10,000 objects |
 | Forced GC | Enabled with `node --expose-gc` |
 
-The runtime benchmark is executed with `npm run benchmark`, which rebuilds the library and runs `scripts/benchmark-v3.mjs`. The memory benchmark is executed with `node --expose-gc scripts/benchmark-memory-v3.mjs`.
+The runtime benchmark is executed with `npm run benchmark`, which rebuilds the library and runs `scripts/benchmark-v3.mjs`. The memory benchmark is executed with `npm run benchmark:memory` (or directly with `node --expose-gc scripts/benchmark-memory-v3.mjs`). The CI benchmark job runs both workloads and uploads both JSON reports.
 
 ## Runtime results
 
@@ -59,13 +59,15 @@ For browser production delivery, the minified ESM build is the recommended basel
 
 The current baseline shows that batched reactive updates are materially more efficient than issuing the same updates individually. The principal memory cost in this workload comes from retaining reactive objects together with their subscriptions; applications should avoid retaining unnecessary reactive graphs and should dispose scopes when feature lifetimes end.
 
-These measurements do not include browser DOM node memory, layout/style cost, event-listener memory, V8 code space, RSS, allocator fragmentation, hydration cost, keyed reconciliation cost, or comparisons against React/Vue/Svelte. The next useful benchmark additions are browser-based DOM reconciliation scenarios, hydration of large server-rendered trees, keyed list reorder workloads, and repeated mount/unmount leak tests.
+A jsdom regression harness now exercises 100 repeated hydration/dispose cycles and verifies that event listeners, callback refs, `_vnode`, and component metadata do not remain attached after disposal. This is a lifecycle-cleanup guard rather than a browser heap measurement.
+
+These measurements do not include browser DOM node memory, layout/style cost, event-listener memory, V8 code space, RSS, allocator fragmentation, hydration cost, keyed reconciliation cost, or comparisons against React/Vue/Svelte. The next useful benchmark additions are real-browser DOM reconciliation scenarios, hydration of large server-rendered trees, keyed list reorder workloads, and repeated mount/unmount heap snapshots with application references released.
 
 ## Reproduction
 
 ```bash
 npm run benchmark
-node --expose-gc scripts/benchmark-memory-v3.mjs
+npm run benchmark:memory
 ```
 
 Raw machine-generated outputs are stored in `benchmark-results/v3.json` and `benchmark-results/memory-v3.json`.

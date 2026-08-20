@@ -146,4 +146,26 @@ describe('hydration production contracts', () => {
     expect(callbackRef).toHaveBeenLastCalledWith(null);
     expect(objectRef.current).toBeNull();
   });
+
+  it('keeps repeated hydration disposal free of stale listeners, refs, and metadata', () => {
+    const handler = jest.fn();
+    const callbackRef = jest.fn();
+    document.body.innerHTML = '<button id="app">Count</button>';
+    const root = document.querySelector('#app') as HTMLButtonElement;
+
+    for (let cycle = 0; cycle < 100; cycle += 1) {
+      const vnode = h('button', { onClick: handler, ref: callbackRef }, 'Count');
+      const result = hydrate(root, vnode);
+      expect(result.mismatches).toEqual([]);
+      root.click();
+      result.dispose();
+      root.click();
+      expect((root as HTMLButtonElement & { _vnode?: unknown })._vnode).toBeUndefined();
+      expect((root as HTMLButtonElement & { _componentInstance?: unknown })._componentInstance).toBeUndefined();
+      expect(callbackRef).toHaveBeenLastCalledWith(null);
+    }
+
+    expect(handler).toHaveBeenCalledTimes(100);
+    expect(callbackRef).toHaveBeenCalledTimes(200);
+  });
 });

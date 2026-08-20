@@ -418,7 +418,11 @@ function walkAndHydrate(
     }
   }
 
-  (element as Element & { _vnode?: VNode })._vnode = vnode;
+  const vnodeMetadata = element as Element & { _vnode?: VNode };
+  vnodeMetadata._vnode = vnode;
+  cleanups.push(() => {
+    if (vnodeMetadata._vnode === vnode) delete vnodeMetadata._vnode;
+  });
 
   const childNodes = Array.from(element.childNodes);
   vnode.children.forEach((child, index) => {

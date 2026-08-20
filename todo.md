@@ -495,7 +495,11 @@
 
 - [ ] Add browser-matrix CI for Chrome, Firefox, Safari/WebKit, and Edge, including hydration, controlled inputs, keyed reorders, and event/ref cleanup.
 - [ ] Add browser-based performance scenarios for large keyed lists, hydration of server-rendered trees, slot-heavy component trees, and repeated mount/unmount cycles.
+  - [x] Added a jsdom cleanup regression covering 100 repeated hydration/dispose cycles, listener cleanup, callback-ref cleanup, and metadata release.
+  - [ ] Add real-browser scenarios and timing baselines for DOM-heavy workloads.
 - [ ] Add a repeated mount/unmount memory-leak harness that releases application references and records browser heap snapshots where supported.
+  - [x] Added the forced-GC Node memory benchmark and lifecycle cleanup guard.
+  - [ ] Add browser heap-snapshot collection for supported browser CI environments.
 - [ ] Expand query persistence with optional IndexedDB storage and application-controlled cross-tab synchronization while keeping the current storage contract backward compatible.
 - [ ] Add optional automatic route-component rendering integration while preserving the router's current data-resolution-only contract.
 - [ ] Expand framework adapters and deployment examples for production observability, distributed queues, and database/Redis integrations without bundling provider clients into the browser core.
