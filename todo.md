@@ -76,6 +76,16 @@
 - [ ] Build sidebar navigation, search, install snippets, API cards, and a live reactive example with OneKit APIs only.
 - [ ] Add responsive styling and verify browser interaction, production build, and GitHub V3 delivery.
 
+## Browser performance and reliability hardening
+
+- [x] Add four-browser Playwright coverage for 120-group / 360-node slot-heavy hydration, post-hydration content updates, and keyed reorders.
+- [x] Assert zero hydration mismatches, projected content updates, expected node counts, final order, and projected article DOM identity preservation.
+- [x] Add versioned warning and hard budgets for slot-heavy hydration (`250 ms`), updates (`300 ms`), and reorders (`350 ms`) in `scripts/browser-performance-budgets.json`.
+- [x] Attach per-browser JSON timing reports and emit GitHub Actions warning annotations at 80% of each budget.
+- [x] Validate the expanded browser suite: **48 passing tests** across Chromium, Firefox, WebKit, and Microsoft Edge.
+- [ ] Store browser timing history and compare release-to-release percentiles on stable CI runners.
+- [ ] Add repeated browser mount/update/unmount heap snapshots for DOM memory regression detection.
+
 ## Production-readiness audit
 
 - [ ] Audit public exports, API contracts, and compatibility guarantees against React/Next-like expectations.

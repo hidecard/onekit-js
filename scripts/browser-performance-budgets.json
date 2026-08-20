@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "workloads": {
     "keyed-list": {
       "size": 500,
@@ -23,6 +23,18 @@
       "groups": 120,
       "rounds": 1,
       "maxDurationMs": 250,
+      "warningRatio": 0.8
+    },
+    "slot-heavy-update": {
+      "groups": 120,
+      "rounds": 4,
+      "maxDurationMs": 300,
+      "warningRatio": 0.8
+    },
+    "slot-heavy-reorder": {
+      "groups": 120,
+      "rounds": 4,
+      "maxDurationMs": 350,
       "warningRatio": 0.8
     }
   }

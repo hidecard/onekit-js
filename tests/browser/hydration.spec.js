@@ -165,6 +165,54 @@ test.describe('OneKit V3 real-browser hydration contracts', () => {
     });
   });
 
+  test('records slot-heavy post-hydration content update timing baseline', async ({ page }, testInfo) => {
+    await page.goto('/tests/browser/fixture.html');
+    const result = await page.evaluate(() => window.OneKitBrowserSmoke.runSlotUpdateBenchmark(120, 4));
+
+    const budget = performanceBudgets.workloads['slot-heavy-update'];
+    expect(result.groupCount).toBe(budget.groups);
+    expect(result.slotNodeCount).toBe(budget.groups * 3);
+    expect(result.rounds).toBe(budget.rounds);
+    expect(result.updated).toBe(true);
+    expect(result.durationMs).toBeGreaterThanOrEqual(0);
+    if (result.durationMs > budget.maxDurationMs * budget.warningRatio) {
+      const warning = { ...result, budgetMs: budget.maxDurationMs };
+      console.warn(`[browser-performance-warning] slot-heavy-update ${JSON.stringify(warning)}`);
+      process.stdout.write(`::warning title=OneKit browser performance budget::slot-heavy-update exceeded warning threshold: ${JSON.stringify(warning)}\\n`);
+    }
+    expect(result.durationMs).toBeLessThanOrEqual(budget.maxDurationMs);
+    const report = { ...result, budgetMs: budget.maxDurationMs, warningThresholdMs: budget.maxDurationMs * budget.warningRatio };
+    console.log(`[browser-performance] slot-heavy-update ${JSON.stringify(report)}`);
+    await testInfo.attach('slot-heavy-update-performance.json', {
+      body: Buffer.from(JSON.stringify(report, null, 2)),
+      contentType: 'application/json',
+    });
+  });
+
+  test('records slot-heavy keyed reorder timing and preserves projected node identity', async ({ page }, testInfo) => {
+    await page.goto('/tests/browser/fixture.html');
+    const result = await page.evaluate(() => window.OneKitBrowserSmoke.runSlotReorderBenchmark(120, 4));
+
+    const budget = performanceBudgets.workloads['slot-heavy-reorder'];
+    expect(result.groupCount).toBe(budget.groups);
+    expect(result.rounds).toBe(budget.rounds);
+    expect(result.firstKey).toBe('0');
+    expect(result.identityPreserved).toBe(true);
+    expect(result.durationMs).toBeGreaterThanOrEqual(0);
+    if (result.durationMs > budget.maxDurationMs * budget.warningRatio) {
+      const warning = { ...result, budgetMs: budget.maxDurationMs };
+      console.warn(`[browser-performance-warning] slot-heavy-reorder ${JSON.stringify(warning)}`);
+      process.stdout.write(`::warning title=OneKit browser performance budget::slot-heavy-reorder exceeded warning threshold: ${JSON.stringify(warning)}\\n`);
+    }
+    expect(result.durationMs).toBeLessThanOrEqual(budget.maxDurationMs);
+    const report = { ...result, budgetMs: budget.maxDurationMs, warningThresholdMs: budget.maxDurationMs * budget.warningRatio };
+    console.log(`[browser-performance] slot-heavy-reorder ${JSON.stringify(report)}`);
+    await testInfo.attach('slot-heavy-reorder-performance.json', {
+      body: Buffer.from(JSON.stringify(report, null, 2)),
+      contentType: 'application/json',
+    });
+  });
+
   test('disposes listeners, refs, and vnode metadata without rewriting the DOM', async ({ page }) => {
     await page.goto('/tests/browser/fixture.html');
     const original = await page.locator('#app').innerHTML();

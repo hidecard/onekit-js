@@ -131,6 +131,51 @@
         host.remove();
         return result;
       };
+      const buildSlotUpdateVNode = (groups, variant = 0, order = null) => {
+        const keys = order || Array.from({ length: groups }, (_, index) => index);
+        return h('main', { 'data-slot-tree': 'true' }, ...keys.map(group => h('article', { key: group, 'data-slot-group': String(group) },
+          h('header', { slot: 'header', 'data-slot': 'header' }, `Header ${group} v${variant}`),
+          h('div', { slot: 'body', 'data-slot': 'body' }, h('span', {}, `Body ${group} A v${variant}`), h('span', {}, `Body ${group} B v${variant}`)),
+          h('footer', { slot: 'footer', 'data-slot': 'footer' }, `Footer ${group} v${variant}`),
+        )));
+      };
+      const runSlotUpdateBenchmark = (groups = 120, rounds = 4) => {
+        const host = document.createElement('div');
+        document.body.appendChild(host);
+        let previous = buildSlotUpdateVNode(groups, 0);
+        patch(host, previous);
+        const start = performance.now();
+        for (let round = 1; round <= rounds; round += 1) {
+          const next = buildSlotUpdateVNode(groups, round);
+          patch(host, next, previous);
+          previous = next;
+        }
+        const durationMs = performance.now() - start;
+        const result = { groups, rounds, durationMs, groupCount: host.querySelectorAll('[data-slot-group]').length, slotNodeCount: host.querySelectorAll('[data-slot]').length, updated: host.querySelector('[data-slot="header"]')?.textContent?.endsWith(`v${rounds}`) || false };
+        host.remove();
+        return result;
+      };
+      const runSlotReorderBenchmark = (groups = 120, rounds = 4) => {
+        const host = document.createElement('div');
+        document.body.appendChild(host);
+        let order = Array.from({ length: groups }, (_, index) => index);
+        let previous = buildSlotUpdateVNode(groups, 0, order);
+        patch(host, previous);
+        const initialNodes = new Map(Array.from(host.querySelectorAll('[data-slot-group]')).map(node => [node.dataset.slotGroup, node]));
+        const start = performance.now();
+        for (let round = 0; round < rounds; round += 1) {
+          order = round % 2 === 0 ? order.slice().reverse() : order.slice(1).concat(order[0]);
+          const next = buildSlotUpdateVNode(groups, round + 1, order);
+          patch(host, next, previous);
+          previous = next;
+        }
+        const durationMs = performance.now() - start;
+        const nodes = Array.from(host.querySelectorAll('[data-slot-group]'));
+        const identityPreserved = nodes.every(node => initialNodes.get(node.dataset.slotGroup) === node);
+        const result = { groups, rounds, durationMs, groupCount: nodes.length, firstKey: nodes[0]?.dataset.slotGroup || null, identityPreserved };
+        host.remove();
+        return result;
+      };
 
       const hydration = hydrate(root, vnode);
       window.OneKitBrowserSmoke = {
@@ -155,6 +200,8 @@
         runDomHeavyBenchmark,
         runSsrHydrationBenchmark,
         runSlotHeavyBenchmark,
+        runSlotUpdateBenchmark,
+        runSlotReorderBenchmark,
         keyedSnapshot() {
           return Array.from(keyedList.children).map(item => ({
             key: item.dataset.key,
