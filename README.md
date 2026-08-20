@@ -38,11 +38,11 @@ OneKit does not try to hide the browser. DOM elements, events, selectors, reques
 | Area | V3 capability | Recommended entrypoint |
 |---|---|---|
 | State | `reactive`, `computed`, `effect`, `watch`, batching, snapshots, cleanup | `onekit-js` |
-| Components | Typed props, component lifecycle, registration, mount/unmount, dependency injection | `onekit-js` |
-| Rendering | Templates, directives, JSX, automatic JSX runtime, VDOM patching, fragments | `onekit-js/jsx`, `onekit-js/jsx-runtime` |
+| Components | Typed props, lifecycle, registration, mount/unmount, dependency injection, keyed identity, callback/object refs, non-string named slots, stateful hydration binding | `onekit-js` |
+| Rendering | Templates, directives, JSX, automatic JSX runtime, VDOM patching, keyed reconciliation, fragments | `onekit-js/jsx`, `onekit-js/jsx-runtime` |
 | Routing | History/hash/memory modes, typed params, file discovery, nested layouts, guards, loaders, manifests, prefetch, scroll restoration | `onekit-js` and `onekit-js/router` |
 | Backend | Fetch-compatible server app, route methods, middleware composition, params/query parsing, JSON responses, body validation, DI services, typed database adapter context, session/token provider contracts, authentication/authorization, portable rate-limit stores, CORS, request IDs, lifecycle hooks, and safe error responses | `onekit-js` |
-| Server rendering | Request-scoped SSR, streaming, async rendering, hydration diagnostics, error/loading boundaries, safe route manifests, adapter-level boundary scheduling | `onekit-js/ssr` |
+| Server rendering | Request-scoped SSR, streaming, async rendering, hydration diagnostics, stateful component hydration binding, richer named-slot projection, error/loading boundaries, safe route manifests, adapter-level boundary scheduling | `onekit-js/ssr` |
 | Data and forms | HTTP helpers, retry/timeout/cancellation, query invalidation, mutations, optimistic updates, SSR handoff, typed forms, validation | `onekit-js/api`, `onekit-js/query`, `onekit-js/forms` |
 | Runtime boundaries | Explicit server/client detection and guarded callbacks for shared modules | `onekit-js` |
 | Browser integration | Storage, accessibility helpers, animations, Web Components | `onekit-js/storage`, `onekit-js/a11y`, `onekit-js/web-components` |
@@ -86,7 +86,7 @@ The examples in this README are written against the published V3.1.19 package su
 | Published declarations | `npm run verify:declarations` | `scripts/verify-declarations.mjs` |
 | Clean package verification | `npm run verify:package` | Clean install, CLI smoke check, export verification, and vulnerability audit |
 
-The latest V3 audit passes strict TypeScript checking, **30 Jest suites / 162 tests**, production build, declaration verification across 27 relative exports, clean package verification with zero reported vulnerabilities, and `git diff --check`. The Vite plugin build may print non-fatal externalization notices for `node:fs`, `node:path`, and `typescript`; these are expected tooling/server externals and do not indicate a failed build.
+The latest V3.1.19 validation passes strict TypeScript checking, **35 Jest suites / 194 tests**, production build, declaration verification, clean package verification, and `git diff --check`. The current benchmark baseline is documented in [Performance Benchmarks](docs/PERFORMANCE_BENCHMARKS.md). Run `npm run benchmark` for runtime measurements or `npm run benchmark:memory` for forced-GC memory measurements; both reports are emitted under `benchmark-results/` and uploaded by the V3 CI benchmark job. The Vite plugin build may print non-fatal externalization notices for `node:fs`, `node:path`, and `typescript`; these are expected tooling/server externals and do not indicate a failed build.
 
 If an example is copied into an application, replace placeholder values such as `HomePage`, `loadReports`, and `createProject` with application-owned implementations. The framework APIs and signatures shown here are the verified part of each example.
 
@@ -262,7 +262,7 @@ const instance = create("Counter", { step: 2 });
 if (instance) mount(instance, "#app");
 ```
 
-The public component lifecycle includes creation, mounting, updating, and destruction. Prefer explicit teardown for subscriptions and resources. `unmount`/`destroy` should be called when an instance is no longer needed. VDOM replacement also disposes event listeners and refs owned by the replaced subtree.
+The public component lifecycle includes creation, mounting, updating, and destruction. Prefer explicit teardown for subscriptions and resources. `unmount`/`destroy` should be called when an instance is no longer needed. VDOM replacement also disposes event listeners and refs owned by the replaced subtree. Keyed stateful components preserve instance identity across reorders, callback and object refs receive cleanup on replacement/unmount, and server-rendered stateful roots can be bound during hydration without rewriting their DOM.
 
 ## Templates, JSX, and VDOM
 
@@ -279,7 +279,7 @@ const view = h("main", { class: "panel" },
 render(view, document.querySelector("#app")!);
 ```
 
-The JSX entrypoint is available through `onekit-js/jsx`, and `.okjs` single-file components are supported through the OneKit Vite plugin. Do not insert untrusted strings as HTML. Prefer text nodes, escaped interpolation, and validated data.
+The JSX entrypoint is available through `onekit-js/jsx`, and `.okjs` single-file components are supported through the OneKit Vite plugin. JSX children can be projected as default or named slots using `slot="name"`; slot values may be text, VNodes, arrays, or lazy render functions. Do not insert untrusted strings as HTML. Prefer text nodes, escaped interpolation, and validated data.
 
 ### Automatic JSX runtime
 

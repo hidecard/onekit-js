@@ -143,6 +143,7 @@
     "build": "node scripts/build-library.mjs && npm run build:vite-plugin",
     "build:vite-plugin": "node scripts/build-vite-plugin.mjs",
     "benchmark": "npm run build && node scripts/benchmark-v3.mjs",
+    "benchmark:memory": "npm run build && node --expose-gc scripts/benchmark-memory-v3.mjs",
     "dev": "rollup -c -w",
     "dev:vite": "vite",
     "docs:dev": "vite --config examples/docs/vite.config.ts",

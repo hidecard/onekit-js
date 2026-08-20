@@ -483,8 +483,20 @@
 - [x] Document progressive SSR boundaries and query persistence/revalidation in `docs/V3_USAGE.md` and `docs/PRODUCTION_READINESS.md`.
 - [x] Run type-check, focused SSR/query suites, full Jest suite, production build, declaration verification, package verification, and diff checks.
 - [x] Implement adapter-level SSR stream scheduling through the optional `scheduleBoundary()` contract. Broader browser compatibility coverage remains follow-up work.
-- [ ] Add production component reconciliation parity: keyed lists, refs, controlled inputs, event ownership, and unmount cleanup.
-- [ ] Add framework-level observability and error reporting integrations without leaking user data.
+- [x] Add production component reconciliation parity: keyed lists, stateful component identity, callback/object refs, non-string named slots, stateful hydration binding, event ownership, and unmount cleanup.
+  - [x] Verified with hydration, keyed reconciliation, component identity, ref cleanup, slot normalization, and stateful hydration regression coverage.
+- [x] Add framework-level observability and error reporting integrations without leaking user data.
+  - [x] Added normalized error reports, isolated application reporters, opt-in DevTools runtime error events, bounded diagnostics, and documentation warning applications to redact sensitive data.
 - [x] Publish the V3.1.19 patch release after versioning, changelog, migration notes, clean-install verification, and registry checks were prepared.
 
 > The current published release is `onekit-js@3.1.19`; npm latest, GitHub tag/release, clean-install verification, and the `V3` branch are synchronized.
+
+## Remaining production roadmap after V3.1.19
+
+- [ ] Add browser-matrix CI for Chrome, Firefox, Safari/WebKit, and Edge, including hydration, controlled inputs, keyed reorders, and event/ref cleanup.
+- [ ] Add browser-based performance scenarios for large keyed lists, hydration of server-rendered trees, slot-heavy component trees, and repeated mount/unmount cycles.
+- [ ] Add a repeated mount/unmount memory-leak harness that releases application references and records browser heap snapshots where supported.
+- [ ] Expand query persistence with optional IndexedDB storage and application-controlled cross-tab synchronization while keeping the current storage contract backward compatible.
+- [ ] Add optional automatic route-component rendering integration while preserving the router's current data-resolution-only contract.
+- [ ] Expand framework adapters and deployment examples for production observability, distributed queues, and database/Redis integrations without bundling provider clients into the browser core.
+- [ ] Re-run the full release checklist for the next patch/minor release after each roadmap increment.

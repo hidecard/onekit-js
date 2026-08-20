@@ -112,11 +112,16 @@ jobs:
       - name: Run benchmark suite
         run: ONEKIT_BENCH_ITERATIONS=10000 ONEKIT_BENCH_SAMPLES=5 npm run benchmark
 
+      - name: Run forced-GC memory benchmark
+        run: ONEKIT_MEMORY_OBJECTS=10000 npm run benchmark:memory
+
       - name: Upload benchmark report
         uses: actions/upload-artifact@v4
         with:
           name: onekit-v3-benchmark
-          path: benchmark-results/v3.json
+          path: |
+            benchmark-results/v3.json
+            benchmark-results/memory-v3.json
           if-no-files-found: error
 
   release-artifact:
