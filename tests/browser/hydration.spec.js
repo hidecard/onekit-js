@@ -1,4 +1,10 @@
 import { test, expect } from '@playwright/test';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
+const performanceBudgets = JSON.parse(
+  readFileSync(resolve(process.cwd(), 'scripts/browser-performance-budgets.json'), 'utf8'),
+);
 
 test.describe('OneKit V3 real-browser hydration contracts', () => {
   test('hydrates server DOM and attaches interactive behavior', async ({ page }) => {
@@ -72,11 +78,20 @@ test.describe('OneKit V3 real-browser hydration contracts', () => {
     await page.goto('/tests/browser/fixture.html');
     const result = await page.evaluate(() => window.OneKitBrowserSmoke.runKeyedBenchmark(500, 5));
 
-    expect(result.nodeCount).toBe(500);
+    const budget = performanceBudgets.workloads['keyed-list'];
+    expect(result.nodeCount).toBe(budget.size);
+    expect(result.rounds).toBe(budget.rounds);
     expect(result.durationMs).toBeGreaterThanOrEqual(0);
-    console.log(`[browser-performance] keyed-list ${JSON.stringify(result)}`);
+    if (result.durationMs > budget.maxDurationMs * budget.warningRatio) {
+      const warning = { ...result, budgetMs: budget.maxDurationMs };
+      console.warn(`[browser-performance-warning] keyed-list ${JSON.stringify(warning)}`);
+      process.stdout.write(`::warning title=OneKit browser performance budget::keyed-list exceeded warning threshold: ${JSON.stringify(warning)}\n`);
+    }
+    expect(result.durationMs).toBeLessThanOrEqual(budget.maxDurationMs);
+    const report = { ...result, budgetMs: budget.maxDurationMs, warningThresholdMs: budget.maxDurationMs * budget.warningRatio };
+    console.log(`[browser-performance] keyed-list ${JSON.stringify(report)}`);
     await testInfo.attach('keyed-list-performance.json', {
-      body: Buffer.from(JSON.stringify(result, null, 2)),
+      body: Buffer.from(JSON.stringify(report, null, 2)),
       contentType: 'application/json',
     });
   });
@@ -85,11 +100,20 @@ test.describe('OneKit V3 real-browser hydration contracts', () => {
     await page.goto('/tests/browser/fixture.html');
     const result = await page.evaluate(() => window.OneKitBrowserSmoke.runDomHeavyBenchmark(300, 4));
 
-    expect(result.nodeCount).toBe(300);
+    const budget = performanceBudgets.workloads['dom-heavy'];
+    expect(result.nodeCount).toBe(budget.size);
+    expect(result.rounds).toBe(budget.rounds);
     expect(result.durationMs).toBeGreaterThanOrEqual(0);
-    console.log(`[browser-performance] dom-heavy ${JSON.stringify(result)}`);
+    if (result.durationMs > budget.maxDurationMs * budget.warningRatio) {
+      const warning = { ...result, budgetMs: budget.maxDurationMs };
+      console.warn(`[browser-performance-warning] dom-heavy ${JSON.stringify(warning)}`);
+      process.stdout.write(`::warning title=OneKit browser performance budget::dom-heavy exceeded warning threshold: ${JSON.stringify(warning)}\n`);
+    }
+    expect(result.durationMs).toBeLessThanOrEqual(budget.maxDurationMs);
+    const report = { ...result, budgetMs: budget.maxDurationMs, warningThresholdMs: budget.maxDurationMs * budget.warningRatio };
+    console.log(`[browser-performance] dom-heavy ${JSON.stringify(report)}`);
     await testInfo.attach('dom-heavy-performance.json', {
-      body: Buffer.from(JSON.stringify(result, null, 2)),
+      body: Buffer.from(JSON.stringify(report, null, 2)),
       contentType: 'application/json',
     });
   });

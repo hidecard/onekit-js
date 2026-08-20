@@ -497,7 +497,8 @@
   - [x] Add controlled-input hydration, user-event, programmatic-update, and post-disposal scenarios.
   - [x] Add keyed-reorder identity and interaction scenarios across all four browser projects.
   - [x] Add larger keyed-list timing and DOM-heavy patch baselines across all four browser projects.
-  - [ ] Add stable browser performance budgets and broaden scenarios to controlled inputs and slot-heavy trees.
+  - [x] Add versioned 150 ms keyed-list and 200 ms DOM-heavy hard budgets with 80% warning thresholds and CI annotations.
+  - [ ] Broaden scenarios to controlled inputs and slot-heavy trees.
 - [ ] Add browser-based performance scenarios for large keyed lists, hydration of server-rendered trees, slot-heavy component trees, and repeated mount/unmount cycles.
   - [x] Added 500-item keyed-list reorder and 300-card DOM-heavy reverse-patch Playwright scenarios with JSON attachments.
   - [ ] Add large server-rendered hydration timing and slot-heavy tree scenarios.

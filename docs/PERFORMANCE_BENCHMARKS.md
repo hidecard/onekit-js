@@ -57,13 +57,13 @@ For browser production delivery, the minified ESM build is the recommended basel
 
 ## Real-browser DOM performance baseline
 
-The Playwright matrix runs the same DOM-heavy workloads in Chromium, Firefox, WebKit, and Microsoft Edge. Each browser creates and hydrates the fixture, then measures five reorder patches over a 500-item keyed list and four reverse-order patches over a 300-card DOM-heavy tree. These are timing baselines rather than pass/fail performance budgets; they are intended to detect large regressions on the same runner.
+The Playwright matrix runs the same DOM-heavy workloads in Chromium, Firefox, WebKit, and Microsoft Edge. Each browser creates and hydrates the fixture, then measures five reorder patches over a 500-item keyed list and four reverse-order patches over a 300-card DOM-heavy tree. The versioned budgets are stored in `scripts/browser-performance-budgets.json` and are applied identically to every browser project.
 
 | Browser matrix | Keyed list workload | DOM-heavy workload | Coverage |
 |---|---:|---:|---|
 | Chromium, Firefox, WebKit, Microsoft Edge | 500 keyed items × 5 reorder rounds | 300 article cards × 4 reverse patches | 4 browsers / 8 performance tests |
 
-The local validation run completed **32 browser tests** in **26.3 seconds**, including the eight performance tests. Sample console timings from that run were approximately **21.6–36.0 ms** for the keyed-list workload and **28.4–38.0 ms** for the DOM-heavy workload across the four browser projects. These values are runner-dependent and should not be treated as universal browser benchmarks. CI retains the Playwright report and JSON attachments for each browser project.
+The local validation run completed **32 browser tests** in **26.3 seconds**, including the eight performance tests. Sample console timings from that run were approximately **21.6–36.0 ms** for the keyed-list workload and **28.4–38.0 ms** for the DOM-heavy workload across the four browser projects. The initial budgets are **150 ms** for the 500-item keyed-list workload and **200 ms** for the 300-card DOM-heavy workload. A warning is emitted at **80%** of either budget; exceeding the hard budget fails the Playwright job, produces a GitHub Actions warning annotation when the warning threshold is crossed, and preserves the JSON report in the browser artifact. These budgets are intentionally conservative relative to the measured baseline while allowing for normal shared-runner variance.
 
 ## Interpretation and follow-up
 
@@ -71,7 +71,7 @@ The current baseline shows that batched reactive updates are materially more eff
 
 A jsdom regression harness now exercises 100 repeated hydration/dispose cycles and verifies that event listeners, callback refs, `_vnode`, and component metadata do not remain attached after disposal. This is a lifecycle-cleanup guard rather than a browser heap measurement.
 
-These measurements do not include browser DOM node memory, layout/style cost, event-listener memory, V8 code space, RSS, allocator fragmentation, or comparisons against React/Vue/Svelte. The real-browser suite now covers DOM reconciliation and keyed list reorder timing, but it does not yet provide a stable performance budget, large server-rendered hydration timing, or browser heap snapshots after repeated mount/unmount cycles. Those remain follow-up work.
+These measurements do not include browser DOM node memory, layout/style cost, event-listener memory, V8 code space, RSS, allocator fragmentation, or comparisons against React/Vue/Svelte. The real-browser suite now covers DOM reconciliation and keyed list reorder timing with enforced budgets. It does not yet provide large server-rendered hydration timing or browser heap snapshots after repeated mount/unmount cycles; those remain follow-up work.
 
 ## Reproduction
 

@@ -87,7 +87,7 @@ jobs:
       - name: Install Playwright browser and OS dependencies
         run: npx playwright install --with-deps ${{ matrix.browser }}
 
-      - name: Run real-browser smoke tests
+      - name: Run real-browser smoke tests and enforce performance budgets
         run: npm run test:browser -- --project=${{ matrix.browser }}
 
       - name: Upload Playwright report
@@ -98,6 +98,7 @@ jobs:
           path: |
             playwright-report/
             test-results/
+            scripts/browser-performance-budgets.json
           if-no-files-found: ignore
 
   package:

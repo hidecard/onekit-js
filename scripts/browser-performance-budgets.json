@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "workloads": {
+    "keyed-list": {
+      "size": 500,
+      "rounds": 5,
+      "maxDurationMs": 150,
+      "warningRatio": 0.8
+    },
+    "dom-heavy": {
+      "size": 300,
+      "rounds": 4,
+      "maxDurationMs": 200,
+      "warningRatio": 0.8
+    }
+  }
+}
+
