@@ -2,13 +2,15 @@
 <html lang="en">
   <head><meta charset="utf-8"><title>OneKit browser smoke</title></head>
   <body>
-    <section id="app"><button id="counter">0</button><h1 id="title">Projected</h1></section>
+    <section id="app"><button id="counter">0</button><h1 id="title">Projected</h1><label for="controlled">Name</label><input id="controlled" value="server"><output id="controlled-output">server</output></section>
     <script type="module">
       import { h, hydrate } from '/dist/onekit.esm.js';
 
       const root = document.querySelector('#app');
       const button = document.querySelector('#counter');
       const title = document.querySelector('#title');
+      const input = document.querySelector('#controlled');
+      const output = document.querySelector('#controlled-output');
       const events = [];
       const callbackRef = element => events.push(element ? 'set' : 'clear');
       const objectRef = { current: null };
@@ -23,6 +25,17 @@
           },
         }, '0'),
         h('h1', { ref: objectRef }, 'Projected'),
+        h('label', { for: 'controlled' }, 'Name'),
+        h('input', {
+          id: 'controlled',
+          value: 'server',
+          onInput: event => {
+            const value = event.currentTarget.value;
+            input.value = value;
+            output.textContent = value;
+          },
+        }),
+        h('output', { id: 'controlled-output' }, 'server'),
       );
 
       const hydration = hydrate(root, vnode);
@@ -34,11 +47,17 @@
         events,
         hydration,
         click() { button.click(); },
+        setControlled(value) {
+          input.value = value;
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+        },
         dispose() { hydration.dispose(); },
         snapshot() {
           return {
             text: button.textContent,
             title: title.textContent,
+            input: input.value,
+            output: output.textContent,
             mismatches: hydration.mismatches,
             callbackRef: events.slice(),
             objectRef: objectRef.current?.id || null,
