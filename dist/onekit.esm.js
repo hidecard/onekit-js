@@ -2858,6 +2858,14 @@ function updateProps(element, next, previous) {
     const keys = new Set([...Object.keys(previous), ...Object.keys(next)]);
     keys.forEach(prop => setProp(element, prop, next[prop], previous[prop]));
 }
+function renderComponent(vnode) {
+    const rendered = vnode.tag(vnode.props);
+    const node = render(rendered);
+    if (node.nodeType === Node.ELEMENT_NODE) {
+        node._componentVNode = rendered;
+    }
+    return node;
+}
 function render(vnode) {
     if (typeof vnode === 'string')
         return document.createTextNode(vnode);
@@ -2867,7 +2875,7 @@ function render(vnode) {
         return fragment;
     }
     if (typeof vnode.tag === 'function')
-        return render(vnode.tag(vnode.props));
+        return renderComponent(vnode);
     const element = document.createElement(vnode.tag);
     updateProps(element, vnode.props, {});
     vnode.children.forEach(child => element.appendChild(render(child)));
@@ -2885,7 +2893,29 @@ function patchNode(parent, domNode, next, previous) {
             domNode.nodeValue = next;
         return domNode;
     }
-    if (typeof next === 'string' || typeof previous === 'string' || typeof next.tag === 'function' || typeof previous.tag === 'function') {
+    const nextIsComponent = typeof next !== 'string' && typeof next.tag === 'function';
+    const previousIsComponent = typeof previous !== 'string' && typeof previous.tag === 'function';
+    if (nextIsComponent || previousIsComponent) {
+        if (nextIsComponent && previousIsComponent && next.tag === previous.tag && next.key === previous.key && domNode.nodeType === Node.ELEMENT_NODE) {
+            const previousRendered = domNode._componentVNode;
+            if (previousRendered !== undefined) {
+                const nextRendered = next.tag(next.props);
+                const updated = patchNode(parent, domNode, nextRendered, previousRendered);
+                if (updated?.nodeType === Node.ELEMENT_NODE) {
+                    updated._componentVNode = nextRendered;
+                }
+                return updated;
+            }
+        }
+        if (typeof previous !== 'string') {
+            const renderedPrevious = previousIsComponent ? domNode._componentVNode : undefined;
+            cleanupVNode(renderedPrevious ?? previous, domNode);
+        }
+        const created = nextIsComponent ? renderComponent(next) : render(next);
+        parent.replaceChild(created, domNode);
+        return created;
+    }
+    if (typeof next === 'string' || typeof previous === 'string') {
         if (typeof previous !== 'string')
             cleanupVNode(previous, domNode);
         const created = render(next);

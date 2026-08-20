@@ -191,4 +191,24 @@ describe('M3 renderer production contract', () => {
     expect(root.firstElementChild?.children).toHaveLength(1);
     expect(root.firstElementChild?.textContent).toBe('keep');
   });
+
+  it('reuses keyed function component DOM identity while updating props', () => {
+    const root = document.createElement('div');
+    const Label = (props: Record<string, unknown>) => createElement('li', {}, String(props.label));
+    const first = createElement('ul', {},
+      createElement(Label, { key: 'a', label: 'A' }),
+      createElement(Label, { key: 'b', label: 'B' }),
+    );
+    patch(root, first);
+    const retained = root.firstElementChild?.firstElementChild;
+
+    const next = createElement('ul', {},
+      createElement(Label, { key: 'b', label: 'B updated' }),
+      createElement(Label, { key: 'a', label: 'A' }),
+    );
+    patch(root, next, first);
+
+    expect(root.firstElementChild?.textContent).toBe('B updatedA');
+    expect(root.firstElementChild?.children[1]).toBe(retained);
+  });
 });

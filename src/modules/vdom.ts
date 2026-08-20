@@ -13,7 +13,7 @@ export interface VNode {
   key?: string | number;
 }
 
-interface VElement extends Element { _vnode?: VNode; }
+interface VElement extends Element { _vnode?: VNode; _componentVNode?: VNode | string; }
 
 const eventListeners = new WeakMap<Element, Map<string, EventListener>>();
 
@@ -102,6 +102,15 @@ function updateProps(element: Element, next: VNodeProps, previous: VNodeProps): 
   keys.forEach(prop => setProp(element, prop, next[prop], previous[prop]));
 }
 
+function renderComponent(vnode: VNode): RenderNode {
+  const rendered = (vnode.tag as (props: VNodeProps) => VNode | string)(vnode.props);
+  const node = render(rendered);
+  if (node.nodeType === Node.ELEMENT_NODE) {
+    (node as VElement)._componentVNode = rendered;
+  }
+  return node;
+}
+
 export function render(vnode: VNode | string): RenderNode {
   if (typeof vnode === 'string') return document.createTextNode(vnode);
   if (isFragment(vnode)) {
@@ -109,7 +118,7 @@ export function render(vnode: VNode | string): RenderNode {
     vnode.children.forEach(child => fragment.appendChild(render(child)));
     return fragment;
   }
-  if (typeof vnode.tag === 'function') return render((vnode.tag as Function)(vnode.props) as VNode);
+  if (typeof vnode.tag === 'function') return renderComponent(vnode);
   const element = document.createElement(vnode.tag);
   updateProps(element, vnode.props, {});
   vnode.children.forEach(child => element.appendChild(render(child)));
@@ -127,7 +136,29 @@ function patchNode(parent: Node, domNode: Node | null, next: VNode | string, pre
     if (next !== previous && domNode.nodeValue !== next) domNode.nodeValue = next;
     return domNode;
   }
-  if (typeof next === 'string' || typeof previous === 'string' || typeof next.tag === 'function' || typeof previous.tag === 'function') {
+  const nextIsComponent = typeof next !== 'string' && typeof next.tag === 'function';
+  const previousIsComponent = typeof previous !== 'string' && typeof previous.tag === 'function';
+  if (nextIsComponent || previousIsComponent) {
+    if (nextIsComponent && previousIsComponent && next.tag === previous.tag && next.key === previous.key && domNode.nodeType === Node.ELEMENT_NODE) {
+      const previousRendered = (domNode as VElement)._componentVNode;
+      if (previousRendered !== undefined) {
+        const nextRendered = (next.tag as (props: VNodeProps) => VNode | string)(next.props);
+        const updated = patchNode(parent, domNode, nextRendered, previousRendered);
+        if (updated?.nodeType === Node.ELEMENT_NODE) {
+          (updated as VElement)._componentVNode = nextRendered;
+        }
+        return updated;
+      }
+    }
+    if (typeof previous !== 'string') {
+      const renderedPrevious = previousIsComponent ? (domNode as VElement)._componentVNode : undefined;
+      cleanupVNode(renderedPrevious ?? previous, domNode);
+    }
+    const created = nextIsComponent ? renderComponent(next as VNode) : render(next);
+    parent.replaceChild(created, domNode);
+    return created;
+  }
+  if (typeof next === 'string' || typeof previous === 'string') {
     if (typeof previous !== 'string') cleanupVNode(previous, domNode);
     const created = render(next);
     parent.replaceChild(created, domNode);
