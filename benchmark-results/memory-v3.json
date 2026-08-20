@@ -1,0 +1,34 @@
+{
+  "generatedAt": "2026-08-20T01:26:24.110Z",
+  "node": "v22.13.0",
+  "rounds": 5,
+  "objects": 10000,
+  "forcedGc": true,
+  "results": [
+    {
+      "name": "reactive-objects-with-effects",
+      "elapsedMs": 57.268,
+      "heapBeforeMb": 4.031,
+      "heapPeakMb": 19.592,
+      "heapAfterMb": 16.95,
+      "retainedDeltaKb": 13229
+    },
+    {
+      "name": "scoped-effects-teardown",
+      "elapsedMs": 83.424,
+      "heapBeforeMb": 5.19,
+      "heapPeakMb": 19.741,
+      "heapAfterMb": 10.56,
+      "retainedDeltaKb": 5499
+    },
+    {
+      "name": "snapshot-deep-clone",
+      "elapsedMs": 24.725,
+      "heapBeforeMb": 5.212,
+      "heapPeakMb": 17.479,
+      "heapAfterMb": 5.222,
+      "retainedDeltaKb": 10
+    }
+  ],
+  "note": "Retained deltas are measured after forced GC where available. Browser DOM memory, allocator fragmentation, and JIT code memory are not included in heapUsed."
+}

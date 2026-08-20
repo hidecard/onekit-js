@@ -1,0 +1,55 @@
+{
+  "generatedAt": "2026-08-20T01:26:06.352Z",
+  "node": "v22.13.0",
+  "iterations": 10000,
+  "samples": 5,
+  "environment": {
+    "platform": "linux",
+    "arch": "x64",
+    "cpu": "Intel(R) Xeon(R) Processor @ 2.50GHz",
+    "cpuCount": 6
+  },
+  "results": [
+    {
+      "name": "reactive-effect-updates",
+      "iterations": 10000,
+      "samples": 5,
+      "meanMs": 16.7217422,
+      "p50Ms": 14.073263999999995,
+      "p95Ms": 24.602328,
+      "opsPerSecond": 598024,
+      "meanHeapDeltaKb": 351
+    },
+    {
+      "name": "batched-reactive-updates",
+      "iterations": 10000,
+      "samples": 5,
+      "meanMs": 7.434992200000002,
+      "p50Ms": 7.191023999999999,
+      "p95Ms": 8.123337000000006,
+      "opsPerSecond": 1344991,
+      "meanHeapDeltaKb": 45
+    },
+    {
+      "name": "snapshot-deep-clone",
+      "iterations": 10000,
+      "samples": 5,
+      "meanMs": 0.09070499999999697,
+      "p50Ms": 0.0418380000000127,
+      "p95Ms": 0.30656499999997777,
+      "opsPerSecond": 110247506,
+      "meanHeapDeltaKb": 5
+    },
+    {
+      "name": "scope-effect-teardown",
+      "iterations": 10000,
+      "samples": 5,
+      "meanMs": 0.11601999999999749,
+      "p50Ms": 0.03804800000000341,
+      "p95Ms": 0.34670499999998583,
+      "opsPerSecond": 86192036,
+      "meanHeapDeltaKb": 6
+    }
+  ],
+  "note": "Compare runs on the same machine and Node version. Framework adapters are intentionally optional; install them in a separate benchmark project for cross-framework comparisons."
+}
