@@ -155,6 +155,34 @@
         host.remove();
         return result;
       };
+      const buildHeapProbeVNode = (cycle, variant, nodes) => h('div', { className: 'heap-probe-root', 'data-heap-cycle': String(cycle) }, ...Array.from({ length: nodes }, (_, index) => h('button', { key: index, 'data-heap-node': `${cycle}-${index}`, onClick: () => undefined }, `Cycle ${cycle} node ${index} v${variant}`)));
+      const runLifecycleHeapProbe = (cycles = 25, updates = 3, nodes = 40) => {
+        let createdNodeCount = 0;
+        for (let cycle = 0; cycle < cycles; cycle += 1) {
+          const host = document.createElement('div');
+          host.setAttribute('data-heap-probe-host', String(cycle));
+          document.body.appendChild(host);
+          let previous = buildHeapProbeVNode(cycle, 0, nodes);
+          patch(host, previous);
+          createdNodeCount += host.querySelectorAll('[data-heap-node]').length;
+          for (let update = 1; update <= updates; update += 1) {
+            const next = buildHeapProbeVNode(cycle, update, nodes);
+            patch(host, next, previous);
+            previous = next;
+          }
+          const replacement = h('p', { 'data-heap-unmounted': String(cycle) }, `Unmounted ${cycle}`);
+          patch(host, replacement, previous);
+          host.remove();
+        }
+        return {
+          cycles,
+          updates,
+          nodes,
+          createdNodeCount,
+          residualHosts: document.querySelectorAll('[data-heap-probe-host]').length,
+          residualRoots: document.querySelectorAll('.heap-probe-root').length,
+        };
+      };
       const runSlotReorderBenchmark = (groups = 120, rounds = 4) => {
         const host = document.createElement('div');
         document.body.appendChild(host);
@@ -202,6 +230,7 @@
         runSlotHeavyBenchmark,
         runSlotUpdateBenchmark,
         runSlotReorderBenchmark,
+        runLifecycleHeapProbe,
         keyedSnapshot() {
           return Array.from(keyedList.children).map(item => ({
             key: item.dataset.key,

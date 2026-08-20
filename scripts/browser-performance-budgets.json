@@ -36,6 +36,13 @@
       "rounds": 4,
       "maxDurationMs": 350,
       "warningRatio": 0.8
+    },
+    "lifecycle-heap": {
+      "cycles": 25,
+      "updates": 3,
+      "nodes": 40,
+      "maxRetainedHeapGrowthBytes": 8388608,
+      "warningRatio": 0.75
     }
   }
 }

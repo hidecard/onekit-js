@@ -83,8 +83,10 @@
 - [x] Add versioned warning and hard budgets for slot-heavy hydration (`250 ms`), updates (`300 ms`), and reorders (`350 ms`) in `scripts/browser-performance-budgets.json`.
 - [x] Attach per-browser JSON timing reports and emit GitHub Actions warning annotations at 80% of each budget.
 - [x] Validate the expanded browser suite: **48 passing tests** across Chromium, Firefox, WebKit, and Microsoft Edge.
-- [ ] Store browser timing history and compare release-to-release percentiles on stable CI runners.
-- [ ] Add repeated browser mount/update/unmount heap snapshots for DOM memory regression detection.
+- [x] Add a Chromium CDP heap snapshot test for 25 repeated mount/update/unmount cycles with 3 updates and 40 keyed nodes per cycle.
+- [x] Force GC before and after the lifecycle workload, assert zero residual probe hosts/roots, attach before/after `.heapsnapshot` files, and enforce an 8 MiB retained post-GC heap-growth budget.
+- [ ] Store browser timing and heap-growth history and compare release-to-release percentiles on stable CI runners.
+- [ ] Extend browser memory measurement to non-Chromium engines when a portable heap-inspection API is available.
 
 ## Production-readiness audit
 
