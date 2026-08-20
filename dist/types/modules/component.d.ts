@@ -1,4 +1,5 @@
 import { DisposableScope } from '../core/scope';
+import type { VNode } from './vdom';
 export interface ComponentProps {
     [key: string]: unknown;
 }
@@ -15,6 +16,7 @@ export interface PropDefinition {
 export interface ComponentPropsDefinition {
     [key: string]: PropDefinition | PropType;
 }
+export type SlotValue = string | VNode | SlotValue[] | (() => SlotValue | SlotValue[]);
 export interface ComponentDefinition {
     name?: string;
     props?: ComponentPropsDefinition;
@@ -22,7 +24,7 @@ export interface ComponentDefinition {
     /** Composition-style setup for concise state, methods, and lifecycle registration. */
     setup?: (props: ComponentProps) => ComponentState;
     template?: string;
-    render?: (this: ComponentInstance) => string;
+    render?: (this: ComponentInstance) => string | VNode;
     methods?: {
         [key: string]: (...args: unknown[]) => unknown;
     };
@@ -40,7 +42,7 @@ export interface ComponentInstance {
     name: string;
     props: ComponentProps;
     slots: {
-        [key: string]: string;
+        [key: string]: SlotValue;
     };
     state: ComponentState;
     element: Element | null;
@@ -57,11 +59,13 @@ export interface StatefulComponentFactory {
     __onekitName?: string;
 }
 export declare function defineComponent(definition: ComponentDefinition): ComponentDefinition;
+/** Resolve a named slot while preserving VNode, text, array, and lazy slot values. */
+export declare function resolveSlot(instance: ComponentInstance, name?: string, fallback?: SlotValue): SlotValue;
 export declare function register(name: string, definition: ComponentDefinition): void;
 /** Replace a registered component during HMR while preserving live state and props. */
 export declare function hotUpdateComponent(name: string, definition: ComponentDefinition): number;
 export declare function create(name: string, props?: ComponentProps, slots?: {
-    [key: string]: string;
+    [key: string]: SlotValue;
 }): ComponentInstance | null;
 export declare function activate(component: ComponentInstance): void;
 export declare function updateComponentProps(component: ComponentInstance, nextProps: ComponentProps): Element | null;

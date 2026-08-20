@@ -363,7 +363,7 @@ function walkAndHydrate(
   }
 
   for (const [key, value] of Object.entries(vnode.props)) {
-    if (key === 'key' || key === 'children' || /^on/i.test(key)) continue;
+    if (key === 'key' || key === 'children' || key === 'ref' || /^on/i.test(key)) continue;
     const attributeName = hydrationAttributeName(key);
     const expected = hydrationExpectedAttribute(key, value);
     const actual = element.getAttribute(attributeName);
@@ -375,6 +375,15 @@ function walkAndHydrate(
         actual: actual ?? 'missing',
       });
     }
+  }
+
+  const hydrationRef = vnode.props.ref;
+  if (typeof hydrationRef === 'function') {
+    hydrationRef(element);
+    cleanups.push(() => hydrationRef(null));
+  } else if (hydrationRef && typeof hydrationRef === 'object') {
+    (hydrationRef as { current?: Element | null }).current = element;
+    cleanups.push(() => { (hydrationRef as { current?: Element | null }).current = null; });
   }
 
   for (const [key, value] of Object.entries(vnode.props)) {

@@ -6,6 +6,8 @@ import { reactive } from './reactive';
 import { DisposableScope, effectScope } from '../core/scope';
 import { emitDevToolsEvent, getDevToolsTargetId, registerDevToolsInspector } from '../core/devtools';
 import { createErrorBoundary } from '../core/error-handler';
+import type { VNode } from './vdom';
+import { render as renderVNode } from './vdom';
 
 export interface ComponentProps {
   [key: string]: unknown;
@@ -28,6 +30,8 @@ export interface ComponentPropsDefinition {
   [key: string]: PropDefinition | PropType;
 }
 
+export type SlotValue = string | VNode | SlotValue[] | (() => SlotValue | SlotValue[]);
+
 export interface ComponentDefinition {
   name?: string;
   props?: ComponentPropsDefinition;
@@ -35,7 +39,7 @@ export interface ComponentDefinition {
   /** Composition-style setup for concise state, methods, and lifecycle registration. */
   setup?: (props: ComponentProps) => ComponentState;
   template?: string;
-  render?: (this: ComponentInstance) => string;
+  render?: (this: ComponentInstance) => string | VNode;
   methods?: { [key: string]: (...args: unknown[]) => unknown };
   inject?: string[];
   beforeCreate?: (this: ComponentInstance) => void;
@@ -51,7 +55,7 @@ export interface ComponentDefinition {
 export interface ComponentInstance {
   name: string;
   props: ComponentProps;
-  slots: { [key: string]: string };
+  slots: { [key: string]: SlotValue };
   state: ComponentState;
   element: Element | null;
   mounted: boolean;
@@ -182,6 +186,13 @@ export function defineComponent(definition: ComponentDefinition): ComponentDefin
   return definition;
 }
 
+/** Resolve a named slot while preserving VNode, text, array, and lazy slot values. */
+export function resolveSlot(instance: ComponentInstance, name = 'default', fallback: SlotValue = []): SlotValue {
+  const value = instance.slots[name];
+  if (value === undefined) return fallback;
+  return typeof value === 'function' ? value() : value;
+}
+
 export function register(name: string, definition: ComponentDefinition): void {
   components[name] = definition;
 }
@@ -214,13 +225,15 @@ export function hotUpdateComponent(name: string, definition: ComponentDefinition
   return snapshots.length;
 }
 
-export function create(name: string, props: ComponentProps = {}, slots: { [key: string]: string } = {}): ComponentInstance | null {
+export function create(name: string, props: ComponentProps = {}, slots: { [key: string]: SlotValue } = {}): ComponentInstance | null {
   if (!components[name]) {
     console.error(`Component "${name}" not found`);
     return null;
   }
 
   const definition = components[name];
+  const providedChildren = props.children;
+  const normalizedSlots = Object.keys(slots).length > 0 ? slots : (providedChildren === undefined ? {} : { default: providedChildren as SlotValue });
 
   // Validate and process props
   const validatedProps = definition.props ? validateProps(props, definition.props, name) : props;
@@ -230,7 +243,7 @@ export function create(name: string, props: ComponentProps = {}, slots: { [key: 
     props: reactive(validatedProps),
     scope: effectScope(true),
     componentId: getDevToolsTargetId({}),
-    slots,
+    slots: normalizedSlots,
     state: reactive(definition.data ? deepCloneSafe(definition.data()) : {}),
     element: null,
     mounted: false,
@@ -266,10 +279,16 @@ export function create(name: string, props: ComponentProps = {}, slots: { [key: 
       if (definition.template) {
         nextElement = renderTemplate();
       } else if (definition.render) {
-        const html = sanitizeHTML(definition.render.call(this));
-        const newElement = document.createElement('div');
-        newElement.innerHTML = html;
-        nextElement = newElement.firstElementChild;
+        const rendered = definition.render.call(this);
+        if (typeof rendered === 'string') {
+          const html = sanitizeHTML(rendered);
+          const newElement = document.createElement('div');
+          newElement.innerHTML = html;
+          nextElement = newElement.firstElementChild;
+        } else {
+          const renderedNode = renderVNode(rendered);
+          nextElement = renderedNode.nodeType === Node.ELEMENT_NODE ? renderedNode as Element : null;
+        }
       }
 
       if (nextElement) {
@@ -369,10 +388,16 @@ export function create(name: string, props: ComponentProps = {}, slots: { [key: 
     if (definition.template) {
       instance.element = renderTemplate();
     } else if (definition.render) {
-      const html = sanitizeHTML(definition.render.call(instance));
-      const tempDiv = document.createElement('div');
-      tempDiv.innerHTML = html;
-      instance.element = tempDiv.firstElementChild as Element;
+      const rendered = definition.render.call(instance);
+      if (typeof rendered === 'string') {
+        const html = sanitizeHTML(rendered);
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = html;
+        instance.element = tempDiv.firstElementChild as Element;
+      } else {
+        const renderedNode = renderVNode(rendered);
+        instance.element = renderedNode.nodeType === Node.ELEMENT_NODE ? renderedNode as Element : null;
+      }
     }
     return instance.element ?? document.createElement('div');
   }));

@@ -2291,499 +2291,6 @@
         // Directives are already registered above
     }
 
-    // Component System Module
-    const components = {};
-    const componentInstances = new Map();
-    registerDevToolsInspector('components', () => Array.from(componentInstances.values()).map((instance) => ({
-        id: instance.componentId,
-        name: instance.name,
-        mounted: instance.mounted,
-        props: instance.props,
-        state: instance.state,
-    })));
-    // Lifecycle hooks registry for composition API style
-    const lifecycleHooks = new WeakMap();
-    // Current component instance for composition API
-    let currentInstance = null;
-    // Props validation utilities
-    function validatePropType(value, type) {
-        switch (type) {
-            case 'string':
-                return typeof value === 'string';
-            case 'number':
-                return typeof value === 'number' && !isNaN(value);
-            case 'boolean':
-                return typeof value === 'boolean';
-            case 'object':
-                return typeof value === 'object' && value !== null && !Array.isArray(value);
-            case 'array':
-                return Array.isArray(value);
-            case 'function':
-                return typeof value === 'function';
-            case 'symbol':
-                return typeof value === 'symbol';
-            default:
-                return false;
-        }
-    }
-    function validateProps(props, propDefs, componentName) {
-        const validatedProps = {};
-        const missingRequired = [];
-        const typeErrors = [];
-        // Process each prop definition
-        for (const propName in propDefs) {
-            const def = propDefs[propName];
-            const propDef = typeof def === 'string' ? { type: def } : def;
-            const providedValue = props[propName];
-            // Check if required prop is missing
-            if (propDef.required && (providedValue === undefined || providedValue === null)) {
-                missingRequired.push(propName);
-                continue;
-            }
-            // Use default value if prop is not provided
-            let finalValue = providedValue;
-            if (finalValue === undefined || finalValue === null) {
-                if (propDef.default !== undefined) {
-                    finalValue = typeof propDef.default === 'function' ? propDef.default() : propDef.default;
-                }
-            }
-            // Type validation
-            if (finalValue !== undefined && propDef.type) {
-                const types = Array.isArray(propDef.type) ? propDef.type : [propDef.type];
-                const isValidType = types.some(type => validatePropType(finalValue, type));
-                if (!isValidType) {
-                    typeErrors.push(`${propName}: expected ${types.join(' or ')}, got ${typeof finalValue}`);
-                }
-            }
-            // Custom validator
-            if (finalValue !== undefined && propDef.validator && !propDef.validator(finalValue)) {
-                typeErrors.push(`${propName}: custom validation failed`);
-            }
-            validatedProps[propName] = finalValue;
-        }
-        // Add any extra props that weren't defined (for flexibility)
-        for (const propName in props) {
-            if (!(propName in propDefs)) {
-                validatedProps[propName] = props[propName];
-            }
-        }
-        // Log validation errors in development
-        if ((typeof process !== 'undefined' && process.env.NODE_ENV === 'development') ||
-            (typeof window !== 'undefined' && window.__ONEKIT_DEV__)) {
-            if (missingRequired.length > 0) {
-                console.warn(`[OneKit] Component "${componentName}": Missing required props: ${missingRequired.join(', ')}`);
-            }
-            if (typeErrors.length > 0) {
-                console.warn(`[OneKit] Component "${componentName}": Prop validation errors:`, typeErrors);
-            }
-        }
-        return validatedProps;
-    }
-    function defineComponent(definition) {
-        return definition;
-    }
-    function register(name, definition) {
-        components[name] = definition;
-    }
-    /** Replace a registered component during HMR while preserving live state and props. */
-    function hotUpdateComponent(name, definition) {
-        const active = Array.from(componentInstances.values()).filter(instance => instance.name === name);
-        const snapshots = active.map(instance => ({
-            instance,
-            state: deepCloneSafe(instance.state),
-            props: deepCloneSafe(instance.props),
-            slots: { ...instance.slots },
-            parent: instance.element?.parentNode,
-            nextSibling: instance.element?.nextSibling,
-            mounted: instance.mounted,
-        }));
-        register(name, definition);
-        snapshots.forEach(snapshot => {
-            const { instance, parent, nextSibling, mounted } = snapshot;
-            destroy(instance);
-            const replacement = create(name, snapshot.props, snapshot.slots);
-            if (!replacement)
-                return;
-            Object.assign(replacement.state, snapshot.state);
-            replacement.update();
-            if (parent && replacement.element && mounted) {
-                mount(replacement, parent);
-                if (nextSibling && nextSibling.parentNode === parent)
-                    parent.insertBefore(replacement.element, nextSibling);
-            }
-        });
-        return snapshots.length;
-    }
-    function create(name, props = {}, slots = {}) {
-        if (!components[name]) {
-            console.error(`Component "${name}" not found`);
-            return null;
-        }
-        const definition = components[name];
-        // Validate and process props
-        const validatedProps = definition.props ? validateProps(props, definition.props, name) : props;
-        const instance = {
-            name,
-            props: reactive(validatedProps),
-            scope: effectScope(true),
-            componentId: getDevToolsTargetId({}),
-            slots,
-            state: reactive(definition.data ? deepCloneSafe(definition.data()) : {}),
-            element: null,
-            mounted: false,
-            listeners: [],
-            update: function () { } // Placeholder, will be overridden
-        };
-        // Composition-style setup returns the public state/method surface used by the template.
-        if (definition.setup) {
-            const setupState = setupComponent(instance, definition.setup);
-            if (setupState && typeof setupState === 'object') {
-                Object.assign(instance.state, setupState);
-            }
-        }
-        // Add methods
-        if (definition.methods) {
-            Object.keys(definition.methods).forEach(method => {
-                instance[method] = function (...args) {
-                    return definition.methods[method].call(instance, ...args);
-                };
-            });
-        }
-        // Unified update method for reactive updates
-        instance.update = function () {
-            if (this.element) {
-                if (definition.beforeUpdate) {
-                    definition.beforeUpdate.call(this);
-                }
-                let nextElement = null;
-                if (definition.template) {
-                    nextElement = renderTemplate();
-                }
-                else if (definition.render) {
-                    const html = sanitizeHTML(definition.render.call(this));
-                    const newElement = document.createElement('div');
-                    newElement.innerHTML = html;
-                    nextElement = newElement.firstElementChild;
-                }
-                if (nextElement) {
-                    const previousElement = this.element;
-                    if (previousElement && previousElement.tagName === nextElement.tagName) {
-                        Array.from(previousElement.attributes).forEach(attribute => {
-                            if (!nextElement.hasAttribute(attribute.name))
-                                previousElement.removeAttribute(attribute.name);
-                        });
-                        Array.from(nextElement.attributes).forEach(attribute => {
-                            previousElement.setAttribute(attribute.name, attribute.value);
-                        });
-                        previousElement.replaceChildren(...Array.from(nextElement.childNodes));
-                    }
-                    else if (previousElement) {
-                        const parent = previousElement.parentNode;
-                        if (parent) {
-                            parent.replaceChild(nextElement, previousElement);
-                            componentInstances.delete(previousElement);
-                            componentInstances.set(nextElement, this);
-                            this.element = nextElement;
-                        }
-                        else {
-                            previousElement.replaceChildren(...Array.from(nextElement.childNodes));
-                        }
-                    }
-                }
-                // Legacy data-on-* method bindings remain supported for render() components.
-                if (!definition.template && definition.methods && this.element) {
-                    Object.keys(definition.methods).forEach(method => {
-                        const events = this.element.querySelectorAll(`[data-on-${method}]`);
-                        events.forEach((el) => {
-                            el.addEventListener(method.split('on')[1], (e) => {
-                                e.preventDefault();
-                                const methodFn = this[method];
-                                if (typeof methodFn === 'function') {
-                                    methodFn(e);
-                                }
-                            });
-                        });
-                    });
-                }
-                emitDevToolsEvent({ type: 'component:lifecycle', componentId: this.componentId, name: this.name, phase: 'update' });
-                definition.updated?.call(this);
-            }
-        };
-        // Keep template effects/listeners in a replaceable child scope. Recompiling this
-        // scope on update preserves ok-on/ok-model/ok-for behavior after root replacement.
-        let templateScope = null;
-        let templateContext = null;
-        const renderTemplate = () => {
-            templateScope?.dispose();
-            templateScope = effectScope(true);
-            const context = templateContext ?? new Proxy({}, {
-                get(_target, key) {
-                    if (key in instance.state)
-                        return instance.state[key];
-                    if (key in instance.props)
-                        return instance.props[key];
-                    if (key in instance && typeof key === 'string')
-                        return instance[key];
-                    if (key === '$slots')
-                        return instance.slots;
-                    return undefined;
-                },
-                has(_target, key) {
-                    return key in instance.state || key in instance.props || key in instance || key === '$slots';
-                },
-                set(_target, key, value) {
-                    if (typeof key !== 'string')
-                        return false;
-                    if (key in instance.state) {
-                        instance.state[key] = value;
-                        return true;
-                    }
-                    if (key in instance.props) {
-                        instance.props[key] = value;
-                        return true;
-                    }
-                    return false;
-                },
-            });
-            templateContext = context;
-            return templateScope.run(() => compileTemplate(definition.template, context));
-        };
-        instance.scope.add(() => templateScope?.dispose());
-        // Create element inside the component scope so template effects and directive
-        // listeners are disposed automatically when the component is destroyed.
-        const renderBoundary = createErrorBoundary({
-            fallback: (_error) => {
-                const fallback = document.createElement('div');
-                fallback.setAttribute('data-onekit-error-boundary', instance.name);
-                fallback.textContent = 'OneKit component failed to render';
-                return fallback;
-            },
-        });
-        instance.scope.run(() => renderBoundary.render(() => {
-            if (definition.template) {
-                instance.element = renderTemplate();
-            }
-            else if (definition.render) {
-                const html = sanitizeHTML(definition.render.call(instance));
-                const tempDiv = document.createElement('div');
-                tempDiv.innerHTML = html;
-                instance.element = tempDiv.firstElementChild;
-            }
-            return instance.element ?? document.createElement('div');
-        }));
-        // Add lifecycle hooks
-        definition.beforeCreate?.call(instance);
-        definition.created?.call(instance);
-        emitDevToolsEvent({ type: 'component:lifecycle', componentId: instance.componentId, name: instance.name, phase: 'create' });
-        // Store instance
-        if (instance.element) {
-            componentInstances.set(instance.element, instance);
-        }
-        return instance;
-    }
-    function activate(component) {
-        if (component.mounted)
-            return;
-        component.mounted = true;
-        emitDevToolsEvent({ type: 'component:lifecycle', componentId: component.componentId, name: component.name, phase: 'mount' });
-        const definition = components[component.name];
-        component.scope.run(() => {
-            definition?.mounted?.call(component);
-            const hooks = lifecycleHooks.get(component);
-            hooks?.onMounted.forEach(hook => hook());
-        });
-    }
-    function updateComponentProps(component, nextProps) {
-        const definition = components[component.name];
-        const previousProps = { ...component.props };
-        const validatedProps = definition?.props ? validateProps(nextProps, definition.props, component.name) : nextProps;
-        Object.keys(component.props).forEach(key => {
-            if (!(key in validatedProps))
-                delete component.props[key];
-        });
-        Object.assign(component.props, validatedProps);
-        lifecycleHooks.get(component)?.onPropsChanged.forEach(hook => hook(component.props, previousProps));
-        component.update();
-        return component.element;
-    }
-    function mount(component, target) {
-        let comp;
-        if (typeof component === 'string') {
-            comp = create(component);
-        }
-        else {
-            comp = component;
-        }
-        if (!comp || !comp.element) {
-            console.error('Invalid component');
-            return null;
-        }
-        const targetElement = typeof target === 'string' ? document.querySelector(target) : target;
-        if (!targetElement) {
-            console.error('Invalid target element');
-            return null;
-        }
-        targetElement.appendChild(comp.element);
-        activate(comp);
-        return comp;
-    }
-    const unmount = destroy;
-    function getInstance(element) {
-        return componentInstances.get(element);
-    }
-    function destroy(component) {
-        if (!component || !component.element)
-            return;
-        const definition = components[component.name];
-        definition?.beforeUnmount?.call(component);
-        // Call composition API onDestroyed hooks
-        const hooks = lifecycleHooks.get(component);
-        if (hooks?.onDestroyed) {
-            hooks.onDestroyed.forEach(hook => hook());
-        }
-        if (component.element.parentNode) {
-            component.element.parentNode.removeChild(component.element);
-        }
-        component.listeners.forEach((listener) => {
-            if (typeof listener === 'object' && listener !== null && 'element' in listener && 'event' in listener && 'handler' in listener) {
-                const { element, event, handler } = listener;
-                element.removeEventListener(event, handler);
-            }
-        });
-        componentInstances.delete(component.element);
-        component.mounted = false;
-        if (definition && definition.unmounted) {
-            definition.unmounted.call(component);
-        }
-        component.scope.dispose();
-        emitDevToolsEvent({ type: 'component:lifecycle', componentId: component.componentId, name: component.name, phase: 'unmount' });
-    }
-    // Composition API lifecycle hooks
-    function onMounted(callback) {
-        if (!currentInstance) {
-            console.warn('[OneKit] onMounted() called outside of component setup');
-            return;
-        }
-        let hooks = lifecycleHooks.get(currentInstance);
-        if (!hooks) {
-            hooks = {
-                onMounted: [],
-                onUpdated: [],
-                onDestroyed: [],
-                onPropsChanged: []
-            };
-            lifecycleHooks.set(currentInstance, hooks);
-        }
-        hooks.onMounted.push(callback);
-    }
-    function onUpdated(callback) {
-        if (!currentInstance) {
-            console.warn('[OneKit] onUpdated() called outside of component setup');
-            return;
-        }
-        let hooks = lifecycleHooks.get(currentInstance);
-        if (!hooks) {
-            hooks = {
-                onMounted: [],
-                onUpdated: [],
-                onDestroyed: [],
-                onPropsChanged: []
-            };
-            lifecycleHooks.set(currentInstance, hooks);
-        }
-        hooks.onUpdated.push(callback);
-    }
-    function onDestroyed(callback) {
-        if (!currentInstance) {
-            console.warn('[OneKit] onDestroyed() called outside of component setup');
-            return;
-        }
-        let hooks = lifecycleHooks.get(currentInstance);
-        if (!hooks) {
-            hooks = {
-                onMounted: [],
-                onUpdated: [],
-                onDestroyed: [],
-                onPropsChanged: []
-            };
-            lifecycleHooks.set(currentInstance, hooks);
-        }
-        hooks.onDestroyed.push(callback);
-    }
-    function onPropsChanged(callback) {
-        if (!currentInstance) {
-            console.warn('[OneKit] onPropsChanged() called outside of component setup');
-            return;
-        }
-        let hooks = lifecycleHooks.get(currentInstance);
-        if (!hooks) {
-            hooks = {
-                onMounted: [],
-                onUpdated: [],
-                onDestroyed: [],
-                onPropsChanged: []
-            };
-            lifecycleHooks.set(currentInstance, hooks);
-        }
-        hooks.onPropsChanged.push(callback);
-    }
-    // Setup function for composition API
-    function setupComponent(instance, setupFn) {
-        const prevInstance = currentInstance;
-        currentInstance = instance;
-        try {
-            return instance.scope.run(() => setupFn(instance.props));
-        }
-        finally {
-            currentInstance = prevInstance;
-        }
-    }
-
-    // OneKit V3 ergonomic API: a small beginner-facing layer over the production reactive and component primitives.
-    function state(initial) {
-        if (typeof initial === 'object' && initial !== null) {
-            return reactive(initial);
-        }
-        const holder = reactive({ value: initial });
-        Object.defineProperty(holder, '__isStateRef', { value: true, enumerable: false });
-        return holder;
-    }
-    /** Create a cached, dependency-tracked derived value. */
-    function derive(getter) {
-        return computed(getter);
-    }
-    /** Create a reactive side effect with a familiar beginner-facing name. */
-    function watchEffect(fn, options) {
-        const runner = effect(fn, options);
-        return () => stop(runner);
-    }
-    let appId = 0;
-    /**
-     * Mount a component definition directly without manually registering a name.
-     * The old register/create/mount APIs remain available for advanced use cases.
-     */
-    function createApp(definition) {
-        const component = defineComponent(definition);
-        const name = component.name || `OneKitApp${++appId}`;
-        const namedDefinition = component.name ? component : { ...component, name };
-        let instance = null;
-        return {
-            definition: namedDefinition,
-            component: namedDefinition,
-            mount(target, props = {}) {
-                register(name, namedDefinition);
-                instance = create(name, props);
-                return instance ? mount(instance, target) : null;
-            },
-            unmount() {
-                if (instance) {
-                    destroy(instance);
-                    instance = null;
-                }
-            },
-        };
-    }
-
     /* OneKit style: predictable DOM ownership, keyed updates, explicit prop diffing, and small renderer primitives. */
     const eventListeners = new WeakMap();
     function createElement(tag, props = {}, ...children) {
@@ -3153,6 +2660,522 @@
     }
     function patch$1(parent, newVNode, oldVNode) {
         patchNode(parent, parent.firstChild, newVNode, oldVNode);
+    }
+
+    // Component System Module
+    const components = {};
+    const componentInstances = new Map();
+    registerDevToolsInspector('components', () => Array.from(componentInstances.values()).map((instance) => ({
+        id: instance.componentId,
+        name: instance.name,
+        mounted: instance.mounted,
+        props: instance.props,
+        state: instance.state,
+    })));
+    // Lifecycle hooks registry for composition API style
+    const lifecycleHooks = new WeakMap();
+    // Current component instance for composition API
+    let currentInstance = null;
+    // Props validation utilities
+    function validatePropType(value, type) {
+        switch (type) {
+            case 'string':
+                return typeof value === 'string';
+            case 'number':
+                return typeof value === 'number' && !isNaN(value);
+            case 'boolean':
+                return typeof value === 'boolean';
+            case 'object':
+                return typeof value === 'object' && value !== null && !Array.isArray(value);
+            case 'array':
+                return Array.isArray(value);
+            case 'function':
+                return typeof value === 'function';
+            case 'symbol':
+                return typeof value === 'symbol';
+            default:
+                return false;
+        }
+    }
+    function validateProps(props, propDefs, componentName) {
+        const validatedProps = {};
+        const missingRequired = [];
+        const typeErrors = [];
+        // Process each prop definition
+        for (const propName in propDefs) {
+            const def = propDefs[propName];
+            const propDef = typeof def === 'string' ? { type: def } : def;
+            const providedValue = props[propName];
+            // Check if required prop is missing
+            if (propDef.required && (providedValue === undefined || providedValue === null)) {
+                missingRequired.push(propName);
+                continue;
+            }
+            // Use default value if prop is not provided
+            let finalValue = providedValue;
+            if (finalValue === undefined || finalValue === null) {
+                if (propDef.default !== undefined) {
+                    finalValue = typeof propDef.default === 'function' ? propDef.default() : propDef.default;
+                }
+            }
+            // Type validation
+            if (finalValue !== undefined && propDef.type) {
+                const types = Array.isArray(propDef.type) ? propDef.type : [propDef.type];
+                const isValidType = types.some(type => validatePropType(finalValue, type));
+                if (!isValidType) {
+                    typeErrors.push(`${propName}: expected ${types.join(' or ')}, got ${typeof finalValue}`);
+                }
+            }
+            // Custom validator
+            if (finalValue !== undefined && propDef.validator && !propDef.validator(finalValue)) {
+                typeErrors.push(`${propName}: custom validation failed`);
+            }
+            validatedProps[propName] = finalValue;
+        }
+        // Add any extra props that weren't defined (for flexibility)
+        for (const propName in props) {
+            if (!(propName in propDefs)) {
+                validatedProps[propName] = props[propName];
+            }
+        }
+        // Log validation errors in development
+        if ((typeof process !== 'undefined' && process.env.NODE_ENV === 'development') ||
+            (typeof window !== 'undefined' && window.__ONEKIT_DEV__)) {
+            if (missingRequired.length > 0) {
+                console.warn(`[OneKit] Component "${componentName}": Missing required props: ${missingRequired.join(', ')}`);
+            }
+            if (typeErrors.length > 0) {
+                console.warn(`[OneKit] Component "${componentName}": Prop validation errors:`, typeErrors);
+            }
+        }
+        return validatedProps;
+    }
+    function defineComponent(definition) {
+        return definition;
+    }
+    /** Resolve a named slot while preserving VNode, text, array, and lazy slot values. */
+    function resolveSlot(instance, name = 'default', fallback = []) {
+        const value = instance.slots[name];
+        if (value === undefined)
+            return fallback;
+        return typeof value === 'function' ? value() : value;
+    }
+    function register(name, definition) {
+        components[name] = definition;
+    }
+    /** Replace a registered component during HMR while preserving live state and props. */
+    function hotUpdateComponent(name, definition) {
+        const active = Array.from(componentInstances.values()).filter(instance => instance.name === name);
+        const snapshots = active.map(instance => ({
+            instance,
+            state: deepCloneSafe(instance.state),
+            props: deepCloneSafe(instance.props),
+            slots: { ...instance.slots },
+            parent: instance.element?.parentNode,
+            nextSibling: instance.element?.nextSibling,
+            mounted: instance.mounted,
+        }));
+        register(name, definition);
+        snapshots.forEach(snapshot => {
+            const { instance, parent, nextSibling, mounted } = snapshot;
+            destroy(instance);
+            const replacement = create(name, snapshot.props, snapshot.slots);
+            if (!replacement)
+                return;
+            Object.assign(replacement.state, snapshot.state);
+            replacement.update();
+            if (parent && replacement.element && mounted) {
+                mount(replacement, parent);
+                if (nextSibling && nextSibling.parentNode === parent)
+                    parent.insertBefore(replacement.element, nextSibling);
+            }
+        });
+        return snapshots.length;
+    }
+    function create(name, props = {}, slots = {}) {
+        if (!components[name]) {
+            console.error(`Component "${name}" not found`);
+            return null;
+        }
+        const definition = components[name];
+        const providedChildren = props.children;
+        const normalizedSlots = Object.keys(slots).length > 0 ? slots : (providedChildren === undefined ? {} : { default: providedChildren });
+        // Validate and process props
+        const validatedProps = definition.props ? validateProps(props, definition.props, name) : props;
+        const instance = {
+            name,
+            props: reactive(validatedProps),
+            scope: effectScope(true),
+            componentId: getDevToolsTargetId({}),
+            slots: normalizedSlots,
+            state: reactive(definition.data ? deepCloneSafe(definition.data()) : {}),
+            element: null,
+            mounted: false,
+            listeners: [],
+            update: function () { } // Placeholder, will be overridden
+        };
+        // Composition-style setup returns the public state/method surface used by the template.
+        if (definition.setup) {
+            const setupState = setupComponent(instance, definition.setup);
+            if (setupState && typeof setupState === 'object') {
+                Object.assign(instance.state, setupState);
+            }
+        }
+        // Add methods
+        if (definition.methods) {
+            Object.keys(definition.methods).forEach(method => {
+                instance[method] = function (...args) {
+                    return definition.methods[method].call(instance, ...args);
+                };
+            });
+        }
+        // Unified update method for reactive updates
+        instance.update = function () {
+            if (this.element) {
+                if (definition.beforeUpdate) {
+                    definition.beforeUpdate.call(this);
+                }
+                let nextElement = null;
+                if (definition.template) {
+                    nextElement = renderTemplate();
+                }
+                else if (definition.render) {
+                    const rendered = definition.render.call(this);
+                    if (typeof rendered === 'string') {
+                        const html = sanitizeHTML(rendered);
+                        const newElement = document.createElement('div');
+                        newElement.innerHTML = html;
+                        nextElement = newElement.firstElementChild;
+                    }
+                    else {
+                        const renderedNode = render(rendered);
+                        nextElement = renderedNode.nodeType === Node.ELEMENT_NODE ? renderedNode : null;
+                    }
+                }
+                if (nextElement) {
+                    const previousElement = this.element;
+                    if (previousElement && previousElement.tagName === nextElement.tagName) {
+                        Array.from(previousElement.attributes).forEach(attribute => {
+                            if (!nextElement.hasAttribute(attribute.name))
+                                previousElement.removeAttribute(attribute.name);
+                        });
+                        Array.from(nextElement.attributes).forEach(attribute => {
+                            previousElement.setAttribute(attribute.name, attribute.value);
+                        });
+                        previousElement.replaceChildren(...Array.from(nextElement.childNodes));
+                    }
+                    else if (previousElement) {
+                        const parent = previousElement.parentNode;
+                        if (parent) {
+                            parent.replaceChild(nextElement, previousElement);
+                            componentInstances.delete(previousElement);
+                            componentInstances.set(nextElement, this);
+                            this.element = nextElement;
+                        }
+                        else {
+                            previousElement.replaceChildren(...Array.from(nextElement.childNodes));
+                        }
+                    }
+                }
+                // Legacy data-on-* method bindings remain supported for render() components.
+                if (!definition.template && definition.methods && this.element) {
+                    Object.keys(definition.methods).forEach(method => {
+                        const events = this.element.querySelectorAll(`[data-on-${method}]`);
+                        events.forEach((el) => {
+                            el.addEventListener(method.split('on')[1], (e) => {
+                                e.preventDefault();
+                                const methodFn = this[method];
+                                if (typeof methodFn === 'function') {
+                                    methodFn(e);
+                                }
+                            });
+                        });
+                    });
+                }
+                emitDevToolsEvent({ type: 'component:lifecycle', componentId: this.componentId, name: this.name, phase: 'update' });
+                definition.updated?.call(this);
+            }
+        };
+        // Keep template effects/listeners in a replaceable child scope. Recompiling this
+        // scope on update preserves ok-on/ok-model/ok-for behavior after root replacement.
+        let templateScope = null;
+        let templateContext = null;
+        const renderTemplate = () => {
+            templateScope?.dispose();
+            templateScope = effectScope(true);
+            const context = templateContext ?? new Proxy({}, {
+                get(_target, key) {
+                    if (key in instance.state)
+                        return instance.state[key];
+                    if (key in instance.props)
+                        return instance.props[key];
+                    if (key in instance && typeof key === 'string')
+                        return instance[key];
+                    if (key === '$slots')
+                        return instance.slots;
+                    return undefined;
+                },
+                has(_target, key) {
+                    return key in instance.state || key in instance.props || key in instance || key === '$slots';
+                },
+                set(_target, key, value) {
+                    if (typeof key !== 'string')
+                        return false;
+                    if (key in instance.state) {
+                        instance.state[key] = value;
+                        return true;
+                    }
+                    if (key in instance.props) {
+                        instance.props[key] = value;
+                        return true;
+                    }
+                    return false;
+                },
+            });
+            templateContext = context;
+            return templateScope.run(() => compileTemplate(definition.template, context));
+        };
+        instance.scope.add(() => templateScope?.dispose());
+        // Create element inside the component scope so template effects and directive
+        // listeners are disposed automatically when the component is destroyed.
+        const renderBoundary = createErrorBoundary({
+            fallback: (_error) => {
+                const fallback = document.createElement('div');
+                fallback.setAttribute('data-onekit-error-boundary', instance.name);
+                fallback.textContent = 'OneKit component failed to render';
+                return fallback;
+            },
+        });
+        instance.scope.run(() => renderBoundary.render(() => {
+            if (definition.template) {
+                instance.element = renderTemplate();
+            }
+            else if (definition.render) {
+                const rendered = definition.render.call(instance);
+                if (typeof rendered === 'string') {
+                    const html = sanitizeHTML(rendered);
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = html;
+                    instance.element = tempDiv.firstElementChild;
+                }
+                else {
+                    const renderedNode = render(rendered);
+                    instance.element = renderedNode.nodeType === Node.ELEMENT_NODE ? renderedNode : null;
+                }
+            }
+            return instance.element ?? document.createElement('div');
+        }));
+        // Add lifecycle hooks
+        definition.beforeCreate?.call(instance);
+        definition.created?.call(instance);
+        emitDevToolsEvent({ type: 'component:lifecycle', componentId: instance.componentId, name: instance.name, phase: 'create' });
+        // Store instance
+        if (instance.element) {
+            componentInstances.set(instance.element, instance);
+        }
+        return instance;
+    }
+    function activate(component) {
+        if (component.mounted)
+            return;
+        component.mounted = true;
+        emitDevToolsEvent({ type: 'component:lifecycle', componentId: component.componentId, name: component.name, phase: 'mount' });
+        const definition = components[component.name];
+        component.scope.run(() => {
+            definition?.mounted?.call(component);
+            const hooks = lifecycleHooks.get(component);
+            hooks?.onMounted.forEach(hook => hook());
+        });
+    }
+    function updateComponentProps(component, nextProps) {
+        const definition = components[component.name];
+        const previousProps = { ...component.props };
+        const validatedProps = definition?.props ? validateProps(nextProps, definition.props, component.name) : nextProps;
+        Object.keys(component.props).forEach(key => {
+            if (!(key in validatedProps))
+                delete component.props[key];
+        });
+        Object.assign(component.props, validatedProps);
+        lifecycleHooks.get(component)?.onPropsChanged.forEach(hook => hook(component.props, previousProps));
+        component.update();
+        return component.element;
+    }
+    function mount(component, target) {
+        let comp;
+        if (typeof component === 'string') {
+            comp = create(component);
+        }
+        else {
+            comp = component;
+        }
+        if (!comp || !comp.element) {
+            console.error('Invalid component');
+            return null;
+        }
+        const targetElement = typeof target === 'string' ? document.querySelector(target) : target;
+        if (!targetElement) {
+            console.error('Invalid target element');
+            return null;
+        }
+        targetElement.appendChild(comp.element);
+        activate(comp);
+        return comp;
+    }
+    const unmount = destroy;
+    function getInstance(element) {
+        return componentInstances.get(element);
+    }
+    function destroy(component) {
+        if (!component || !component.element)
+            return;
+        const definition = components[component.name];
+        definition?.beforeUnmount?.call(component);
+        // Call composition API onDestroyed hooks
+        const hooks = lifecycleHooks.get(component);
+        if (hooks?.onDestroyed) {
+            hooks.onDestroyed.forEach(hook => hook());
+        }
+        if (component.element.parentNode) {
+            component.element.parentNode.removeChild(component.element);
+        }
+        component.listeners.forEach((listener) => {
+            if (typeof listener === 'object' && listener !== null && 'element' in listener && 'event' in listener && 'handler' in listener) {
+                const { element, event, handler } = listener;
+                element.removeEventListener(event, handler);
+            }
+        });
+        componentInstances.delete(component.element);
+        component.mounted = false;
+        if (definition && definition.unmounted) {
+            definition.unmounted.call(component);
+        }
+        component.scope.dispose();
+        emitDevToolsEvent({ type: 'component:lifecycle', componentId: component.componentId, name: component.name, phase: 'unmount' });
+    }
+    // Composition API lifecycle hooks
+    function onMounted(callback) {
+        if (!currentInstance) {
+            console.warn('[OneKit] onMounted() called outside of component setup');
+            return;
+        }
+        let hooks = lifecycleHooks.get(currentInstance);
+        if (!hooks) {
+            hooks = {
+                onMounted: [],
+                onUpdated: [],
+                onDestroyed: [],
+                onPropsChanged: []
+            };
+            lifecycleHooks.set(currentInstance, hooks);
+        }
+        hooks.onMounted.push(callback);
+    }
+    function onUpdated(callback) {
+        if (!currentInstance) {
+            console.warn('[OneKit] onUpdated() called outside of component setup');
+            return;
+        }
+        let hooks = lifecycleHooks.get(currentInstance);
+        if (!hooks) {
+            hooks = {
+                onMounted: [],
+                onUpdated: [],
+                onDestroyed: [],
+                onPropsChanged: []
+            };
+            lifecycleHooks.set(currentInstance, hooks);
+        }
+        hooks.onUpdated.push(callback);
+    }
+    function onDestroyed(callback) {
+        if (!currentInstance) {
+            console.warn('[OneKit] onDestroyed() called outside of component setup');
+            return;
+        }
+        let hooks = lifecycleHooks.get(currentInstance);
+        if (!hooks) {
+            hooks = {
+                onMounted: [],
+                onUpdated: [],
+                onDestroyed: [],
+                onPropsChanged: []
+            };
+            lifecycleHooks.set(currentInstance, hooks);
+        }
+        hooks.onDestroyed.push(callback);
+    }
+    function onPropsChanged(callback) {
+        if (!currentInstance) {
+            console.warn('[OneKit] onPropsChanged() called outside of component setup');
+            return;
+        }
+        let hooks = lifecycleHooks.get(currentInstance);
+        if (!hooks) {
+            hooks = {
+                onMounted: [],
+                onUpdated: [],
+                onDestroyed: [],
+                onPropsChanged: []
+            };
+            lifecycleHooks.set(currentInstance, hooks);
+        }
+        hooks.onPropsChanged.push(callback);
+    }
+    // Setup function for composition API
+    function setupComponent(instance, setupFn) {
+        const prevInstance = currentInstance;
+        currentInstance = instance;
+        try {
+            return instance.scope.run(() => setupFn(instance.props));
+        }
+        finally {
+            currentInstance = prevInstance;
+        }
+    }
+
+    // OneKit V3 ergonomic API: a small beginner-facing layer over the production reactive and component primitives.
+    function state(initial) {
+        if (typeof initial === 'object' && initial !== null) {
+            return reactive(initial);
+        }
+        const holder = reactive({ value: initial });
+        Object.defineProperty(holder, '__isStateRef', { value: true, enumerable: false });
+        return holder;
+    }
+    /** Create a cached, dependency-tracked derived value. */
+    function derive(getter) {
+        return computed(getter);
+    }
+    /** Create a reactive side effect with a familiar beginner-facing name. */
+    function watchEffect(fn, options) {
+        const runner = effect(fn, options);
+        return () => stop(runner);
+    }
+    let appId = 0;
+    /**
+     * Mount a component definition directly without manually registering a name.
+     * The old register/create/mount APIs remain available for advanced use cases.
+     */
+    function createApp(definition) {
+        const component = defineComponent(definition);
+        const name = component.name || `OneKitApp${++appId}`;
+        const namedDefinition = component.name ? component : { ...component, name };
+        let instance = null;
+        return {
+            definition: namedDefinition,
+            component: namedDefinition,
+            mount(target, props = {}) {
+                register(name, namedDefinition);
+                instance = create(name, props);
+                return instance ? mount(instance, target) : null;
+            },
+            unmount() {
+                if (instance) {
+                    destroy(instance);
+                    instance = null;
+                }
+            },
+        };
     }
 
     // Animation methods
@@ -5193,7 +5216,7 @@ ${bodyContent}
             });
         }
         for (const [key, value] of Object.entries(vnode.props)) {
-            if (key === 'key' || key === 'children' || /^on/i.test(key))
+            if (key === 'key' || key === 'children' || key === 'ref' || /^on/i.test(key))
                 continue;
             const attributeName = hydrationAttributeName(key);
             const expected = hydrationExpectedAttribute(key, value);
@@ -5206,6 +5229,15 @@ ${bodyContent}
                     actual: actual ?? 'missing',
                 });
             }
+        }
+        const hydrationRef = vnode.props.ref;
+        if (typeof hydrationRef === 'function') {
+            hydrationRef(element);
+            cleanups.push(() => hydrationRef(null));
+        }
+        else if (hydrationRef && typeof hydrationRef === 'object') {
+            hydrationRef.current = element;
+            cleanups.push(() => { hydrationRef.current = null; });
         }
         for (const [key, value] of Object.entries(vnode.props)) {
             if (key.startsWith('on') && typeof value === 'function') {
@@ -6854,6 +6886,7 @@ return { count, ttl }
     exports.renderTitle = renderTitle;
     exports.renderToString = renderToString;
     exports.request = request;
+    exports.resolveSlot = resolveSlot;
     exports.resumeStreamingBoundary = resumeStreamingBoundary;
     exports.resumeStreamingBoundaryChunk = resumeStreamingBoundaryChunk;
     exports.routeHref = routeHref;

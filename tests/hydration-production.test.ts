@@ -81,4 +81,23 @@ describe('hydration production contracts', () => {
     expect(result.mismatches).toEqual([]);
     expect(root.innerHTML).toBe('<span>A</span><span>B</span>');
   });
+
+  it('hydrates non-string VNode children and cleans callback/object refs', () => {
+    document.body.innerHTML = '<div id="app"><strong>slot</strong></div>';
+    const root = document.querySelector('#app') as HTMLElement;
+    const callbackRef = jest.fn();
+    const objectRef: { current?: Element | null } = {};
+    const vnode = h('div', { ref: callbackRef }, h('strong', { ref: objectRef }, 'slot'));
+
+    const result = hydrate(root, vnode);
+
+    expect(result.mismatches).toEqual([]);
+    expect(callbackRef).toHaveBeenCalledWith(root);
+    expect(objectRef.current).toBe(root.firstElementChild);
+
+    result.dispose();
+
+    expect(callbackRef).toHaveBeenLastCalledWith(null);
+    expect(objectRef.current).toBeNull();
+  });
 });
