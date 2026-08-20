@@ -2792,14 +2792,46 @@
         });
         return snapshots.length;
     }
+    function isVNodeSlot(value) {
+        return Boolean(value && typeof value === 'object' && 'tag' in value && 'children' in value);
+    }
+    /** Normalize explicit and JSX-style named children into predictable slot values. */
+    function normalizeSlots(props = {}, explicit = {}) {
+        const normalized = { ...explicit };
+        const provided = props.slots;
+        if (provided && typeof provided === 'object' && !Array.isArray(provided)) {
+            Object.assign(normalized, provided);
+        }
+        const children = props.children;
+        if (Array.isArray(children)) {
+            const defaults = [];
+            children.forEach(child => {
+                if (isVNodeSlot(child) && typeof child.props.slot === 'string') {
+                    const slotName = child.props.slot;
+                    const existing = normalized[slotName];
+                    normalized[slotName] = existing === undefined
+                        ? child
+                        : Array.isArray(existing) ? [...existing, child] : [existing, child];
+                }
+                else if (typeof child === 'string' || isVNodeSlot(child)) {
+                    defaults.push(child);
+                }
+            });
+            if (defaults.length > 0 && normalized.default === undefined)
+                normalized.default = defaults;
+        }
+        else if (children !== undefined && normalized.default === undefined) {
+            normalized.default = children;
+        }
+        return normalized;
+    }
     function create(name, props = {}, slots = {}) {
         if (!components[name]) {
             console.error(`Component "${name}" not found`);
             return null;
         }
         const definition = components[name];
-        const providedChildren = props.children;
-        const normalizedSlots = Object.keys(slots).length > 0 ? slots : (providedChildren === undefined ? {} : { default: providedChildren });
+        const normalizedSlots = normalizeSlots(props, slots);
         // Validate and process props
         const validatedProps = definition.props ? validateProps(props, definition.props, name) : props;
         const instance = {
@@ -2986,6 +3018,38 @@
             const hooks = lifecycleHooks.get(component);
             hooks?.onMounted.forEach(hook => hook());
         });
+    }
+    /** Bind a newly-created instance to an existing server-rendered root without replacing it. */
+    function bindHydratedComponent(component, element, slots = {}) {
+        if (component.element && component.element !== element)
+            componentInstances.delete(component.element);
+        component.element = element;
+        if (Object.keys(slots).length > 0)
+            component.slots = normalizeSlots(component.props, slots);
+        componentInstances.set(element, component);
+        activate(component);
+        return component;
+    }
+    /** Release a hydrated instance while preserving the DOM tree owned by the caller. */
+    function unbindHydratedComponent(component) {
+        if (!component)
+            return;
+        const element = component.element;
+        const definition = components[component.name];
+        definition?.beforeUnmount?.call(component);
+        lifecycleHooks.get(component)?.onDestroyed.forEach(hook => hook());
+        component.listeners.forEach((listener) => {
+            if (typeof listener === 'object' && listener !== null && 'element' in listener && 'event' in listener && 'handler' in listener) {
+                const { element: target, event, handler } = listener;
+                target.removeEventListener(event, handler);
+            }
+        });
+        if (element)
+            componentInstances.delete(element);
+        component.mounted = false;
+        definition?.unmounted?.call(component);
+        component.scope.dispose();
+        component.element = null;
     }
     function updateComponentProps(component, nextProps) {
         const definition = components[component.name];
@@ -5203,6 +5267,28 @@ ${bodyContent}
     }
     function walkAndHydrate(element, vnode, path, mismatches, cleanups) {
         if (typeof vnode.tag === 'function') {
+            const statefulFactory = vnode.tag;
+            if (statefulFactory.__onekitStateful === true && statefulFactory.__onekitName) {
+                const instance = create(statefulFactory.__onekitName, vnode.props);
+                if (instance) {
+                    bindHydratedComponent(instance, element);
+                    const metadata = element;
+                    metadata._componentVNode = vnode;
+                    metadata._componentInstance = instance;
+                    metadata._vnode = vnode;
+                    cleanups.push(() => {
+                        delete metadata._componentVNode;
+                        delete metadata._componentInstance;
+                        delete metadata._vnode;
+                        unbindHydratedComponent(instance);
+                    });
+                }
+                // The instance owns the component root. Its rendered children are already
+                // represented by the server DOM, so continue walking the declared VNode
+                // only when the factory could not be resolved.
+                if (instance)
+                    return;
+            }
             const resolved = vnode.tag(vnode.props);
             walkAndHydrate(element, resolved, path, mismatches, cleanups);
             return;
@@ -6754,6 +6840,7 @@ return { count, ttl }
     exports.autorun = autorun;
     exports.batch = batch;
     exports.bind = bind;
+    exports.bindHydratedComponent = bindHydratedComponent;
     exports.cache = cache;
     exports.cleanup = cleanup;
     exports.clearDevToolsDependencies = clearDevToolsDependencies;
@@ -6852,6 +6939,7 @@ return { count, ttl }
     exports.measureDevTools = measureDevTools;
     exports.mount = mount;
     exports.nextTick = nextTick;
+    exports.normalizeSlots = normalizeSlots;
     exports.ok = ok;
     exports.okjs = okjs;
     exports.onDestroyed = onDestroyed;
@@ -6908,6 +6996,7 @@ return { count, ttl }
     exports.textResponse = textResponse;
     exports.throttle = throttle;
     exports.trapFocus = trapFocus;
+    exports.unbindHydratedComponent = unbindHydratedComponent;
     exports.unmount = unmount;
     exports.updateComponentProps = updateComponentProps;
     exports.useStore = useStore;

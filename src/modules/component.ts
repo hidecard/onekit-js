@@ -225,6 +225,39 @@ export function hotUpdateComponent(name: string, definition: ComponentDefinition
   return snapshots.length;
 }
 
+function isVNodeSlot(value: unknown): value is VNode {
+  return Boolean(value && typeof value === 'object' && 'tag' in (value as Record<string, unknown>) && 'children' in (value as Record<string, unknown>));
+}
+
+/** Normalize explicit and JSX-style named children into predictable slot values. */
+export function normalizeSlots(props: ComponentProps = {}, explicit: { [key: string]: SlotValue } = {}): { [key: string]: SlotValue } {
+  const normalized: { [key: string]: SlotValue } = { ...explicit };
+  const provided = props.slots;
+  if (provided && typeof provided === 'object' && !Array.isArray(provided)) {
+    Object.assign(normalized, provided as { [key: string]: SlotValue });
+  }
+
+  const children = props.children;
+  if (Array.isArray(children)) {
+    const defaults: SlotValue[] = [];
+    children.forEach(child => {
+      if (isVNodeSlot(child) && typeof child.props.slot === 'string') {
+        const slotName = child.props.slot;
+        const existing = normalized[slotName];
+        normalized[slotName] = existing === undefined
+          ? child
+          : Array.isArray(existing) ? [...existing, child] : [existing, child];
+      } else if (typeof child === 'string' || isVNodeSlot(child)) {
+        defaults.push(child);
+      }
+    });
+    if (defaults.length > 0 && normalized.default === undefined) normalized.default = defaults;
+  } else if (children !== undefined && normalized.default === undefined) {
+    normalized.default = children as SlotValue;
+  }
+  return normalized;
+}
+
 export function create(name: string, props: ComponentProps = {}, slots: { [key: string]: SlotValue } = {}): ComponentInstance | null {
   if (!components[name]) {
     console.error(`Component "${name}" not found`);
@@ -232,8 +265,7 @@ export function create(name: string, props: ComponentProps = {}, slots: { [key: 
   }
 
   const definition = components[name];
-  const providedChildren = props.children;
-  const normalizedSlots = Object.keys(slots).length > 0 ? slots : (providedChildren === undefined ? {} : { default: providedChildren as SlotValue });
+  const normalizedSlots = normalizeSlots(props, slots);
 
   // Validate and process props
   const validatedProps = definition.props ? validateProps(props, definition.props, name) : props;
@@ -426,6 +458,36 @@ export function activate(component: ComponentInstance): void {
     const hooks = lifecycleHooks.get(component);
     hooks?.onMounted.forEach(hook => hook());
   });
+}
+
+/** Bind a newly-created instance to an existing server-rendered root without replacing it. */
+export function bindHydratedComponent(component: ComponentInstance, element: Element, slots: { [key: string]: SlotValue } = {}): ComponentInstance {
+  if (component.element && component.element !== element) componentInstances.delete(component.element);
+  component.element = element;
+  if (Object.keys(slots).length > 0) component.slots = normalizeSlots(component.props, slots);
+  componentInstances.set(element, component);
+  activate(component);
+  return component;
+}
+
+/** Release a hydrated instance while preserving the DOM tree owned by the caller. */
+export function unbindHydratedComponent(component: ComponentInstance): void {
+  if (!component) return;
+  const element = component.element;
+  const definition = components[component.name];
+  definition?.beforeUnmount?.call(component);
+  lifecycleHooks.get(component)?.onDestroyed.forEach(hook => hook());
+  component.listeners.forEach((listener) => {
+    if (typeof listener === 'object' && listener !== null && 'element' in listener && 'event' in listener && 'handler' in listener) {
+      const { element: target, event, handler } = listener as { element: Element; event: string; handler: EventListener };
+      target.removeEventListener(event, handler);
+    }
+  });
+  if (element) componentInstances.delete(element);
+  component.mounted = false;
+  definition?.unmounted?.call(component);
+  component.scope.dispose();
+  component.element = null;
 }
 
 export function updateComponentProps(component: ComponentInstance, nextProps: ComponentProps): Element | null {

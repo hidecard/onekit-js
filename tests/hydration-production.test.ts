@@ -1,4 +1,4 @@
-import { h, hydrate } from '../src/index';
+import { component, create, h, hydrate, unmount } from '../src/index';
 
 describe('hydration production contracts', () => {
   it('attaches event listeners and disposes them', () => {
@@ -80,6 +80,52 @@ describe('hydration production contracts', () => {
 
     expect(result.mismatches).toEqual([]);
     expect(root.innerHTML).toBe('<span>A</span><span>B</span>');
+  });
+
+  it('binds stateful component instances to server-rendered roots and runs mounted once', () => {
+    document.body.innerHTML = '<article id="app"><span>Server</span></article>';
+    const root = document.querySelector('#app') as HTMLElement;
+    const lifecycle: string[] = [];
+    const Counter = component({
+      name: 'HydratedCounter',
+      data: () => ({ count: 7 }),
+      mounted() { lifecycle.push(`mounted:${this.state.count}`); },
+      template: '<article><span>{{count}}</span></article>',
+    });
+    const vnode = h(Counter, {});
+
+    const result = hydrate(root, vnode);
+
+    expect(result.mismatches).toEqual([]);
+    expect(lifecycle).toEqual(['mounted:7']);
+    expect((root as HTMLElement & { _componentInstance?: unknown })._componentInstance).toBeDefined();
+    expect((root as HTMLElement & { _componentVNode?: unknown })._componentVNode).toBe(vnode);
+    expect(root.innerHTML).toBe('<span>Server</span>');
+
+    result.dispose();
+    expect(lifecycle).toEqual(['mounted:7']);
+    expect((root as HTMLElement & { _componentInstance?: unknown })._componentInstance).toBeUndefined();
+  });
+
+  it('preserves named VNode slots when creating a stateful component', () => {
+    const SlotCard = component({
+      name: 'HydratedSlotCard',
+      render() {
+        const title = this.slots.title;
+        return h('article', {}, Array.isArray(title) ? title : title as any);
+      },
+    });
+    const title = h('h1', { slot: 'title' }, 'Projected');
+    const vnode = h(SlotCard, {}, title);
+    const instance = create('HydratedSlotCard', { children: [title] });
+
+    expect(instance?.slots.title).toBe(title);
+    if (instance) unmount(instance);
+
+    const result = hydrate(document.body.appendChild(document.createElement('article')), vnode);
+
+    expect(result.mismatches).toEqual([]);
+    result.dispose();
   });
 
   it('hydrates non-string VNode children and cleans callback/object refs', () => {

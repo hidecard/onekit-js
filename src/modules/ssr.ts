@@ -1,6 +1,7 @@
 // Server-Side Rendering (SSR) Support Module
 import { VNode } from './vdom';
 import { isSafeURL, sanitizeStyleValue } from '../core/security';
+import { bindHydratedComponent, create as createComponent, unbindHydratedComponent } from './component';
 
 export interface SSRContext {
   head?: string[];
@@ -348,6 +349,28 @@ function walkAndHydrate(
   cleanups: Array<() => void>,
 ): void {
   if (typeof vnode.tag === 'function') {
+    const statefulFactory = vnode.tag as Function & { __onekitStateful?: boolean; __onekitName?: string };
+    if (statefulFactory.__onekitStateful === true && statefulFactory.__onekitName) {
+      const instance = createComponent(statefulFactory.__onekitName, vnode.props);
+      if (instance) {
+        bindHydratedComponent(instance, element);
+        const metadata = element as Element & { _componentVNode?: VNode; _componentInstance?: typeof instance; _vnode?: VNode };
+        metadata._componentVNode = vnode;
+        metadata._componentInstance = instance;
+        metadata._vnode = vnode;
+        cleanups.push(() => {
+          delete metadata._componentVNode;
+          delete metadata._componentInstance;
+          delete metadata._vnode;
+          unbindHydratedComponent(instance);
+        });
+      }
+      // The instance owns the component root. Its rendered children are already
+      // represented by the server DOM, so continue walking the declared VNode
+      // only when the factory could not be resolved.
+      if (instance) return;
+    }
+
     const resolved = (vnode.tag as Function)(vnode.props) as VNode;
     walkAndHydrate(element, resolved, path, mismatches, cleanups);
     return;

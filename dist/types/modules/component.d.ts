@@ -64,10 +64,22 @@ export declare function resolveSlot(instance: ComponentInstance, name?: string, 
 export declare function register(name: string, definition: ComponentDefinition): void;
 /** Replace a registered component during HMR while preserving live state and props. */
 export declare function hotUpdateComponent(name: string, definition: ComponentDefinition): number;
+/** Normalize explicit and JSX-style named children into predictable slot values. */
+export declare function normalizeSlots(props?: ComponentProps, explicit?: {
+    [key: string]: SlotValue;
+}): {
+    [key: string]: SlotValue;
+};
 export declare function create(name: string, props?: ComponentProps, slots?: {
     [key: string]: SlotValue;
 }): ComponentInstance | null;
 export declare function activate(component: ComponentInstance): void;
+/** Bind a newly-created instance to an existing server-rendered root without replacing it. */
+export declare function bindHydratedComponent(component: ComponentInstance, element: Element, slots?: {
+    [key: string]: SlotValue;
+}): ComponentInstance;
+/** Release a hydrated instance while preserving the DOM tree owned by the caller. */
+export declare function unbindHydratedComponent(component: ComponentInstance): void;
 export declare function updateComponentProps(component: ComponentInstance, nextProps: ComponentProps): Element | null;
 export declare function mount(component: ComponentInstance | string, target: string | Element | ShadowRoot): ComponentInstance | null;
 export declare const unmount: typeof destroy;
