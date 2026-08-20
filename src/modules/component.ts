@@ -62,6 +62,12 @@ export interface ComponentInstance {
   [key: string]: unknown;
 }
 
+export interface StatefulComponentFactory {
+  (props?: ComponentProps): ComponentInstance | null;
+  __onekitStateful?: true;
+  __onekitName?: string;
+}
+
 const components: { [key: string]: ComponentDefinition } = {};
 const componentInstances = new Map<Element, ComponentInstance>();
 
@@ -267,7 +273,16 @@ export function create(name: string, props: ComponentProps = {}, slots: { [key: 
       }
 
       if (nextElement) {
-          const previousElement = this.element;
+        const previousElement = this.element;
+        if (previousElement && previousElement.tagName === nextElement.tagName) {
+          Array.from(previousElement.attributes).forEach(attribute => {
+            if (!nextElement.hasAttribute(attribute.name)) previousElement.removeAttribute(attribute.name);
+          });
+          Array.from(nextElement.attributes).forEach(attribute => {
+            previousElement.setAttribute(attribute.name, attribute.value);
+          });
+          previousElement.replaceChildren(...Array.from(nextElement.childNodes));
+        } else if (previousElement) {
           const parent = previousElement.parentNode;
           if (parent) {
             parent.replaceChild(nextElement, previousElement);
@@ -278,6 +293,7 @@ export function create(name: string, props: ComponentProps = {}, slots: { [key: 
             previousElement.replaceChildren(...Array.from(nextElement.childNodes));
           }
         }
+      }
 
         // Legacy data-on-* method bindings remain supported for render() components.
         if (!definition.template && definition.methods && this.element) {
@@ -375,6 +391,31 @@ export function create(name: string, props: ComponentProps = {}, slots: { [key: 
   return instance;
 }
 
+export function activate(component: ComponentInstance): void {
+  if (component.mounted) return;
+  component.mounted = true;
+  emitDevToolsEvent({ type: 'component:lifecycle', componentId: component.componentId, name: component.name, phase: 'mount' });
+  const definition = components[component.name];
+  component.scope.run(() => {
+    definition?.mounted?.call(component);
+    const hooks = lifecycleHooks.get(component);
+    hooks?.onMounted.forEach(hook => hook());
+  });
+}
+
+export function updateComponentProps(component: ComponentInstance, nextProps: ComponentProps): Element | null {
+  const definition = components[component.name];
+  const previousProps = { ...component.props };
+  const validatedProps = definition?.props ? validateProps(nextProps, definition.props, component.name) : nextProps;
+  Object.keys(component.props).forEach(key => {
+    if (!(key in validatedProps)) delete component.props[key];
+  });
+  Object.assign(component.props, validatedProps);
+  lifecycleHooks.get(component)?.onPropsChanged.forEach(hook => hook(component.props, previousProps));
+  component.update();
+  return component.element;
+}
+
 export function mount(component: ComponentInstance | string, target: string | Element | ShadowRoot): ComponentInstance | null {
   let comp: ComponentInstance | null;
   if (typeof component === 'string') {
@@ -395,19 +436,7 @@ export function mount(component: ComponentInstance | string, target: string | El
   }
 
   targetElement.appendChild(comp.element);
-  comp.mounted = true;
-  emitDevToolsEvent({ type: 'component:lifecycle', componentId: comp.componentId, name: comp.name, phase: 'mount' });
-
-  const definition = components[comp.name];
-  comp.scope.run(() => {
-    definition?.mounted?.call(comp!);
-
-    // Call composition API onMounted hooks
-    const hooks = lifecycleHooks.get(comp!);
-    if (hooks?.onMounted) {
-      hooks.onMounted.forEach(hook => hook());
-    }
-  });
+  activate(comp);
 
   return comp;
 }

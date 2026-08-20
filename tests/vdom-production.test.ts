@@ -1,4 +1,6 @@
-import { createElement, patch, render } from '../src/index';
+import { createElement, patch, render } from '../src/modules/vdom';
+import { component } from '../src/modules/jsx';
+import { getInstance } from '../src/modules/component';
 import { Fragment, jsx, jsxs } from '../src/jsx-runtime';
 
 describe('M3 renderer production contract', () => {
@@ -210,5 +212,40 @@ describe('M3 renderer production contract', () => {
 
     expect(root.firstElementChild?.textContent).toBe('B updatedA');
     expect(root.firstElementChild?.children[1]).toBe(retained);
+  });
+
+  it('preserves keyed stateful component instances and runs unmount cleanup', () => {
+    const root = document.createElement('div');
+    const lifecycle: string[] = [];
+    const Counter = component({
+      name: 'StatefulCounter',
+      data: () => ({ count: 0 }),
+      mounted() { lifecycle.push(`mounted:${this.props.label}`); },
+      unmounted() { lifecycle.push(`unmounted:${this.props.label}`); },
+      template: '<p class="counter">{{label}}:{{count}}</p>',
+    });
+    const first = createElement('section', {},
+      createElement(Counter, { key: 'a', label: 'A' }),
+      createElement(Counter, { key: 'b', label: 'B' }),
+    );
+    patch(root, first);
+    const retained = root.firstElementChild?.firstElementChild as Element;
+    const instance = getInstance(retained);
+    if (!instance) throw new Error('stateful instance was not registered');
+    instance.state.count = 7;
+
+    const next = createElement('section', {},
+      createElement(Counter, { key: 'b', label: 'B' }),
+      createElement(Counter, { key: 'a', label: 'A updated' }),
+    );
+    patch(root, next, first);
+
+    expect(root.firstElementChild?.textContent).toContain('A updated:7');
+    expect(root.firstElementChild?.children[1]).toBe(retained);
+    expect(lifecycle).toEqual(['mounted:A', 'mounted:B']);
+
+    const removeA = createElement('section', {}, createElement(Counter, { key: 'b', label: 'B' }));
+    patch(root, removeA, next);
+    expect(lifecycle).toContain('unmounted:A updated');
   });
 });

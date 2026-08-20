@@ -51,6 +51,11 @@ export interface ComponentInstance {
     update: () => void;
     [key: string]: unknown;
 }
+export interface StatefulComponentFactory {
+    (props?: ComponentProps): ComponentInstance | null;
+    __onekitStateful?: true;
+    __onekitName?: string;
+}
 export declare function defineComponent(definition: ComponentDefinition): ComponentDefinition;
 export declare function register(name: string, definition: ComponentDefinition): void;
 /** Replace a registered component during HMR while preserving live state and props. */
@@ -58,6 +63,8 @@ export declare function hotUpdateComponent(name: string, definition: ComponentDe
 export declare function create(name: string, props?: ComponentProps, slots?: {
     [key: string]: string;
 }): ComponentInstance | null;
+export declare function activate(component: ComponentInstance): void;
+export declare function updateComponentProps(component: ComponentInstance, nextProps: ComponentProps): Element | null;
 export declare function mount(component: ComponentInstance | string, target: string | Element | ShadowRoot): ComponentInstance | null;
 export declare const unmount: typeof destroy;
 export declare function getInstance(element: Element): ComponentInstance | undefined;

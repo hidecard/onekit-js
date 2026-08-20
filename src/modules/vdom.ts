@@ -1,6 +1,7 @@
 /* OneKit style: predictable DOM ownership, keyed updates, explicit prop diffing, and small renderer primitives. */
 
 import { isSafeURL, sanitizeStyleValue } from '../core/security';
+import { activate, ComponentInstance, destroy, updateComponentProps } from './component';
 
 export interface VNodeProps {
   [key: string]: unknown;
@@ -13,7 +14,7 @@ export interface VNode {
   key?: string | number;
 }
 
-interface VElement extends Element { _vnode?: VNode; _componentVNode?: VNode | string; }
+interface VElement extends Element { _vnode?: VNode; _componentVNode?: VNode | string; _componentInstance?: ComponentInstance; }
 
 const eventListeners = new WeakMap<Element, Map<string, EventListener>>();
 
@@ -102,8 +103,22 @@ function updateProps(element: Element, next: VNodeProps, previous: VNodeProps): 
   keys.forEach(prop => setProp(element, prop, next[prop], previous[prop]));
 }
 
+function isStatefulComponent(tag: Function): boolean {
+  return (tag as { __onekitStateful?: boolean }).__onekitStateful === true;
+}
+
 function renderComponent(vnode: VNode): RenderNode {
-  const rendered = (vnode.tag as (props: VNodeProps) => VNode | string)(vnode.props);
+  const result = (vnode.tag as (props: VNodeProps) => VNode | string | ComponentInstance)(vnode.props);
+  if (result && typeof result === 'object' && 'element' in result && 'update' in result) {
+    const instance = result as ComponentInstance;
+    const node = instance.element ?? document.createElement('div');
+    if (node.nodeType === Node.ELEMENT_NODE) {
+      (node as VElement)._componentVNode = vnode;
+      (node as VElement)._componentInstance = instance;
+    }
+    return node;
+  }
+  const rendered = result as VNode | string;
   const node = render(rendered);
   if (node.nodeType === Node.ELEMENT_NODE) {
     (node as VElement)._componentVNode = rendered;
@@ -121,7 +136,13 @@ export function render(vnode: VNode | string): RenderNode {
   if (typeof vnode.tag === 'function') return renderComponent(vnode);
   const element = document.createElement(vnode.tag);
   updateProps(element, vnode.props, {});
-  vnode.children.forEach(child => element.appendChild(render(child)));
+  vnode.children.forEach(child => {
+    const childNode = render(child);
+    element.appendChild(childNode);
+    if (childNode.nodeType === Node.ELEMENT_NODE && (childNode as VElement)._componentInstance) {
+      activate((childNode as VElement)._componentInstance!);
+    }
+  });
   (element as VElement)._vnode = vnode;
   return element;
 }
@@ -130,6 +151,7 @@ function patchNode(parent: Node, domNode: Node | null, next: VNode | string, pre
   if (previous === undefined || domNode === null) {
     const created = render(next);
     parent.appendChild(created);
+    if (created.nodeType === Node.ELEMENT_NODE && (created as VElement)._componentInstance) activate((created as VElement)._componentInstance!);
     return created.nodeType === Node.DOCUMENT_FRAGMENT_NODE ? parent.lastChild : created;
   }
   if (typeof next === 'string' && typeof previous === 'string') {
@@ -140,7 +162,18 @@ function patchNode(parent: Node, domNode: Node | null, next: VNode | string, pre
   const previousIsComponent = typeof previous !== 'string' && typeof previous.tag === 'function';
   if (nextIsComponent || previousIsComponent) {
     if (nextIsComponent && previousIsComponent && next.tag === previous.tag && next.key === previous.key && domNode.nodeType === Node.ELEMENT_NODE) {
-      const previousRendered = (domNode as VElement)._componentVNode;
+      const element = domNode as VElement;
+      if (isStatefulComponent(next.tag as Function) && element._componentInstance) {
+        const instance = element._componentInstance;
+        const current = updateComponentProps(instance, next.props);
+        if (current) {
+          (current as VElement)._componentVNode = next;
+          (current as VElement)._componentInstance = instance;
+          return current;
+        }
+        return domNode;
+      }
+      const previousRendered = element._componentVNode;
       if (previousRendered !== undefined) {
         const nextRendered = (next.tag as (props: VNodeProps) => VNode | string)(next.props);
         const updated = patchNode(parent, domNode, nextRendered, previousRendered);
@@ -150,12 +183,20 @@ function patchNode(parent: Node, domNode: Node | null, next: VNode | string, pre
         return updated;
       }
     }
+    const nextSibling = domNode.nextSibling;
     if (typeof previous !== 'string') {
-      const renderedPrevious = previousIsComponent ? (domNode as VElement)._componentVNode : undefined;
-      cleanupVNode(renderedPrevious ?? previous, domNode);
+      const previousElement = domNode as VElement;
+      if (previousIsComponent && previousElement._componentInstance) {
+        destroy(previousElement._componentInstance);
+      } else {
+        const renderedPrevious = previousIsComponent ? previousElement._componentVNode : undefined;
+        cleanupVNode(renderedPrevious ?? previous, domNode);
+      }
     }
     const created = nextIsComponent ? renderComponent(next as VNode) : render(next);
-    parent.replaceChild(created, domNode);
+    if (domNode.parentNode === parent) parent.replaceChild(created, domNode);
+    else parent.insertBefore(created, nextSibling);
+    if (created.nodeType === Node.ELEMENT_NODE && (created as VElement)._componentInstance) activate((created as VElement)._componentInstance!);
     return created;
   }
   if (typeof next === 'string' || typeof previous === 'string') {
@@ -241,6 +282,7 @@ function patchChildren(parent: Node, nextChildren: (VNode | string)[], previousC
       entry.used = true;
       const updated = patchNode(parent, entry.node, nextChild, entry.vnode);
       if (updated) {
+        if (anchor && anchor.parentNode !== parent) anchor = null;
         if (updated !== anchor) parent.insertBefore(updated, anchor);
         anchor = updated.nextSibling;
       }
@@ -248,14 +290,18 @@ function patchChildren(parent: Node, nextChildren: (VNode | string)[], previousC
     }
 
     const created = render(nextChild);
+    if (anchor && anchor.parentNode !== parent) anchor = null;
     parent.insertBefore(created, anchor);
+    if (created.nodeType === Node.ELEMENT_NODE && (created as VElement)._componentInstance) activate((created as VElement)._componentInstance!);
     anchor = created.nodeType === Node.DOCUMENT_FRAGMENT_NODE ? parent.firstChild : created.nextSibling;
   });
 
   entries.forEach(entry => {
     if (!entry.used && entry.node.parentNode === parent) {
-      cleanupVNode(entry.vnode, entry.node);
-      parent.removeChild(entry.node);
+      const element = entry.node.nodeType === Node.ELEMENT_NODE ? entry.node as VElement : null;
+      if (element?._componentInstance) destroy(element._componentInstance);
+      else cleanupVNode(entry.vnode, entry.node);
+      if (entry.node.parentNode === parent) parent.removeChild(entry.node);
     }
   });
 }

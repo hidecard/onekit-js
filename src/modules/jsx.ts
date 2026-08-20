@@ -1,6 +1,6 @@
 // OKJS - OneKit JavaScript Template Syntax Module
 import { createElement, VNode } from './vdom';
-import { ComponentDefinition, ComponentInstance, create } from './component';
+import { ComponentDefinition, ComponentInstance, StatefulComponentFactory, create, register } from './component';
 
 export interface OKJSElement {
   tag: string | Function;
@@ -113,10 +113,13 @@ function createVNodeFromOKJS(element: OKJSElement): VNode {
 export const Fragment = 'fragment';
 
 // Helper for creating components with OKJS
-export function component(definition: ComponentDefinition): Function {
-  return function(props: Record<string, unknown> = {}): ComponentInstance | null {
-    return create(definition.name || 'anonymous', props);
-  };
+export function component(definition: ComponentDefinition): StatefulComponentFactory {
+  const name = definition.name || 'anonymous';
+  register(name, definition);
+  const factory = ((props: Record<string, unknown> = {}) => create(name, props)) as StatefulComponentFactory;
+  factory.__onekitStateful = true;
+  factory.__onekitName = name;
+  return factory;
 }
 
 // JSX/hyperscript helper: support both tagged OKJS templates and h(tag, props, children).

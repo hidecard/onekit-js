@@ -2463,15 +2463,27 @@ function create(name, props = {}, slots = {}) {
             }
             if (nextElement) {
                 const previousElement = this.element;
-                const parent = previousElement.parentNode;
-                if (parent) {
-                    parent.replaceChild(nextElement, previousElement);
-                    componentInstances.delete(previousElement);
-                    componentInstances.set(nextElement, this);
-                    this.element = nextElement;
-                }
-                else {
+                if (previousElement && previousElement.tagName === nextElement.tagName) {
+                    Array.from(previousElement.attributes).forEach(attribute => {
+                        if (!nextElement.hasAttribute(attribute.name))
+                            previousElement.removeAttribute(attribute.name);
+                    });
+                    Array.from(nextElement.attributes).forEach(attribute => {
+                        previousElement.setAttribute(attribute.name, attribute.value);
+                    });
                     previousElement.replaceChildren(...Array.from(nextElement.childNodes));
+                }
+                else if (previousElement) {
+                    const parent = previousElement.parentNode;
+                    if (parent) {
+                        parent.replaceChild(nextElement, previousElement);
+                        componentInstances.delete(previousElement);
+                        componentInstances.set(nextElement, this);
+                        this.element = nextElement;
+                    }
+                    else {
+                        previousElement.replaceChildren(...Array.from(nextElement.childNodes));
+                    }
                 }
             }
             // Legacy data-on-* method bindings remain supported for render() components.
@@ -2565,6 +2577,31 @@ function create(name, props = {}, slots = {}) {
     }
     return instance;
 }
+function activate(component) {
+    if (component.mounted)
+        return;
+    component.mounted = true;
+    emitDevToolsEvent({ type: 'component:lifecycle', componentId: component.componentId, name: component.name, phase: 'mount' });
+    const definition = components[component.name];
+    component.scope.run(() => {
+        definition?.mounted?.call(component);
+        const hooks = lifecycleHooks.get(component);
+        hooks?.onMounted.forEach(hook => hook());
+    });
+}
+function updateComponentProps(component, nextProps) {
+    const definition = components[component.name];
+    const previousProps = { ...component.props };
+    const validatedProps = definition?.props ? validateProps(nextProps, definition.props, component.name) : nextProps;
+    Object.keys(component.props).forEach(key => {
+        if (!(key in validatedProps))
+            delete component.props[key];
+    });
+    Object.assign(component.props, validatedProps);
+    lifecycleHooks.get(component)?.onPropsChanged.forEach(hook => hook(component.props, previousProps));
+    component.update();
+    return component.element;
+}
 function mount(component, target) {
     let comp;
     if (typeof component === 'string') {
@@ -2583,17 +2620,7 @@ function mount(component, target) {
         return null;
     }
     targetElement.appendChild(comp.element);
-    comp.mounted = true;
-    emitDevToolsEvent({ type: 'component:lifecycle', componentId: comp.componentId, name: comp.name, phase: 'mount' });
-    const definition = components[comp.name];
-    comp.scope.run(() => {
-        definition?.mounted?.call(comp);
-        // Call composition API onMounted hooks
-        const hooks = lifecycleHooks.get(comp);
-        if (hooks?.onMounted) {
-            hooks.onMounted.forEach(hook => hook());
-        }
-    });
+    activate(comp);
     return comp;
 }
 const unmount = destroy;
@@ -2860,8 +2887,21 @@ function updateProps(element, next, previous) {
     const keys = new Set([...Object.keys(previous), ...Object.keys(next)]);
     keys.forEach(prop => setProp(element, prop, next[prop], previous[prop]));
 }
+function isStatefulComponent(tag) {
+    return tag.__onekitStateful === true;
+}
 function renderComponent(vnode) {
-    const rendered = vnode.tag(vnode.props);
+    const result = vnode.tag(vnode.props);
+    if (result && typeof result === 'object' && 'element' in result && 'update' in result) {
+        const instance = result;
+        const node = instance.element ?? document.createElement('div');
+        if (node.nodeType === Node.ELEMENT_NODE) {
+            node._componentVNode = vnode;
+            node._componentInstance = instance;
+        }
+        return node;
+    }
+    const rendered = result;
     const node = render(rendered);
     if (node.nodeType === Node.ELEMENT_NODE) {
         node._componentVNode = rendered;
@@ -2880,7 +2920,13 @@ function render(vnode) {
         return renderComponent(vnode);
     const element = document.createElement(vnode.tag);
     updateProps(element, vnode.props, {});
-    vnode.children.forEach(child => element.appendChild(render(child)));
+    vnode.children.forEach(child => {
+        const childNode = render(child);
+        element.appendChild(childNode);
+        if (childNode.nodeType === Node.ELEMENT_NODE && childNode._componentInstance) {
+            activate(childNode._componentInstance);
+        }
+    });
     element._vnode = vnode;
     return element;
 }
@@ -2888,6 +2934,8 @@ function patchNode(parent, domNode, next, previous) {
     if (previous === undefined || domNode === null) {
         const created = render(next);
         parent.appendChild(created);
+        if (created.nodeType === Node.ELEMENT_NODE && created._componentInstance)
+            activate(created._componentInstance);
         return created.nodeType === Node.DOCUMENT_FRAGMENT_NODE ? parent.lastChild : created;
     }
     if (typeof next === 'string' && typeof previous === 'string') {
@@ -2899,7 +2947,18 @@ function patchNode(parent, domNode, next, previous) {
     const previousIsComponent = typeof previous !== 'string' && typeof previous.tag === 'function';
     if (nextIsComponent || previousIsComponent) {
         if (nextIsComponent && previousIsComponent && next.tag === previous.tag && next.key === previous.key && domNode.nodeType === Node.ELEMENT_NODE) {
-            const previousRendered = domNode._componentVNode;
+            const element = domNode;
+            if (isStatefulComponent(next.tag) && element._componentInstance) {
+                const instance = element._componentInstance;
+                const current = updateComponentProps(instance, next.props);
+                if (current) {
+                    current._componentVNode = next;
+                    current._componentInstance = instance;
+                    return current;
+                }
+                return domNode;
+            }
+            const previousRendered = element._componentVNode;
             if (previousRendered !== undefined) {
                 const nextRendered = next.tag(next.props);
                 const updated = patchNode(parent, domNode, nextRendered, previousRendered);
@@ -2909,12 +2968,24 @@ function patchNode(parent, domNode, next, previous) {
                 return updated;
             }
         }
+        const nextSibling = domNode.nextSibling;
         if (typeof previous !== 'string') {
-            const renderedPrevious = previousIsComponent ? domNode._componentVNode : undefined;
-            cleanupVNode(renderedPrevious ?? previous, domNode);
+            const previousElement = domNode;
+            if (previousIsComponent && previousElement._componentInstance) {
+                destroy(previousElement._componentInstance);
+            }
+            else {
+                const renderedPrevious = previousIsComponent ? previousElement._componentVNode : undefined;
+                cleanupVNode(renderedPrevious ?? previous, domNode);
+            }
         }
         const created = nextIsComponent ? renderComponent(next) : render(next);
-        parent.replaceChild(created, domNode);
+        if (domNode.parentNode === parent)
+            parent.replaceChild(created, domNode);
+        else
+            parent.insertBefore(created, nextSibling);
+        if (created.nodeType === Node.ELEMENT_NODE && created._componentInstance)
+            activate(created._componentInstance);
         return created;
     }
     if (typeof next === 'string' || typeof previous === 'string') {
@@ -2997,6 +3068,8 @@ function patchChildren(parent, nextChildren, previousChildren) {
             entry.used = true;
             const updated = patchNode(parent, entry.node, nextChild, entry.vnode);
             if (updated) {
+                if (anchor && anchor.parentNode !== parent)
+                    anchor = null;
                 if (updated !== anchor)
                     parent.insertBefore(updated, anchor);
                 anchor = updated.nextSibling;
@@ -3004,13 +3077,22 @@ function patchChildren(parent, nextChildren, previousChildren) {
             return;
         }
         const created = render(nextChild);
+        if (anchor && anchor.parentNode !== parent)
+            anchor = null;
         parent.insertBefore(created, anchor);
+        if (created.nodeType === Node.ELEMENT_NODE && created._componentInstance)
+            activate(created._componentInstance);
         anchor = created.nodeType === Node.DOCUMENT_FRAGMENT_NODE ? parent.firstChild : created.nextSibling;
     });
     entries.forEach(entry => {
         if (!entry.used && entry.node.parentNode === parent) {
-            cleanupVNode(entry.vnode, entry.node);
-            parent.removeChild(entry.node);
+            const element = entry.node.nodeType === Node.ELEMENT_NODE ? entry.node : null;
+            if (element?._componentInstance)
+                destroy(element._componentInstance);
+            else
+                cleanupVNode(entry.vnode, entry.node);
+            if (entry.node.parentNode === parent)
+                parent.removeChild(entry.node);
         }
     });
 }
@@ -6566,9 +6648,12 @@ function createVNodeFromOKJS(element) {
 const Fragment = 'fragment';
 // Helper for creating components with OKJS
 function component(definition) {
-    return function (props = {}) {
-        return create(definition.name || 'anonymous', props);
-    };
+    const name = definition.name || 'anonymous';
+    register(name, definition);
+    const factory = ((props = {}) => create(name, props));
+    factory.__onekitStateful = true;
+    factory.__onekitName = name;
+    return factory;
 }
 // JSX/hyperscript helper: support both tagged OKJS templates and h(tag, props, children).
 function h(tagOrTemplate, propsOrValue, ...children) {
@@ -6610,6 +6695,7 @@ exports.Router = Router;
 exports.ServerError = ServerError;
 exports.StreamingRenderer = StreamingRenderer;
 exports.VERSION = VERSION;
+exports.activate = activate;
 exports.addScript = addScript;
 exports.addStorePlugin = addStorePlugin;
 exports.addStyle = addStyle;
@@ -6778,6 +6864,7 @@ exports.textResponse = textResponse;
 exports.throttle = throttle;
 exports.trapFocus = trapFocus;
 exports.unmount = unmount;
+exports.updateComponentProps = updateComponentProps;
 exports.useStore = useStore;
 exports.validateAccessibility = validateAccessibility;
 exports.validateBody = validateBody;
