@@ -167,24 +167,76 @@ function countTopLevelNodes(vnode: VNode | string): number {
 }
 
 function patchChildren(parent: Node, nextChildren: (VNode | string)[], previousChildren: (VNode | string)[]): void {
-  const keyed = new Map<string | number, { vnode: VNode; node: Node }>();
-  Array.from(parent.childNodes).forEach((node, index) => {
-    const old = previousChildren[index];
-    if (typeof old !== 'string' && old?.key !== undefined) keyed.set(old.key, { vnode: old, node });
+  // Fragments can occupy more than one DOM node, so retain the fragment-specific
+  // path until the renderer has explicit range ownership. The keyed path below
+  // deliberately handles one-node element/text children only.
+  if (nextChildren.some(child => typeof child !== 'string' && isFragment(child)) ||
+      previousChildren.some(child => typeof child !== 'string' && isFragment(child))) {
+    patchChildrenLegacy(parent, nextChildren, previousChildren);
+    return;
+  }
+
+  type ChildEntry = { vnode: VNode | string; node: Node; used: boolean };
+  const domChildren = Array.from(parent.childNodes);
+  const entries: ChildEntry[] = previousChildren.map((vnode, index) => ({
+    vnode,
+    node: domChildren[index],
+    used: false,
+  })).filter(entry => Boolean(entry.node));
+  const keyed = new Map<string | number, ChildEntry[]>();
+  const unkeyed = entries.filter(entry => typeof entry.vnode === 'string' || entry.vnode.key === undefined);
+
+  entries.forEach(entry => {
+    if (typeof entry.vnode !== 'string' && entry.vnode.key !== undefined) {
+      const bucket = keyed.get(entry.vnode.key) ?? [];
+      bucket.push(entry);
+      keyed.set(entry.vnode.key, bucket);
+    }
   });
+
+  let unkeyedIndex = 0;
+  let anchor: Node | null = parent.firstChild;
+  nextChildren.forEach(nextChild => {
+    const nextKey = typeof nextChild === 'string' ? undefined : nextChild.key;
+    let entry: ChildEntry | undefined;
+    if (nextKey !== undefined) {
+      entry = keyed.get(nextKey)?.find(candidate => !candidate.used);
+    } else {
+      while (unkeyedIndex < unkeyed.length && unkeyed[unkeyedIndex].used) unkeyedIndex += 1;
+      entry = unkeyed[unkeyedIndex++];
+    }
+
+    if (entry) {
+      entry.used = true;
+      const updated = patchNode(parent, entry.node, nextChild, entry.vnode);
+      if (updated) {
+        if (updated !== anchor) parent.insertBefore(updated, anchor);
+        anchor = updated.nextSibling;
+      }
+      return;
+    }
+
+    const created = render(nextChild);
+    parent.insertBefore(created, anchor);
+    anchor = created.nodeType === Node.DOCUMENT_FRAGMENT_NODE ? parent.firstChild : created.nextSibling;
+  });
+
+  entries.forEach(entry => {
+    if (!entry.used && entry.node.parentNode === parent) {
+      cleanupVNode(entry.vnode, entry.node);
+      parent.removeChild(entry.node);
+    }
+  });
+}
+
+function patchChildrenLegacy(parent: Node, nextChildren: (VNode | string)[], previousChildren: (VNode | string)[]): void {
   const used = new Set<Node>();
   nextChildren.forEach((nextChild, index) => {
-    const nextKey = typeof nextChild === 'string' ? undefined : nextChild.key;
-    const keyedMatch = nextKey !== undefined ? keyed.get(nextKey) : undefined;
-    const currentNode = keyedMatch?.node ?? parent.childNodes[index] ?? null;
-    const previousChild = keyedMatch?.vnode ?? previousChildren[index];
+    const currentNode = parent.childNodes[index] ?? null;
+    const previousChild = previousChildren[index];
     if (currentNode && previousChild !== undefined) {
       const updated = patchNode(parent, currentNode, nextChild, previousChild);
-      if (updated) {
-        used.add(updated);
-        const anchor = parent.childNodes[index];
-        if (anchor !== updated) parent.insertBefore(updated, anchor || null);
-      }
+      if (updated) used.add(updated);
     } else {
       const created = render(nextChild);
       parent.insertBefore(created, parent.childNodes[index] || null);

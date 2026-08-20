@@ -153,4 +153,42 @@ describe('M3 renderer production contract', () => {
     expect(input.value).toBe('second');
     expect(input.checked).toBe(false);
   });
+
+  it('preserves keyed nodes across mixed keyed and unkeyed insertions', () => {
+    const root = document.createElement('div');
+    const first = createElement('div', {},
+      createElement('span', { key: 'stable' }, 'stable'),
+      createElement('span', {}, 'unkeyed'),
+    );
+    patch(root, first);
+    const stable = root.firstElementChild?.firstElementChild;
+
+    const next = createElement('div', {},
+      createElement('span', {}, 'new unkeyed'),
+      createElement('span', { key: 'stable' }, 'updated stable'),
+    );
+    patch(root, next, first);
+
+    expect(root.firstElementChild?.textContent).toBe('new unkeyedupdated stable');
+    expect(root.firstElementChild?.children[1]).toBe(stable);
+  });
+
+  it('removes unused keyed nodes and cleans their event ownership', () => {
+    const root = document.createElement('div');
+    const calls: string[] = [];
+    const old = createElement('div', {},
+      createElement('button', { key: 'remove', onClick: () => calls.push('stale') }, 'remove'),
+      createElement('button', { key: 'keep' }, 'keep'),
+    );
+    patch(root, old);
+    const removed = root.firstElementChild?.firstElementChild as HTMLButtonElement;
+
+    const next = createElement('div', {}, createElement('button', { key: 'keep' }, 'keep'));
+    patch(root, next, old);
+    removed.click();
+
+    expect(calls).toEqual([]);
+    expect(root.firstElementChild?.children).toHaveLength(1);
+    expect(root.firstElementChild?.textContent).toBe('keep');
+  });
 });
