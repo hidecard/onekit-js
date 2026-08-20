@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head><meta charset="utf-8"><title>OneKit browser smoke</title></head>
+  <body>
+    <section id="app"><button id="counter">0</button><h1 id="title">Projected</h1></section>
+    <script type="module">
+      import { h, hydrate } from '/dist/onekit.esm.js';
+
+      const root = document.querySelector('#app');
+      const button = document.querySelector('#counter');
+      const title = document.querySelector('#title');
+      const events = [];
+      const callbackRef = element => events.push(element ? 'set' : 'clear');
+      const objectRef = { current: null };
+      let count = 0;
+      const vnode = h('section', {},
+        h('button', {
+          id: 'counter',
+          ref: callbackRef,
+          onClick: () => {
+            count += 1;
+            button.textContent = String(count);
+          },
+        }, '0'),
+        h('h1', { ref: objectRef }, 'Projected'),
+      );
+
+      const hydration = hydrate(root, vnode);
+      window.OneKitBrowserSmoke = {
+        root,
+        button,
+        title,
+        objectRef,
+        events,
+        hydration,
+        click() { button.click(); },
+        dispose() { hydration.dispose(); },
+        snapshot() {
+          return {
+            text: button.textContent,
+            title: title.textContent,
+            mismatches: hydration.mismatches,
+            callbackRef: events.slice(),
+            objectRef: objectRef.current?.id || null,
+            rootVNode: Boolean(root._vnode),
+          };
+        },
+      };
+    </script>
+  </body>
+</html>

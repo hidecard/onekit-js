@@ -150,6 +150,7 @@
     "docs:build": "vite build --config examples/docs/vite.config.ts",
     "cli": "node ./bin/onekit.js",
     "test": "jest --config jest.config.cjs",
+    "test:browser": "playwright test --config=playwright.config.mjs",
     "verify:package": "node scripts/verify-package.cjs",
     "verify:declarations": "node scripts/verify-declarations.mjs",
     "verify:hmr": "npm run build && node scripts/verify-hmr.mjs",
@@ -179,6 +180,7 @@
   },
   "homepage": "https://github.com/hidecard/onekit-js#readme",
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@rollup/plugin-commonjs": "^29.0.0",
     "@rollup/plugin-node-resolve": "^16.0.3",
     "@rollup/plugin-terser": "^1.0.0",

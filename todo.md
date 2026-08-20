@@ -493,7 +493,8 @@
 
 ## Remaining production roadmap after V3.1.19
 
-- [ ] Add browser-matrix CI for Chrome, Firefox, Safari/WebKit, and Edge, including hydration, controlled inputs, keyed reorders, and event/ref cleanup.
+- [x] Add real-browser CI matrix for Chromium, Firefox, and WebKit, including hydration event/ref cleanup and metadata smoke coverage.
+  - [ ] Add Edge coverage and extend scenarios for controlled inputs and keyed reorders.
 - [ ] Add browser-based performance scenarios for large keyed lists, hydration of server-rendered trees, slot-heavy component trees, and repeated mount/unmount cycles.
   - [x] Added a jsdom cleanup regression covering 100 repeated hydration/dispose cycles, listener cleanup, callback-ref cleanup, and metadata release.
   - [ ] Add real-browser scenarios and timing baselines for DOM-heavy workloads.
