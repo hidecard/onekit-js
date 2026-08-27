@@ -477,6 +477,19 @@ function walkAndHydrate(
 }
 
 // Streaming SSR utilities
+function escapeStreamingScriptData(value: string): string {
+  return value
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/&/g, '\\u0026')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
+}
+
+function createStreamingPayloadChunk(type: string, id: string, payload: string): string {
+  return `<script type="${type}" data-onekit-payload="${escapeHtml(id)}">${escapeStreamingScriptData(payload)}</script>`;
+}
+
 function createSSRAbortError(): Error {
   const error = new Error('SSR stream aborted');
   error.name = 'AbortError';
@@ -491,7 +504,16 @@ export type StreamingBoundaryScheduler = (
   boundary: StreamingBoundary,
 ) => Promise<void> | void;
 
-export interface StreamingRenderOptions {
+export interface StreamingPayloadOptions {
+  /** Secure, application-owned route-data envelope emitted as inert JSON script data. */
+  routeDataPayload?: string;
+  /** Experimental bounded Flight-like records emitted as inert newline-delimited script data. */
+  rscPayload?: string;
+  routeDataId?: string;
+  rscPayloadId?: string;
+}
+
+export interface StreamingRenderOptions extends StreamingPayloadOptions {
   signal?: AbortSignal;
   /** Receive the original rendering error before the stream is aborted. */
   onError?: (error: unknown) => void;
@@ -532,7 +554,7 @@ export class StreamingRenderer {
       else options.signal.addEventListener('abort', onAbort, { once: true });
     }
 
-    this.renderAsync(vnode, writer, options.signal, abortStream, () => { terminated = true; }, reportError, options.scheduleBoundary)
+    this.renderAsync(vnode, writer, options.signal, abortStream, () => { terminated = true; }, reportError, options.scheduleBoundary, options)
       .catch(error => {
         reportError(error);
         if (!(error instanceof Error && error.name === 'AbortError')) console.error('SSR streaming error:', error);
@@ -551,6 +573,7 @@ export class StreamingRenderer {
     markComplete: () => void,
     reportError: (error: unknown) => void,
     scheduleBoundary?: StreamingBoundaryScheduler,
+    payloadOptions: StreamingPayloadOptions = {},
   ): Promise<void> {
     try {
       if (signal?.aborted) throw createSSRAbortError();
@@ -561,6 +584,12 @@ export class StreamingRenderer {
         const pendingBoundaries: Array<Promise<void>> = [];
         await this.renderVNodeAsync(vnode, writer, signal, pendingBoundaries, scheduleBoundary);
         await Promise.all(pendingBoundaries);
+      }
+      if (payloadOptions.routeDataPayload !== undefined) {
+        await writer.write(createStreamingPayloadChunk('application/json', payloadOptions.routeDataId ?? 'onekit-route-data', payloadOptions.routeDataPayload));
+      }
+      if (payloadOptions.rscPayload !== undefined) {
+        await writer.write(createStreamingPayloadChunk('application/x-onekit-flight', payloadOptions.rscPayloadId ?? 'onekit-rsc-flight', payloadOptions.rscPayload));
       }
       await writer.close();
       markComplete();
@@ -657,6 +686,20 @@ export function resumeStreamingBoundary(root: ParentNode, boundaryId: string, ht
 }
 
 /** Parse one streamed boundary chunk and continue the matching client shell. */
+export interface StreamingPayloadSnapshot {
+  routeDataPayload: string | null;
+  rscPayload: string | null;
+}
+
+/** Extract inert payload script data from a streamed document without executing it. */
+export function readStreamingPayloads(root: ParentNode, options: Pick<StreamingPayloadOptions, 'routeDataId' | 'rscPayloadId'> = {}): StreamingPayloadSnapshot {
+  const scripts = Array.from(root.querySelectorAll('script[data-onekit-payload]'));
+  const routeDataId = options.routeDataId ?? 'onekit-route-data';
+  const rscPayloadId = options.rscPayloadId ?? 'onekit-rsc-flight';
+  const find = (id: string): string | null => scripts.find(script => script.getAttribute('data-onekit-payload') === id)?.textContent ?? null;
+  return { routeDataPayload: find(routeDataId), rscPayload: find(rscPayloadId) };
+}
+
 export function resumeStreamingBoundaryChunk(root: ParentNode, chunk: string): boolean {
   const ownerDocument = typeof Document !== 'undefined' && root instanceof Document
     ? root

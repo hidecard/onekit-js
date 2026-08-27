@@ -78,6 +78,27 @@ const stream = await new StreamingRenderer().renderToStream(vnode, {
 
 The scheduler is optional and backward compatible. Without it, OneKit preserves its existing in-order streaming behavior. Applications remain responsible for queue limits, cancellation propagation, and platform response back-pressure.
 
+Streaming can also carry application-owned route-data and experimental Flight-like payloads as inert script data. Pass a validated route-data envelope through `routeDataPayload`, or pass bounded records from `onekit-js/rsc` through `rscPayload`; use `readStreamingPayloads()` on the client and validate before applying or resolving anything:
+
+```ts
+import { StreamingRenderer } from "onekit-js";
+import { encodeRSCFlight, createRSCFlightRecord, createRSCClientReference } from "onekit-js/rsc";
+
+const rscPayload = encodeRSCFlight([
+  createRSCFlightRecord("root", {
+    component: createRSCClientReference("ui/Dashboard"),
+  }),
+]);
+
+const stream = await new StreamingRenderer().renderToStream(shell, {
+  routeDataPayload: signedRouteDataPayload,
+  rscPayload,
+  signal: request.signal,
+});
+```
+
+The RSC-style surface is **not React Flight compatibility**. OneKit only provides bounded records, explicit client references, fail-closed parsing, and an application-supplied resolver; it does not import or execute components, split bundles, render RSC trees, or implement Server Functions.
+
 ### Verified V3.1.19 contract
 
 The examples in this README are written against the published V3.1.19 package surface. The following table maps the main documented commands and entrypoints to the repository checks that verify them:
@@ -86,7 +107,7 @@ The examples in this README are written against the published V3.1.19 package su
 |---|---|---|
 | TypeScript contract | `npm run type-check` | `tsconfig.json` and the full `src/` declaration graph |
 | Production package | `npm run build` | `scripts/build-library.mjs` and `scripts/build-vite-plugin.mjs` |
-| Package exports | `onekit-js`, `onekit-js/router`, `onekit-js/query`, `onekit-js/ssr`, `onekit-js/prerender`, `onekit-js/isr` | `package.json#exports`, `scripts/verify-api-contract.mjs`, and `scripts/verify-package.cjs` |
+| Package exports | `onekit-js`, `onekit-js/router`, `onekit-js/query`, `onekit-js/ssr`, `onekit-js/prerender`, `onekit-js/isr`, `onekit-js/rsc` | `package.json#exports`, `scripts/verify-api-contract.mjs`, and `scripts/verify-package.cjs` |
 | API stability | Stable/Experimental labels and ESM/CJS subpath contract | [API stability matrix](docs/API_STABILITY.md), `npm run verify:api-contract` |
 | CLI workflow | `onekit create`, `onekit dev`, `onekit build`, `onekit preview`, `onekit test` | `bin/onekit.js` and CLI tests |
 | Runtime validation | `npm test -- --runInBand` | Jest configuration and repository test suites |

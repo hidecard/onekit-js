@@ -62,6 +62,11 @@
       "import": "./dist/onekit.esm.js",
       "require": "./dist/onekit.cjs"
     },
+    "./rsc": {
+      "types": "./dist/types/modules/rsc.d.ts",
+      "import": "./dist/onekit.esm.js",
+      "require": "./dist/onekit.cjs"
+    },
     "./head": {
       "types": "./dist/types/modules/head.d.ts",
       "import": "./dist/onekit.esm.js",

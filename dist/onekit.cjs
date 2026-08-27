@@ -5822,6 +5822,17 @@ function walkAndHydrate(element, vnode, path, mismatches, cleanups) {
     }
 }
 // Streaming SSR utilities
+function escapeStreamingScriptData(value) {
+    return value
+        .replace(/</g, '\\u003c')
+        .replace(/>/g, '\\u003e')
+        .replace(/&/g, '\\u0026')
+        .replace(/\u2028/g, '\\u2028')
+        .replace(/\u2029/g, '\\u2029');
+}
+function createStreamingPayloadChunk(type, id, payload) {
+    return `<script type="${type}" data-onekit-payload="${escapeHtml$1(id)}">${escapeStreamingScriptData(payload)}</script>`;
+}
 function createSSRAbortError() {
     const error = new Error('SSR stream aborted');
     error.name = 'AbortError';
@@ -5861,7 +5872,7 @@ class StreamingRenderer {
             else
                 options.signal.addEventListener('abort', onAbort, { once: true });
         }
-        this.renderAsync(vnode, writer, options.signal, abortStream, () => { terminated = true; }, reportError, options.scheduleBoundary)
+        this.renderAsync(vnode, writer, options.signal, abortStream, () => { terminated = true; }, reportError, options.scheduleBoundary, options)
             .catch(error => {
             reportError(error);
             if (!(error instanceof Error && error.name === 'AbortError'))
@@ -5871,7 +5882,7 @@ class StreamingRenderer {
             .finally(() => options.signal?.removeEventListener('abort', onAbort));
         return readable;
     }
-    async renderAsync(vnode, writer, signal, abortStream, markComplete, reportError, scheduleBoundary) {
+    async renderAsync(vnode, writer, signal, abortStream, markComplete, reportError, scheduleBoundary, payloadOptions = {}) {
         try {
             if (signal?.aborted)
                 throw createSSRAbortError();
@@ -5883,6 +5894,12 @@ class StreamingRenderer {
                 const pendingBoundaries = [];
                 await this.renderVNodeAsync(vnode, writer, signal, pendingBoundaries, scheduleBoundary);
                 await Promise.all(pendingBoundaries);
+            }
+            if (payloadOptions.routeDataPayload !== undefined) {
+                await writer.write(createStreamingPayloadChunk('application/json', payloadOptions.routeDataId ?? 'onekit-route-data', payloadOptions.routeDataPayload));
+            }
+            if (payloadOptions.rscPayload !== undefined) {
+                await writer.write(createStreamingPayloadChunk('application/x-onekit-flight', payloadOptions.rscPayloadId ?? 'onekit-rsc-flight', payloadOptions.rscPayload));
             }
             await writer.close();
             markComplete();
@@ -5970,7 +5987,14 @@ function resumeStreamingBoundary(root, boundaryId, html) {
     placeholder.replaceWith(content.content.cloneNode(true));
     return true;
 }
-/** Parse one streamed boundary chunk and continue the matching client shell. */
+/** Extract inert payload script data from a streamed document without executing it. */
+function readStreamingPayloads(root, options = {}) {
+    const scripts = Array.from(root.querySelectorAll('script[data-onekit-payload]'));
+    const routeDataId = options.routeDataId ?? 'onekit-route-data';
+    const rscPayloadId = options.rscPayloadId ?? 'onekit-rsc-flight';
+    const find = (id) => scripts.find(script => script.getAttribute('data-onekit-payload') === id)?.textContent ?? null;
+    return { routeDataPayload: find(routeDataId), rscPayload: find(rscPayloadId) };
+}
 function resumeStreamingBoundaryChunk(root, chunk) {
     const ownerDocument = typeof Document !== 'undefined' && root instanceof Document
         ? root
@@ -6076,8 +6100,8 @@ class RouteDataTransportError extends Error {
         this.code = code;
     }
 }
-const DEFAULT_MAX_BYTES = 512 * 1024;
-const DEFAULT_MAX_DEPTH = 20;
+const DEFAULT_MAX_BYTES$1 = 512 * 1024;
+const DEFAULT_MAX_DEPTH$1 = 20;
 const DEFAULT_MAX_STRING_LENGTH = 100_000;
 function isRecord(value) {
     if (value === null || typeof value !== 'object' || Array.isArray(value))
@@ -6115,7 +6139,7 @@ function stableStringify(value) {
     const record = value;
     return `{${Object.keys(record).sort().map(key => `${JSON.stringify(key)}:${stableStringify(record[key])}`).join(',')}}`;
 }
-function sanitize(value, path, options, seen, depth) {
+function sanitize$1(value, path, options, seen, depth) {
     if (options.exclude?.(path, value))
         return undefined;
     if (options.redact) {
@@ -6141,20 +6165,20 @@ function sanitize(value, path, options, seen, depth) {
     }
     if (typeof value !== 'object')
         throw new RouteDataTransportError('unsupported-value', `Value at ${path} is not JSON-safe`);
-    if (depth >= (options.maxDepth ?? DEFAULT_MAX_DEPTH))
+    if (depth >= (options.maxDepth ?? DEFAULT_MAX_DEPTH$1))
         throw new RouteDataTransportError('too-deep', `Value at ${path} exceeds the nesting limit`);
     if (seen.has(value))
         throw new RouteDataTransportError('unsupported-value', `Cyclic value at ${path} is not JSON-safe`);
     seen.add(value);
     try {
         if (Array.isArray(value)) {
-            return value.map((item, index) => sanitize(item, `${path}[${index}]`, options, seen, depth + 1) ?? null);
+            return value.map((item, index) => sanitize$1(item, `${path}[${index}]`, options, seen, depth + 1) ?? null);
         }
         if (!isRecord(value))
             throw new RouteDataTransportError('unsupported-value', `Class instance at ${path} is not JSON-safe`);
         const output = Object.create(null);
         for (const [key, item] of Object.entries(value)) {
-            const sanitized = sanitize(item, `${path}.${key}`, options, seen, depth + 1);
+            const sanitized = sanitize$1(item, `${path}.${key}`, options, seen, depth + 1);
             if (sanitized !== undefined)
                 output[key] = sanitized;
         }
@@ -6180,7 +6204,7 @@ function unsignedBody(payload) {
     return body;
 }
 function assertSize(serialized, options) {
-    if (byteLength(serialized) > (options.maxBytes ?? DEFAULT_MAX_BYTES)) {
+    if (byteLength(serialized) > (options.maxBytes ?? DEFAULT_MAX_BYTES$1)) {
         throw new RouteDataTransportError('too-large', 'SSR route-data payload exceeds the configured byte limit');
     }
 }
@@ -6233,8 +6257,8 @@ async function createHmacSha256Signer(secret) {
 /** Serialize a route/query handoff into a bounded, optionally signed envelope. */
 async function createRouteDataPayload(snapshot, options = {}, query) {
     const now = options.now?.() ?? Date.now();
-    const sanitizedSnapshot = sanitize(snapshot, '$.snapshot', options, new Set(), 0);
-    const sanitizedQuery = query === undefined ? undefined : sanitize(query, '$.query', options, new Set(), 0);
+    const sanitizedSnapshot = sanitize$1(snapshot, '$.snapshot', options, new Set(), 0);
+    const sanitizedQuery = query === undefined ? undefined : sanitize$1(query, '$.query', options, new Set(), 0);
     if (!validateSnapshot(sanitizedSnapshot))
         throw new RouteDataTransportError('invalid-input', 'Route snapshot is not valid');
     if (sanitizedQuery !== undefined && !validateQueryState(sanitizedQuery))
@@ -6263,7 +6287,7 @@ function applyRouteDataPayload(payload, router, queryClient) {
 }
 /** Parse and validate a route/query handoff. Invalid data is rejected with no usable payload. */
 async function parseRouteDataPayload(input, options = {}) {
-    if (typeof input !== 'string' || byteLength(input) > (options.maxBytes ?? DEFAULT_MAX_BYTES))
+    if (typeof input !== 'string' || byteLength(input) > (options.maxBytes ?? DEFAULT_MAX_BYTES$1))
         return null;
     let parsed;
     try {
@@ -6273,7 +6297,7 @@ async function parseRouteDataPayload(input, options = {}) {
         return null;
     }
     try {
-        parsed = sanitize(parsed, '$', { ...options, exclude: undefined, redact: undefined }, new Set(), 0);
+        parsed = sanitize$1(parsed, '$', { ...options, exclude: undefined, redact: undefined }, new Set(), 0);
     }
     catch {
         return null;
@@ -6518,6 +6542,179 @@ class ISRRenderer {
 }
 function createISRRenderer(options) {
     return new ISRRenderer(options);
+}
+
+const ONEKIT_RSC_PROTOCOL_VERSION = 1;
+const DEFAULT_MAX_BYTES = 256 * 1024;
+const DEFAULT_MAX_DEPTH = 12;
+const DEFAULT_MAX_RECORDS = 1_024;
+const BLOCKED_KEYS = new Set(['__proto__', 'prototype', 'constructor']);
+function isPlainRecord(value) {
+    const prototype = Object.getPrototypeOf(value);
+    return prototype === Object.prototype || prototype === null;
+}
+function isClientReference(value) {
+    if (!value || typeof value !== 'object' || !isPlainRecord(value))
+        return false;
+    const candidate = value;
+    return candidate.$$typeof === 'onekit.client.reference'
+        && typeof candidate.moduleId === 'string'
+        && candidate.moduleId.length > 0
+        && typeof candidate.exportName === 'string'
+        && candidate.exportName.length > 0;
+}
+function sanitize(value, depth, options, seen) {
+    if (depth > options.maxDepth)
+        throw new RangeError('RSC model exceeds the maximum nesting depth');
+    if (value === null || typeof value === 'string' || typeof value === 'boolean') {
+        if (typeof value === 'string' && value.length > options.maxBytes)
+            throw new RangeError('RSC string exceeds the maximum length');
+        return value;
+    }
+    if (typeof value === 'number') {
+        if (!Number.isFinite(value))
+            throw new TypeError('RSC model contains a non-finite number');
+        return value;
+    }
+    if (isClientReference(value))
+        return { ...value };
+    if (typeof value !== 'object' || !isPlainRecord(value) && !Array.isArray(value)) {
+        throw new TypeError('RSC model contains a non-serializable value');
+    }
+    if (seen.has(value))
+        throw new TypeError('RSC model contains a cyclic reference');
+    seen.add(value);
+    try {
+        if (Array.isArray(value))
+            return value.map(item => sanitize(item, depth + 1, options, seen));
+        const output = Object.create(null);
+        for (const [key, item] of Object.entries(value)) {
+            if (BLOCKED_KEYS.has(key))
+                throw new TypeError(`RSC model contains a blocked key: ${key}`);
+            output[key] = sanitize(item, depth + 1, options, seen);
+        }
+        return output;
+    }
+    finally {
+        seen.delete(value);
+    }
+}
+function optionsWithDefaults(options = {}) {
+    const maxBytes = options.maxBytes ?? DEFAULT_MAX_BYTES;
+    const maxDepth = options.maxDepth ?? DEFAULT_MAX_DEPTH;
+    const maxRecords = options.maxRecords ?? DEFAULT_MAX_RECORDS;
+    if (!Number.isInteger(maxBytes) || maxBytes < 1)
+        throw new RangeError('RSC maxBytes must be a positive integer');
+    if (!Number.isInteger(maxDepth) || maxDepth < 0)
+        throw new RangeError('RSC maxDepth must be a non-negative integer');
+    if (!Number.isInteger(maxRecords) || maxRecords < 1)
+        throw new RangeError('RSC maxRecords must be a positive integer');
+    return { maxBytes, maxDepth, maxRecords };
+}
+function createRSCClientReference(moduleId, exportName = 'default') {
+    if (!moduleId || !exportName)
+        throw new TypeError('RSC client references require moduleId and exportName');
+    return { $$typeof: 'onekit.client.reference', moduleId, exportName };
+}
+function createRSCFlightRecord(id, value, type = 'model') {
+    if (!id)
+        throw new TypeError('RSC flight records require a non-empty id');
+    return { id, type, value };
+}
+/** Serialize bounded, JSON-compatible Flight-like records as newline-delimited transport chunks. */
+function encodeRSCFlight(records, options = {}) {
+    const resolved = optionsWithDefaults(options);
+    if (records.length > resolved.maxRecords)
+        throw new RangeError('RSC flight payload exceeds the maximum record count');
+    const chunks = [];
+    for (const record of records) {
+        const safeRecord = {
+            id: record.id,
+            type: record.type,
+            value: sanitize(record.value, 0, resolved, new Set()),
+        };
+        const chunk = JSON.stringify({ kind: 'onekit-flight', version: ONEKIT_RSC_PROTOCOL_VERSION, record: safeRecord });
+        chunks.push(`${chunk}\n`);
+    }
+    const payload = chunks.join('');
+    if (payload.length > resolved.maxBytes)
+        throw new RangeError('RSC flight payload exceeds the maximum byte length');
+    return payload;
+}
+/** Parse and validate Flight-like chunks. Invalid or unsafe payloads fail closed with `null`. */
+function decodeRSCFlight(payload, options = {}) {
+    try {
+        const resolved = optionsWithDefaults(options);
+        if (typeof payload !== 'string' || payload.length > resolved.maxBytes)
+            return null;
+        const records = [];
+        for (const line of payload.split('\n')) {
+            if (!line.trim())
+                continue;
+            if (records.length >= resolved.maxRecords)
+                return null;
+            const parsed = JSON.parse(line);
+            if (!parsed || typeof parsed !== 'object' || !isPlainRecord(parsed))
+                return null;
+            const envelope = parsed;
+            if (envelope.kind !== 'onekit-flight' || envelope.version !== ONEKIT_RSC_PROTOCOL_VERSION)
+                return null;
+            const record = envelope.record;
+            if (!record || typeof record !== 'object' || !isPlainRecord(record))
+                return null;
+            const candidate = record;
+            if (typeof candidate.id !== 'string' || (candidate.type !== 'model' && candidate.type !== 'client-reference'))
+                return null;
+            const value = sanitize(candidate.value, 0, resolved, new Set());
+            records.push({ id: candidate.id, type: candidate.type, value });
+        }
+        return records;
+    }
+    catch {
+        return null;
+    }
+}
+async function resolveValue(value, resolver) {
+    if (isClientReference(value))
+        return resolver(value);
+    if (Array.isArray(value))
+        return Promise.all(value.map(item => resolveValue(item, resolver)));
+    if (value && typeof value === 'object') {
+        const output = Object.create(null);
+        for (const [key, item] of Object.entries(value))
+            output[key] = await resolveValue(item, resolver);
+        return output;
+    }
+    return value;
+}
+/** Resolve client references explicitly; this does not import, execute, or render components automatically. */
+async function resolveRSCFlight(records, resolver) {
+    return Promise.all(records.map(async (record) => ({
+        id: record.id,
+        type: record.type,
+        value: await resolveValue(record.value, resolver),
+    })));
+}
+/** Produce protocol chunks progressively without making the browser bundle depend on a server transport. */
+function createRSCFlightStream(records, options = {}) {
+    const payload = encodeRSCFlight(records, options);
+    const chunks = payload.split(/(?<=\n)/);
+    return new ReadableStream({
+        async start(controller) {
+            try {
+                for (const chunk of chunks) {
+                    if (options.signal?.aborted)
+                        throw options.signal.reason ?? new DOMException('The RSC stream was aborted', 'AbortError');
+                    controller.enqueue(chunk);
+                    await new Promise(resolve => setTimeout(resolve, 0));
+                }
+                controller.close();
+            }
+            catch (error) {
+                controller.error(error);
+            }
+        },
+    });
 }
 
 /** Safe, typed application error for Fetch-compatible route handlers. */
@@ -7739,6 +7936,7 @@ exports.DependencyInjector = DependencyInjector;
 exports.Fragment = Fragment;
 exports.HydrationMismatchError = HydrationMismatchError;
 exports.ISRRenderer = ISRRenderer;
+exports.ONEKIT_RSC_PROTOCOL_VERSION = ONEKIT_RSC_PROTOCOL_VERSION;
 exports.OneKit = OneKit;
 exports.OneKitWebComponent = OneKitWebComponent;
 exports.QueryClient = QueryClient;
@@ -7798,6 +7996,9 @@ exports.createNodeHandler = createNodeHandler;
 exports.createPostgreSQLAdapter = createPostgreSQLAdapter;
 exports.createQueryBroadcastSync = createQueryBroadcastSync;
 exports.createQueryClient = createQueryClient;
+exports.createRSCClientReference = createRSCClientReference;
+exports.createRSCFlightRecord = createRSCFlightRecord;
+exports.createRSCFlightStream = createRSCFlightStream;
 exports.createRedisRateLimitStore = createRedisRateLimitStore;
 exports.createRouteDataPayload = createRouteDataPayload;
 exports.createRouteManifest = createRouteManifest;
@@ -7814,6 +8015,7 @@ exports.createStore = createStore;
 exports.createStoreRegistry = createStoreRegistry;
 exports.createStreamingBoundary = createStreamingBoundary;
 exports.debounce = debounce;
+exports.decodeRSCFlight = decodeRSCFlight;
 exports.deepClone = deepClone;
 exports.defineComponent = defineComponent;
 exports.defineController = defineController;
@@ -7835,6 +8037,7 @@ exports.effectScope = effectScope;
 exports.emitDevToolsEvent = emitDevToolsEvent;
 exports.enableDevTools = enableDevTools;
 exports.enableScopeLeakWarnings = enableScopeLeakWarnings;
+exports.encodeRSCFlight = encodeRSCFlight;
 exports.errorHandler = errorHandler;
 exports.filePathToRoutePath = filePathToRoutePath;
 exports.findFileRouteConflicts = findFileRouteConflicts;
@@ -7894,6 +8097,7 @@ exports.preloadStyle = preloadStyle;
 exports.prerenderRoutes = prerenderRoutes;
 exports.put = put;
 exports.reactive = reactive;
+exports.readStreamingPayloads = readStreamingPayloads;
 exports.recordDevToolsDependency = recordDevToolsDependency;
 exports.recordDevToolsError = recordDevToolsError;
 exports.register = register;
@@ -7911,6 +8115,7 @@ exports.renderTest = renderTest;
 exports.renderTitle = renderTitle;
 exports.renderToString = renderToString;
 exports.request = request;
+exports.resolveRSCFlight = resolveRSCFlight;
 exports.resolveSlot = resolveSlot;
 exports.resumeStreamingBoundary = resumeStreamingBoundary;
 exports.resumeStreamingBoundaryChunk = resumeStreamingBoundaryChunk;

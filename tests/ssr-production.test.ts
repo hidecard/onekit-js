@@ -9,6 +9,7 @@ import {
   StreamingRenderer,
   createStreamingBoundary,
   resumeStreamingBoundaryChunk,
+  readStreamingPayloads,
 } from '../src/index';
 
 (globalThis as typeof globalThis & { TransformStream?: typeof TransformStream }).TransformStream = TransformStream;
@@ -135,6 +136,29 @@ describe('SSR production contracts', () => {
     expect(applied).toBe(true);
     expect(document.body.innerHTML).toContain('<span>ready</span>');
     expect(document.body.innerHTML).not.toContain('loading');
+  });
+
+  it('streams inert route-data and RSC payload scripts and extracts them without execution', async () => {
+    const renderer = new StreamingRenderer();
+    const stream = await renderer.renderToStream(h('main', {}, 'shell'), {
+      routeDataPayload: '{"value":"</script>"}',
+      rscPayload: '{"kind":"onekit-flight"}\\n',
+    });
+    const reader = stream.getReader();
+    let html = '';
+    while (true) {
+      const result = await reader.read();
+      if (result.done) break;
+      html += result.value;
+    }
+
+    expect(html).toContain('type="application/json"');
+    expect(html).toContain('\\u003c/script\\u003e');
+    document.body.innerHTML = html;
+    expect(readStreamingPayloads(document)).toEqual({
+      routeDataPayload: '{"value":"\\u003c/script\\u003e"}',
+      rscPayload: '{"kind":"onekit-flight"}\\n',
+    });
   });
 
   it('supports a promise as the streamed root vnode', async () => {

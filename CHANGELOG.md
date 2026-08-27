@@ -64,6 +64,8 @@ The V3 branch continues production hardening after `3.1.19` without changing the
 - Add generated `FileRouteModuleFor<Path>`, `FileRouteLoaderData<Path>`, and `FileRouteComponentProps<Path>` declarations mapped to discovered route modules.
 - Add `createISRRenderer()`, `ISRCache`, and `createMemoryISRCache()` with fresh-hit, stale-while-revalidate, missing-page regeneration, single-flight concurrency, failure retention, cache-entry enumeration, tag invalidation, and optional QueryClient coordination.
 - Add the dedicated `onekit-js/isr` package subpath for server-side cache-aware revalidation imports.
+- Extend `StreamingRenderer` with escaped inert route-data and experimental RSC-style payload script handoff plus `readStreamingPayloads()` extraction.
+- Add experimental `onekit-js/rsc` primitives for bounded versioned Flight-like records, explicit client references, fail-closed decoding, explicit reference resolution, and abort-aware streaming.
 - Strengthen the opt-in component boundary validator with `server-only`/`client-only` marker imports and transitive static graph checks while preserving server-to-client composition.
 - Correct the GitHub Actions Edge matrix to target the configured Playwright `edge` project, install the `msedge` channel, and record cache-backed per-browser performance history.
 

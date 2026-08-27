@@ -605,3 +605,11 @@
 - [x] Add ISR tests for freshness, stale background refresh, concurrency, tag coordination, preloaded cache entries, failure behavior, and invalid configuration.
 - [x] Document the ISR contract, memory-cache limitations, application ownership, and non-RSC boundaries.
 - [ ] Add durable/distributed cache storage, locks, eviction, webhook authentication, ISR observability, response headers, and deployment-specific regeneration workers as separate adapter work.
+
+## Continuation increment — 2026-08-27 (streaming SSR and RSC-style transport)
+
+- [x] Extend `StreamingRenderer` with escaped inert route-data and Flight-like payload script handoff, configurable IDs, and client-side `readStreamingPayloads()` extraction.
+- [x] Add the experimental `onekit-js/rsc` protocol with bounded versioned records, JSON-safe models, client references, fail-closed decoding, explicit reference resolution, and abort-aware progressive streams.
+- [x] Add regression coverage for payload escaping, client extraction, RSC reference resolution, malformed/version-mismatch input, blocked prototype-pollution keys, size/depth limits, and stream cancellation.
+- [x] Document the streaming handoff and RSC-style protocol as Experimental with explicit security and ownership boundaries.
+- [ ] Implement React-compatible RSC/Flight wire compatibility, compiler transforms, client-reference manifests, automatic bundle splitting, Server Functions/Actions, Suspense/navigation semantics, and framework-owned deployment integration as a separate architecture project.

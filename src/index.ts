@@ -25,6 +25,7 @@ export * from './modules/ssr';
 export * from './modules/ssr-data';
 export * from './modules/prerender';
 export * from './modules/isr';
+export * from './modules/rsc';
 export * from './modules/server';
 export * from './modules/server-data';
 export * from './modules/sqlite';

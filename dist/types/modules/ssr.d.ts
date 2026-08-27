@@ -49,7 +49,15 @@ export declare function hydrate(rootElement: Element, vnode: VNode, options?: Hy
 export type StreamingBoundaryTask = () => Promise<void>;
 /** Allows an adapter to control when deferred boundary payloads are rendered. */
 export type StreamingBoundaryScheduler = (task: StreamingBoundaryTask, boundary: StreamingBoundary) => Promise<void> | void;
-export interface StreamingRenderOptions {
+export interface StreamingPayloadOptions {
+    /** Secure, application-owned route-data envelope emitted as inert JSON script data. */
+    routeDataPayload?: string;
+    /** Experimental bounded Flight-like records emitted as inert newline-delimited script data. */
+    rscPayload?: string;
+    routeDataId?: string;
+    rscPayloadId?: string;
+}
+export interface StreamingRenderOptions extends StreamingPayloadOptions {
     signal?: AbortSignal;
     /** Receive the original rendering error before the stream is aborted. */
     onError?: (error: unknown) => void;
@@ -68,6 +76,12 @@ export declare class StreamingRenderer {
 /** Apply a resolved boundary payload emitted by `StreamingRenderer` to a hydrated shell. */
 export declare function resumeStreamingBoundary(root: ParentNode, boundaryId: string, html: string): boolean;
 /** Parse one streamed boundary chunk and continue the matching client shell. */
+export interface StreamingPayloadSnapshot {
+    routeDataPayload: string | null;
+    rscPayload: string | null;
+}
+/** Extract inert payload script data from a streamed document without executing it. */
+export declare function readStreamingPayloads(root: ParentNode, options?: Pick<StreamingPayloadOptions, 'routeDataId' | 'rscPayloadId'>): StreamingPayloadSnapshot;
 export declare function resumeStreamingBoundaryChunk(root: ParentNode, chunk: string): boolean;
 export declare function createSSRContext(): SSRContext;
 export declare function addToHead(context: SSRContext, content: string): void;
