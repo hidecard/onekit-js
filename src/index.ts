@@ -44,4 +44,4 @@ export { okjs, component, h, jsx, jsxDEV, Fragment } from './modules/jsx';
 export { jsx as jsxRuntime, jsxs, jsxDEV as jsxRuntimeDEV } from './jsx-runtime';
 
 // Version info
-export const VERSION = '3.1.19';
+export const VERSION = '3.2.0';

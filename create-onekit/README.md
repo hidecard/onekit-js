@@ -1,6 +1,6 @@
 # create-onekit
 
-The official OneKit JS project creator. It powers:
+The official OneKit JS project creator. The next release candidate is `create-onekit@1.0.10`, compatible with the OneKit JS `3.2.x` line. It powers:
 
 ```bash
 npm create onekit@latest my-app
@@ -50,7 +50,7 @@ npm pack
 mkdir -p /tmp/create-onekit-smoke
 cd /tmp/create-onekit-smoke
 npm init -y
-npm install /path/to/onekit-js/onekit-js-3.1.19.tgz /path/to/onekit-js/create-onekit/create-onekit-1.0.8.tgz
+npm install /path/to/onekit-js/onekit-js-3.2.0.tgz /path/to/onekit-js/create-onekit/create-onekit-1.0.10.tgz
 npx create-onekit demo-app
 ```
 
@@ -74,16 +74,16 @@ The repository includes `.github/workflows/publish-create-onekit.yml`. It valida
 
 Before the first automated release, configure a **Trusted Publisher** for the `create-onekit` package on npm. Select GitHub Actions, repository `hidecard/onekit-js`, branch `V3`, and workflow filename `publish-create-onekit.yml`. The npm package must already exist or the first release must be published once using the manual command above, depending on the npm account's Trusted Publishing setup.
 
-To publish version `1.0.8`, ensure the package version is `1.0.8`, commit the change on `V3`, and push a matching tag:
+To publish version `1.0.10`, ensure the package version is `1.0.10`, commit the change on `V3`, and push a matching tag:
 
 ```bash
-npm version 1.0.8 --no-git-tag-version
+npm version 1.0.10 --no-git-tag-version
 npm install --package-lock-only
 git add create-onekit/package.json create-onekit/package-lock.json
-git commit -m "chore(create-onekit): prepare v1.0.8"
+git commit -m "chore(create-onekit): prepare v1.0.10"
 git push origin V3
-git tag create-onekit-v1.0.8
-git push origin create-onekit-v1.0.8
+git tag create-onekit-v1.0.10
+git push origin create-onekit-v1.0.10
 ```
 
 The workflow rejects a tag when its version does not exactly match `create-onekit/package.json`. A manual workflow run performs validation only; it does not publish. Publishing is intentionally restricted to versioned `create-onekit-v<version>` tags.

@@ -1,6 +1,6 @@
 # OneKit JS V3 Usage Guide
 
-**Target release:** OneKit JS V3 / 3.1.19
+**Target release candidate:** OneKit JS V3 / 3.2.0
 **License:** MIT  
 **Runtime:** Browser-first JavaScript and TypeScript
 
@@ -908,15 +908,15 @@ npm pack --dry-run
 `npm run verify:package` creates an isolated temporary project, installs the packed tarball, and checks the root, ESM, CJS, SSR, and CLI entrypoints. Then inspect the tarball contents and verify that the package version, declaration paths, CLI files, README, documentation, and license are present. Pull requests and pushes to the `V3` branch also run the same checks through GitHub Actions. For the main package, publication is handled by `.github/workflows/publish-onekit.yml`. After validation passes, bump the package version, commit the release metadata, and push a matching tag:
 
 ```bash
-npm version 3.1.19 --no-git-tag-version
+npm version 3.2.0 --no-git-tag-version
 git add package.json package-lock.json src/index.ts CHANGELOG.md README.md docs
-git commit -m "chore(release): prepare onekit 3.1.19"
+git commit -m "chore(release): prepare onekit 3.2.0"
 git push origin V3
-git tag v3.1.19
-git push origin v3.1.19
+git tag v3.2.0
+git push origin v3.2.0
 ```
 
-The creator package is published independently through `create-onekit-v1.0.8`. The generated starter currently uses the installable compatibility floor `onekit-js@^3.1.18`, which resolves the newest compatible V3 release from npm; after `3.1.19` is published, the same caret range resolves to that patch automatically. If a creator release pins `^3.1.19` directly, publish `onekit-js` first so that exact range is available. A manual `npm publish --access public` remains possible for an authenticated npm session, but the tag workflow is preferred because it provides repeatable validation and npm provenance.
+The creator package is published independently through `create-onekit-v1.0.10`. Its dependency remains `onekit-js@^3.1.19`, which is compatible with and resolves the newest 3.x release, including `3.2.0`, after it is published. Publish `onekit-js@3.2.0` before the creator package if you want clean-install verification to resolve the new framework release explicitly. A manual `npm publish --access public` remains possible for an authenticated npm session, but the tag workflow is preferred because it provides repeatable validation and npm provenance.
 
 Never place an npm access token in source files, commit history, chat messages, or public documentation.
 

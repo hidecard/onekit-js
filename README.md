@@ -2,14 +2,14 @@
 
 **OneKit JS V3** is a compact, TypeScript-first reactive framework for browser applications. It gives developers explicit building blocks for state, components, templates, JSX/VDOM, routing, stores, forms, data fetching, SSR/hydration, security, testing, and production tooling without forcing a large application architecture.
 
-> **Current release:** `3.1.19`
-> **Starter CLI:** `create-onekit@1.0.8`
+> **Current release candidate:** `3.2.0`
+> **Starter CLI candidate:** `create-onekit@1.0.10`
 > **License:** MIT
 > **Runtime:** Browser-first JavaScript and TypeScript
 
 OneKit is designed for developers who want a framework that is easy to learn but does not become restrictive as an application grows. You can begin with one reactive object and progressively adopt components, routes, stores, SSR, and typed tooling when the project needs them.
 
-[![TypeScript-first](https://img.shields.io/badge/TypeScript-first-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) [![Version](https://img.shields.io/badge/version-3.1.19-0f766e)](CHANGELOG.md)
+[![TypeScript-first](https://img.shields.io/badge/TypeScript-first-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) [![Version](https://img.shields.io/badge/version-3.2.0-0f766e)](CHANGELOG.md)
 
 ## Documentation navigation
 
@@ -19,7 +19,7 @@ OneKit is designed for developers who want a framework that is easy to learn but
 | [Mental model](#the-onekit-mental-model) | [Framework architecture](docs/FRAMEWORK_GUIDE.md) |
 | [Feature map](#v3-feature-map) | [Production readiness](docs/PRODUCTION_READINESS.md) |
 | [API stability](docs/API_STABILITY.md) | [Performance benchmarks](docs/PERFORMANCE_BENCHMARKS.md) |
-| [V3.2.0 roadmap](docs/V3.2.0_ROADMAP.md) | [CLI reference](#cli-reference) |
+| [V3.2.0 roadmap](docs/V3.2.0_ROADMAP.md) | [V3.2.0 release notes](docs/V3.2.0_RELEASE_NOTES.md) |
 | [Migration guide](MIGRATION_GUIDE.md) | [Release notes](docs/V3_RELEASE_NOTES.md) |
 | [Contributing](#contributing-to-onekit) | [API reference](docs/API_STABILITY.md) |
 
@@ -1070,6 +1070,7 @@ Push the branch and open a pull request against `V3`. A useful pull request desc
 | [Migration Guide](MIGRATION_GUIDE.md) | Moving from older OneKit versions and comparing patterns. |
 | [Production Readiness](docs/PRODUCTION_READINESS.md) | Runtime contracts, security guarantees, and release guidance. |
 | [Official integrations](docs/V3_OFFICIAL_INTEGRATIONS.md) | Redis, Deno KV, and Vercel Global Config adapters, setup, and ownership boundaries. |
+| [V3.2.0 release notes](docs/V3.2.0_RELEASE_NOTES.md) | Candidate version pair, package scope, validation, and publication order. |
 | [Release notes](docs/V3_RELEASE_NOTES.md) | Human-readable `3.1.19` upgrade summary and compatibility notes. |
 | [Changelog](CHANGELOG.md) | Version history and release notes. |
 | [Issue tracker](https://github.com/hidecard/onekit-js/issues) | Bugs, feature proposals, and questions. |

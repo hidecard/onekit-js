@@ -1,10 +1,10 @@
 # OneKit JS V3 — Current Release Status
 
-> **Current local release candidate:** `onekit-js@3.1.19` and `create-onekit@1.0.8`.
+> **Current local release candidate:** `onekit-js@3.2.0` and `create-onekit@1.0.10`.
 >
-> **Branch:** `V3` — source, documentation, generated distribution artifacts, tests, and publish workflows are committed and pushed. GitHub tag `v3.1.19` and the `V3` branch are synchronized.
+> **Branch:** `V3` — source, documentation, generated distribution artifacts, tests, and publish workflows are committed and pushed. The next release tags are `v3.2.0` and `create-onekit-v1.0.10`.
 >
-> **Release status:** `onekit-js@3.1.19` is published to npm as the `latest` version and has passed post-publish clean-install verification. The source branch, tag, GitHub Release, package artifacts, and registry package are synchronized.
+> **Release status:** The previous `onekit-js@3.1.19` and `create-onekit@1.0.9` releases are published and verified. The `3.2.0`/`1.0.10` candidates are prepared locally and await final validation and npm publication.
 
 - [x] Synchronize package versions, lockfiles, public `VERSION`, README, guides, and changelog.
 - [x] Add the main-package provenance workflow for `v3.1.19`.
