@@ -86,6 +86,23 @@ OneKit should add official examples or companion adapters for static files, comp
 
 The project is suitable for **small-to-medium production applications that accept explicit composition and adapter ownership**. It is not yet equivalent to the integrated developer experience of Next.js or the breadth of the Express ecosystem. The best next milestone is not to copy every React or Next.js feature; it is to complete the SSR route data contract, cross-browser CI gate, file-route convention, and cache/revalidation model. Once those are stable, a decision can be made about whether a Server Component-style compiler is strategically worth its complexity.
 
+## Comparative strengths and tradeoffs
+
+OneKit’s strongest advantage is **explicit, adapter-neutral composition**. The Vite route generator and component-boundary validator are opt-in, generated routes are ordinary `Route[]` values, and layout/middleware discovery is exposed as metadata instead of being silently injected into runtime behavior. This allows the same route model to remain usable in browser, memory, SSR, tests, and custom Node/edge adapters. It also makes generated output inspectable and keeps authorization, request lifecycle, layout composition, and deployment ownership visible to the application.
+
+| Dimension | OneKit’s practical advantage | React/Next.js advantage that OneKit does not yet match |
+| --- | --- | --- |
+| Adoption | Incremental opt-in plugin; existing Router/SSR/VDOM contracts remain independently usable. | Next.js provides one integrated project model with fewer composition decisions. |
+| Route output | Deterministic manifest plus ordinary route objects and explicit layout/middleware metadata. | Next.js connects conventions to layouts, loading/error files, metadata, route handlers, prerendering, and navigation payloads. |
+| Boundary safety | Direct build-time client-to-server static-import diagnostic without requiring a proprietary transport. | React/Next.js propagate client classification through the module graph and connect it to split bundles, RSC Payload, hydration, and navigation. |
+| Runtime control | Application-owned render mapping, middleware composition, transport, and adapters. | Next.js owns more of the server/client orchestration and offers a more complete default experience. |
+| Debuggability | Plain generated JavaScript and explicit metadata are easy to inspect in Vite. | RSC and framework conventions deliver more capability but introduce a more complex build and transport model. |
+| TypeScript route ergonomics | Existing `RouteParamsFor<Path>`, `routeHref()`, `RouteContext`, and loader contracts are composable with the normal OneKit runtime. | Next.js additionally generates route-aware `PageProps`, `LayoutProps`, and `RouteContext`, and couples them to `generateStaticParams`. |
+
+The current OneKit component boundary should therefore be described as a **safety baseline**, not Server Components parity. React’s `"use client"` boundary marks the module and its transitive dependencies as client code, while `"use server"` can expose async Server Functions callable from client code through a serialized network request. Next.js then combines those boundaries with RSC Payload generation, client references, prerendered HTML, hydration, and subsequent navigation payloads. [1] [2] [3]
+
+The next high-value improvements are a generated fully typed route module, an explicit serializable boundary-props checker, and a documented `server-only`/`client-only` marker policy. A complete Server Components runtime remains a separate architectural RFC because it requires transitive graph classification, split builds, component references, secure serialization, streaming, and navigation transport rather than only directive parsing.
+
 ## References
 
 [1]: https://react.dev/reference/rsc/server-components "React — Server Components"
