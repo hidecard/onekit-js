@@ -613,3 +613,12 @@
 - [x] Add regression coverage for payload escaping, client extraction, RSC reference resolution, malformed/version-mismatch input, blocked prototype-pollution keys, size/depth limits, and stream cancellation.
 - [x] Document the streaming handoff and RSC-style protocol as Experimental with explicit security and ownership boundaries.
 - [ ] Implement React-compatible RSC/Flight wire compatibility, compiler transforms, client-reference manifests, automatic bundle splitting, Server Functions/Actions, Suspense/navigation semantics, and framework-owned deployment integration as a separate architecture project.
+
+## Continuation increment — 2026-08-27 (edge deployment compatibility)
+
+- [x] Add edge-safe `createEdgeHandler()` with direct Fetch `Request`/`Response` delegation and no Node request-stream translation or response buffering.
+- [x] Add `detectEdgeRuntime()`, `assertEdgeRuntime()`, `EdgeRuntimeError`, and capability checks for Fetch, Web Streams, AbortController, TextEncoder, and optional Web Crypto.
+- [x] Add `createEdgeRequestContext()` for platform environment bindings and optional `waitUntil()` background-task registration.
+- [x] Add edge adapter tests for capability detection, fail-fast requirements, direct response identity, streaming body preservation, and waitUntil forwarding.
+- [x] Document edge deployment ownership and add the `onekit-js/edge` package subpath.
+- [ ] Add official Workers/Deno/Vercel adapter packages, platform-native environment typings, CDN cache headers, distributed ISR storage/locks, vendor observability, and deployment manifests as separate integrations.

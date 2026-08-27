@@ -7177,6 +7177,82 @@ const serverMiddleware = {
     }
 };
 
+class EdgeRuntimeError extends Error {
+    missing;
+    constructor(missing) {
+        super(`Edge runtime is missing required capabilities: ${missing.join(', ')}`);
+        this.name = 'EdgeRuntimeError';
+        this.missing = missing;
+    }
+}
+function detectEdgeRuntime(runtime = globalThis) {
+    return {
+        fetch: typeof runtime.fetch === 'function',
+        request: typeof runtime.Request === 'function',
+        response: typeof runtime.Response === 'function',
+        headers: typeof runtime.Headers === 'function',
+        webStreams: typeof runtime.ReadableStream === 'function' && typeof runtime.TransformStream === 'function',
+        abortController: typeof runtime.AbortController === 'function',
+        textEncoder: typeof runtime.TextEncoder === 'function',
+        webCrypto: Boolean(runtime.crypto && typeof runtime.crypto.subtle?.digest === 'function'),
+        waitUntil: false,
+    };
+}
+function assertEdgeRuntime(options = {}) {
+    const runtime = options.runtime ?? globalThis;
+    const capabilities = detectEdgeRuntime(runtime);
+    const missing = [];
+    if (!capabilities.fetch)
+        missing.push('fetch');
+    if (!capabilities.request)
+        missing.push('Request');
+    if (!capabilities.response)
+        missing.push('Response');
+    if (!capabilities.headers)
+        missing.push('Headers');
+    if (options.requireStreaming && !capabilities.webStreams)
+        missing.push('Web Streams');
+    if (options.requireWebCrypto && !capabilities.webCrypto)
+        missing.push('Web Crypto SubtleCrypto');
+    if (missing.length)
+        throw new EdgeRuntimeError(missing);
+    return capabilities;
+}
+/**
+ * Wrap a Fetch-compatible ServerApp for Workers/Deno/Vercel-style deployments.
+ * This module contains no Node imports and never buffers a Response body.
+ */
+function createEdgeHandler(app, options = {}) {
+    const capabilities = assertEdgeRuntime(options);
+    return {
+        capabilities,
+        async fetch(request, context = {}) {
+            try {
+                const response = await app.handle(request);
+                return response;
+            }
+            catch (error) {
+                if (options.onError)
+                    return options.onError(error, request);
+                return serverErrorResponse(error);
+            }
+        },
+    };
+}
+function createEdgeRequestContext(context = {}) {
+    return {
+        env: context.env,
+        executionContext: context.executionContext,
+        waitUntil(promise) {
+            const safePromise = Promise.resolve(promise);
+            if (context.executionContext?.waitUntil)
+                context.executionContext.waitUntil(safePromise);
+            else
+                void safePromise.catch(() => undefined);
+        },
+    };
+}
+
 function defaultKey(input) {
     if (typeof input === 'string')
         return input;
@@ -7929,5 +8005,5 @@ const jsxDEV = jsx;
 // Version info
 const VERSION = '3.1.19';
 
-export { API, DependencyInjector, Fragment, HydrationMismatchError, ISRRenderer, ONEKIT_RSC_PROTOCOL_VERSION, OneKit, OneKitWebComponent, QueryClient, RouteDataTransportError, Router, ServerError, StreamingRenderer, VERSION, activate, addScript, addStorePlugin, addStyle, addToBody, addToHead, animations, announce, patch as apiPatch, applyHead, applyRouteDataPayload, assertClient, assertServer, autorun, batch, bind, bindHydratedComponent, cache, cleanup, clearDevToolsDependencies, clientOnly, compileOkjs, compileTemplate, component, composeFileRouteInfrastructure, computed, create, createApi, createApp, createElement, createErrorBoundary, createErrorReport, createFileRouteAssociations, createFileRouteManifest, createFileRoutes, createForm, createHeadManager, createHmacSha256Signer, createISRRenderer, createIndexedDBQueryStorage, createLandmarks, createLoadingBoundary, createMemoryISRCache, createMemoryRateLimitStore, createMemoryServerDataCache, createMongoDBAdapter, createMySQLAdapter, createNodeHandler, createPostgreSQLAdapter, createQueryBroadcastSync, createQueryClient, createRSCClientReference, createRSCFlightRecord, createRSCFlightStream, createRedisRateLimitStore, createRouteDataPayload, createRouteManifest, createRouter, createRouterView, createSQLiteAdapter, createSSRContext, createServerApp, createServerData, createServerError, createSkipLink, createStorage, createStore, createStoreRegistry, createStreamingBoundary, debounce, decodeRSCFlight, deepClone, defineComponent, defineController, defineHandler, defineLayoutRoute, defineMiddleware, defineModule, defineRoute, defineStore, del, derive, destroy, devToolsSnapshot, di, disableScopeLeakWarnings, disposeDevToolsResource, effect, effectScope, emitDevToolsEvent, enableDevTools, enableScopeLeakWarnings, encodeRSCFlight, errorHandler, filePathToRoutePath, findFileRouteConflicts, fireEvent, flush, generateId, get, getActiveScopeDiagnostics, getAllStores, getCurrentScope, getDependencyGraph, getDevToolsEffectId, getDevToolsScopeId, getDevToolsTargetId, getInstance, getResourceGraph, getRuntimeEnvironment, h, hotUpdateComponent, hydrate, initTemplateEngine, isClient, isClientRuntime, isDevToolsEnabled, isServer, isServerRuntime, jsonResponse, jsx$1 as jsx, jsxDEV$1 as jsxDEV, jsx as jsxRuntime, jsxDEV as jsxRuntimeDEV, jsxs, localStorage, makeFocusable, makeUnfocusable, manageTabOrder, measureDevTools, mount, nextTick, normalizeSlots, ok, okjs, onDestroyed, onDevToolsEvent, onMounted, onPropsChanged, onScopeDispose, onUpdated, parseOkjs, parseRouteDataPayload, patch$1 as patch, pluginManager, post, preloadModule, preloadScript, preloadStyle, prerenderRoutes, put, reactive, readStreamingPayloads, recordDevToolsDependency, recordDevToolsError, register, registerDevToolsInspector, registerDevToolsResource, registerDirective, registerDisposable, registerWebComponent, removeStore, render, renderHead, renderMeta$1 as renderMeta, renderOpenGraph, renderTest, renderTitle, renderToString, request, resolveRSCFlight, resolveSlot, resumeStreamingBoundary, resumeStreamingBoundaryChunk, routeHref, router, safeMethod, securityMiddleware, serverErrorResponse, serverMiddleware, serverOnly, sessionStorage, setAriaAttributes, setErrorReporter, setMeta, setupComponent, skipToContent, snapshot, state, stop, textResponse, throttle, trapFocus, unbindHydratedComponent, unmount, updateComponentProps, useStore, validateAccessibility, validateBody, patch$1 as vdomPatch, waitFor, watch, watchEffect, withCache, withScope };
+export { API, DependencyInjector, EdgeRuntimeError, Fragment, HydrationMismatchError, ISRRenderer, ONEKIT_RSC_PROTOCOL_VERSION, OneKit, OneKitWebComponent, QueryClient, RouteDataTransportError, Router, ServerError, StreamingRenderer, VERSION, activate, addScript, addStorePlugin, addStyle, addToBody, addToHead, animations, announce, patch as apiPatch, applyHead, applyRouteDataPayload, assertClient, assertEdgeRuntime, assertServer, autorun, batch, bind, bindHydratedComponent, cache, cleanup, clearDevToolsDependencies, clientOnly, compileOkjs, compileTemplate, component, composeFileRouteInfrastructure, computed, create, createApi, createApp, createEdgeHandler, createEdgeRequestContext, createElement, createErrorBoundary, createErrorReport, createFileRouteAssociations, createFileRouteManifest, createFileRoutes, createForm, createHeadManager, createHmacSha256Signer, createISRRenderer, createIndexedDBQueryStorage, createLandmarks, createLoadingBoundary, createMemoryISRCache, createMemoryRateLimitStore, createMemoryServerDataCache, createMongoDBAdapter, createMySQLAdapter, createNodeHandler, createPostgreSQLAdapter, createQueryBroadcastSync, createQueryClient, createRSCClientReference, createRSCFlightRecord, createRSCFlightStream, createRedisRateLimitStore, createRouteDataPayload, createRouteManifest, createRouter, createRouterView, createSQLiteAdapter, createSSRContext, createServerApp, createServerData, createServerError, createSkipLink, createStorage, createStore, createStoreRegistry, createStreamingBoundary, debounce, decodeRSCFlight, deepClone, defineComponent, defineController, defineHandler, defineLayoutRoute, defineMiddleware, defineModule, defineRoute, defineStore, del, derive, destroy, detectEdgeRuntime, devToolsSnapshot, di, disableScopeLeakWarnings, disposeDevToolsResource, effect, effectScope, emitDevToolsEvent, enableDevTools, enableScopeLeakWarnings, encodeRSCFlight, errorHandler, filePathToRoutePath, findFileRouteConflicts, fireEvent, flush, generateId, get, getActiveScopeDiagnostics, getAllStores, getCurrentScope, getDependencyGraph, getDevToolsEffectId, getDevToolsScopeId, getDevToolsTargetId, getInstance, getResourceGraph, getRuntimeEnvironment, h, hotUpdateComponent, hydrate, initTemplateEngine, isClient, isClientRuntime, isDevToolsEnabled, isServer, isServerRuntime, jsonResponse, jsx$1 as jsx, jsxDEV$1 as jsxDEV, jsx as jsxRuntime, jsxDEV as jsxRuntimeDEV, jsxs, localStorage, makeFocusable, makeUnfocusable, manageTabOrder, measureDevTools, mount, nextTick, normalizeSlots, ok, okjs, onDestroyed, onDevToolsEvent, onMounted, onPropsChanged, onScopeDispose, onUpdated, parseOkjs, parseRouteDataPayload, patch$1 as patch, pluginManager, post, preloadModule, preloadScript, preloadStyle, prerenderRoutes, put, reactive, readStreamingPayloads, recordDevToolsDependency, recordDevToolsError, register, registerDevToolsInspector, registerDevToolsResource, registerDirective, registerDisposable, registerWebComponent, removeStore, render, renderHead, renderMeta$1 as renderMeta, renderOpenGraph, renderTest, renderTitle, renderToString, request, resolveRSCFlight, resolveSlot, resumeStreamingBoundary, resumeStreamingBoundaryChunk, routeHref, router, safeMethod, securityMiddleware, serverErrorResponse, serverMiddleware, serverOnly, sessionStorage, setAriaAttributes, setErrorReporter, setMeta, setupComponent, skipToContent, snapshot, state, stop, textResponse, throttle, trapFocus, unbindHydratedComponent, unmount, updateComponentProps, useStore, validateAccessibility, validateBody, patch$1 as vdomPatch, waitFor, watch, watchEffect, withCache, withScope };
 //# sourceMappingURL=onekit.esm.js.map

@@ -67,6 +67,11 @@
       "import": "./dist/onekit.esm.js",
       "require": "./dist/onekit.cjs"
     },
+    "./edge": {
+      "types": "./dist/types/modules/edge.d.ts",
+      "import": "./dist/onekit.esm.js",
+      "require": "./dist/onekit.cjs"
+    },
     "./head": {
       "types": "./dist/types/modules/head.d.ts",
       "import": "./dist/onekit.esm.js",

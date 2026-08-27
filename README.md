@@ -99,6 +99,15 @@ const stream = await new StreamingRenderer().renderToStream(shell, {
 
 The RSC-style surface is **not React Flight compatibility**. OneKit only provides bounded records, explicit client references, fail-closed parsing, and an application-supplied resolver; it does not import or execute components, split bundles, render RSC trees, or implement Server Functions.
 
+For Workers-, Deno-, or Vercel-style Fetch deployments, use `createEdgeHandler()` from `onekit-js/edge`. It delegates directly to `ServerApp.handle(request)` and preserves streamed response bodies; it does not buffer through `arrayBuffer()` or import the Node HTTP bridge. Use `assertEdgeRuntime({ requireStreaming: true })` at startup when a deployment requires Web Streams, and pass platform `waitUntil()` through `createEdgeRequestContext()` for non-critical background work. The application still owns environment bindings, authentication, cache headers, ISR storage, and vendor deployment configuration. See the [edge deployment guide](docs/V3_EDGE_DEPLOYMENT.md).
+
+```ts
+import { createEdgeHandler } from "onekit-js/edge";
+
+const edge = createEdgeHandler(app, { requireStreaming: true });
+export default { fetch: (request, env, executionContext) => edge.fetch(request, { env, executionContext }) };
+```
+
 ### Verified V3.1.19 contract
 
 The examples in this README are written against the published V3.1.19 package surface. The following table maps the main documented commands and entrypoints to the repository checks that verify them:
@@ -107,7 +116,7 @@ The examples in this README are written against the published V3.1.19 package su
 |---|---|---|
 | TypeScript contract | `npm run type-check` | `tsconfig.json` and the full `src/` declaration graph |
 | Production package | `npm run build` | `scripts/build-library.mjs` and `scripts/build-vite-plugin.mjs` |
-| Package exports | `onekit-js`, `onekit-js/router`, `onekit-js/query`, `onekit-js/ssr`, `onekit-js/prerender`, `onekit-js/isr`, `onekit-js/rsc` | `package.json#exports`, `scripts/verify-api-contract.mjs`, and `scripts/verify-package.cjs` |
+| Package exports | `onekit-js`, `onekit-js/router`, `onekit-js/query`, `onekit-js/ssr`, `onekit-js/prerender`, `onekit-js/isr`, `onekit-js/rsc`, `onekit-js/edge` | `package.json#exports`, `scripts/verify-api-contract.mjs`, and `scripts/verify-package.cjs` |
 | API stability | Stable/Experimental labels and ESM/CJS subpath contract | [API stability matrix](docs/API_STABILITY.md), `npm run verify:api-contract` |
 | CLI workflow | `onekit create`, `onekit dev`, `onekit build`, `onekit preview`, `onekit test` | `bin/onekit.js` and CLI tests |
 | Runtime validation | `npm test -- --runInBand` | Jest configuration and repository test suites |

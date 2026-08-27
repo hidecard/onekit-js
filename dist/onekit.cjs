@@ -7179,6 +7179,82 @@ const serverMiddleware = {
     }
 };
 
+class EdgeRuntimeError extends Error {
+    missing;
+    constructor(missing) {
+        super(`Edge runtime is missing required capabilities: ${missing.join(', ')}`);
+        this.name = 'EdgeRuntimeError';
+        this.missing = missing;
+    }
+}
+function detectEdgeRuntime(runtime = globalThis) {
+    return {
+        fetch: typeof runtime.fetch === 'function',
+        request: typeof runtime.Request === 'function',
+        response: typeof runtime.Response === 'function',
+        headers: typeof runtime.Headers === 'function',
+        webStreams: typeof runtime.ReadableStream === 'function' && typeof runtime.TransformStream === 'function',
+        abortController: typeof runtime.AbortController === 'function',
+        textEncoder: typeof runtime.TextEncoder === 'function',
+        webCrypto: Boolean(runtime.crypto && typeof runtime.crypto.subtle?.digest === 'function'),
+        waitUntil: false,
+    };
+}
+function assertEdgeRuntime(options = {}) {
+    const runtime = options.runtime ?? globalThis;
+    const capabilities = detectEdgeRuntime(runtime);
+    const missing = [];
+    if (!capabilities.fetch)
+        missing.push('fetch');
+    if (!capabilities.request)
+        missing.push('Request');
+    if (!capabilities.response)
+        missing.push('Response');
+    if (!capabilities.headers)
+        missing.push('Headers');
+    if (options.requireStreaming && !capabilities.webStreams)
+        missing.push('Web Streams');
+    if (options.requireWebCrypto && !capabilities.webCrypto)
+        missing.push('Web Crypto SubtleCrypto');
+    if (missing.length)
+        throw new EdgeRuntimeError(missing);
+    return capabilities;
+}
+/**
+ * Wrap a Fetch-compatible ServerApp for Workers/Deno/Vercel-style deployments.
+ * This module contains no Node imports and never buffers a Response body.
+ */
+function createEdgeHandler(app, options = {}) {
+    const capabilities = assertEdgeRuntime(options);
+    return {
+        capabilities,
+        async fetch(request, context = {}) {
+            try {
+                const response = await app.handle(request);
+                return response;
+            }
+            catch (error) {
+                if (options.onError)
+                    return options.onError(error, request);
+                return serverErrorResponse(error);
+            }
+        },
+    };
+}
+function createEdgeRequestContext(context = {}) {
+    return {
+        env: context.env,
+        executionContext: context.executionContext,
+        waitUntil(promise) {
+            const safePromise = Promise.resolve(promise);
+            if (context.executionContext?.waitUntil)
+                context.executionContext.waitUntil(safePromise);
+            else
+                void safePromise.catch(() => undefined);
+        },
+    };
+}
+
 function defaultKey(input) {
     if (typeof input === 'string')
         return input;
@@ -7933,6 +8009,7 @@ const VERSION = '3.1.19';
 
 exports.API = API;
 exports.DependencyInjector = DependencyInjector;
+exports.EdgeRuntimeError = EdgeRuntimeError;
 exports.Fragment = Fragment;
 exports.HydrationMismatchError = HydrationMismatchError;
 exports.ISRRenderer = ISRRenderer;
@@ -7957,6 +8034,7 @@ exports.apiPatch = patch;
 exports.applyHead = applyHead;
 exports.applyRouteDataPayload = applyRouteDataPayload;
 exports.assertClient = assertClient;
+exports.assertEdgeRuntime = assertEdgeRuntime;
 exports.assertServer = assertServer;
 exports.autorun = autorun;
 exports.batch = batch;
@@ -7974,6 +8052,8 @@ exports.computed = computed;
 exports.create = create;
 exports.createApi = createApi;
 exports.createApp = createApp;
+exports.createEdgeHandler = createEdgeHandler;
+exports.createEdgeRequestContext = createEdgeRequestContext;
 exports.createElement = createElement;
 exports.createErrorBoundary = createErrorBoundary;
 exports.createErrorReport = createErrorReport;
@@ -8028,6 +8108,7 @@ exports.defineStore = defineStore;
 exports.del = del;
 exports.derive = derive;
 exports.destroy = destroy;
+exports.detectEdgeRuntime = detectEdgeRuntime;
 exports.devToolsSnapshot = devToolsSnapshot;
 exports.di = di;
 exports.disableScopeLeakWarnings = disableScopeLeakWarnings;

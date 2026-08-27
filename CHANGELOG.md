@@ -66,6 +66,7 @@ The V3 branch continues production hardening after `3.1.19` without changing the
 - Add the dedicated `onekit-js/isr` package subpath for server-side cache-aware revalidation imports.
 - Extend `StreamingRenderer` with escaped inert route-data and experimental RSC-style payload script handoff plus `readStreamingPayloads()` extraction.
 - Add experimental `onekit-js/rsc` primitives for bounded versioned Flight-like records, explicit client references, fail-closed decoding, explicit reference resolution, and abort-aware streaming.
+- Add the edge-safe `onekit-js/edge` adapter with Fetch-native request handling, direct streaming response preservation, capability detection/assertion, request context helpers, and optional `waitUntil()` registration.
 - Strengthen the opt-in component boundary validator with `server-only`/`client-only` marker imports and transitive static graph checks while preserving server-to-client composition.
 - Correct the GitHub Actions Edge matrix to target the configured Playwright `edge` project, install the `msedge` channel, and record cache-backed per-browser performance history.
 
