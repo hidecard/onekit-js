@@ -1,0 +1,31 @@
+{
+  "name": "@onekit-js/deno-kv",
+  "version": "0.1.0",
+  "description": "Deno KV ISR cache and atomic lease adapters for OneKit JS.",
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist", "README.md", "LICENSE"],
+  "engines": { "deno": ">=1.40" },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "type-check": "tsc -p tsconfig.json --noEmit"
+  },
+  "peerDependencies": {
+    "onekit-js": ">=3.1.19"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hidecard/onekit-js.git",
+    "directory": "packages/deno-kv"
+  }
+}

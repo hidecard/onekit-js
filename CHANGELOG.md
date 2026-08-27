@@ -68,6 +68,10 @@ The V3 branch continues production hardening after `3.1.19` without changing the
 - Add experimental `onekit-js/rsc` primitives for bounded versioned Flight-like records, explicit client references, fail-closed decoding, explicit reference resolution, and abort-aware streaming.
 - Add the edge-safe `onekit-js/edge` adapter with Fetch-native request handling, direct streaming response preservation, capability detection/assertion, request context helpers, optional `waitUntil()` registration, and an explicit `schedule()` bridge for ISR/telemetry tasks.
 - Add a generic serialized key-value `ISRCache` adapter with safe namespacing, cache-entry enumeration, malformed-entry rejection, adapter-owned regeneration leases, lifecycle events, and stale-refresh scheduling hooks.
+- Add the optional `@onekit-js/redis` workspace package with node-redis-compatible serialized ISR storage and token-checked `SET NX PX` regeneration leases.
+- Add the optional `@onekit-js/deno-kv` workspace package with Deno KV serialized ISR storage and atomic expiring regeneration leases.
+- Add the optional `@onekit-js/vercel-global-config` workspace package for injected, read-only `@vercel/global-config` access; document that Vercel Edge Config is now Global Config and is not an ISR page cache or lock.
+- Add isolated package builds, optional vendor peer dependency metadata, focused provider contract tests, and the `docs/V3_OFFICIAL_INTEGRATIONS.md` guide.
 - Add bounded concurrent streaming boundary scheduling through `maxConcurrentBoundaries` for edge/server back-pressure control.
 - Strengthen the opt-in component boundary validator with `server-only`/`client-only` marker imports and transitive static graph checks while preserving server-to-client composition.
 - Correct the GitHub Actions Edge matrix to target the configured Playwright `edge` project, install the `msedge` channel, and record cache-backed per-browser performance history.

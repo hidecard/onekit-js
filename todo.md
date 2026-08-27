@@ -629,4 +629,14 @@
 - [x] Add optional `ISRCacheLock` lease acquisition/release, fail-closed lock-unavailable behavior, stale-refresh scheduling, and structured ISR lifecycle events.
 - [x] Add bounded `maxConcurrentBoundaries` scheduling for streaming SSR back-pressure control.
 - [x] Add `EdgeHandler.schedule()` and a vendor-neutral Fetch/Workers-style deployment example using application-owned KV, lock, environment, and telemetry adapters.
-- [ ] Add vendor-specific Workers/Deno/Vercel packages, durable ISR implementation, lease expiry guarantees, CDN headers, webhook authentication, observability exporters, and deployment manifests as separate packages.
+- [x] Add initial official Redis, Deno KV, and Vercel Global Config packages as separate integrations.
+- [ ] Add vendor-specific Workers packages, platform-native environment typings, durable ISR acceptance, lease expiry/eviction guarantees, CDN headers, webhook authentication, observability exporters, and deployment manifests as separate packages.
+
+## Continuation increment — 2026-08-28 (official provider integration packages)
+- [x] Add npm workspace package `@onekit-js/redis` with node-redis-compatible serialized ISR storage and token-checked `SET NX PX` lease adapter.
+- [x] Add npm workspace package `@onekit-js/deno-kv` with Deno KV serialized ISR storage and atomic expiring lease adapter.
+- [x] Add npm workspace package `@onekit-js/vercel-global-config` for injected, read-only `@vercel/global-config` access; preserve legacy Edge Config discoverability without treating Global Config as an ISR cache.
+- [x] Add isolated package TypeScript builds, optional vendor peer dependency policy, package READMEs, focused contract tests, and official integrations documentation.
+- [x] Register workspace/package build metadata and update README, API stability, and production-readiness documentation.
+- [ ] Publish the packages to npm and add platform-native Workers/Deno/Vercel environment typings only after provider-version and deployment acceptance tests are available.
+- [ ] Add provider outage, retry/timeout, connection lifecycle, lease expiry, eviction, CDN header, authenticated revalidation webhook, observability exporter, and deployment-manifest acceptance suites.

@@ -26,5 +26,6 @@ module.exports = {
   moduleFileExtensions: ['ts', 'js'],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
+    '^onekit-js/isr$': '<rootDir>/src/modules/isr.ts',
   },
 };

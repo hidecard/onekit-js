@@ -3,6 +3,7 @@
   "version": "3.1.19",
   "description": "A compact reactive JavaScript framework with components, stores, SSR, JSX, templates, and a practical CLI.",
   "type": "module",
+  "workspaces": ["packages/*"],
   "main": "dist/onekit.cjs",
   "module": "dist/onekit.esm.js",
   "browser": "dist/onekit.js",
@@ -152,6 +153,7 @@
     "lib",
     "docs",
     "examples",
+    "packages",
     "README.md",
     "CHANGELOG.md",
     "MIGRATION_GUIDE.md"
@@ -161,6 +163,7 @@
   },
   "scripts": {
     "build": "node scripts/build-library.mjs && npm run build:vite-plugin",
+    "build:integrations": "npm run build && npm --prefix packages/redis run build && npm --prefix packages/deno-kv run build && npm --prefix packages/vercel-global-config run build",
     "build:vite-plugin": "node scripts/build-vite-plugin.mjs",
     "benchmark": "npm run build && node scripts/benchmark-v3.mjs",
     "benchmark:memory": "npm run build && node --expose-gc scripts/benchmark-memory-v3.mjs",

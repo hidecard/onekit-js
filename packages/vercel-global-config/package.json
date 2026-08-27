@@ -1,0 +1,35 @@
+{
+  "name": "@onekit-js/vercel-global-config",
+  "version": "0.1.0",
+  "description": "Vercel Global Config (formerly Edge Config) reader integration for OneKit JS.",
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist", "README.md", "LICENSE"],
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "type-check": "tsc -p tsconfig.json --noEmit"
+  },
+  "peerDependencies": {
+    "onekit-js": ">=3.1.19",
+    "@vercel/global-config": ">=1.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@vercel/global-config": { "optional": true }
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hidecard/onekit-js.git",
+    "directory": "packages/vercel-global-config"
+  }
+}

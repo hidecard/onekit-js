@@ -44,6 +44,7 @@ OneKit does not try to hide the browser. DOM elements, events, selectors, reques
 | Rendering | Templates, directives, JSX, automatic JSX runtime, VDOM patching, keyed reconciliation, fragments | `onekit-js/jsx`, `onekit-js/jsx-runtime` |
 | Routing | History/hash/memory modes, typed params, file discovery, nested layouts, guards, loaders, manifests, prefetch, scroll restoration | `onekit-js` and `onekit-js/router` |
 | Backend | Fetch-compatible server app, route methods, middleware composition, params/query parsing, JSON responses, body validation, DI services, typed database adapter context, session/token provider contracts, authentication/authorization, portable rate-limit stores, CORS, request IDs, lifecycle hooks, and safe error responses | `onekit-js` |
+| Official integrations | Redis ISR cache/lease, Deno KV ISR cache/atomic lease, and Vercel Global Config read-only adapter | `@onekit-js/redis`, `@onekit-js/deno-kv`, `@onekit-js/vercel-global-config` |
 | Server rendering | Request-scoped SSR, streaming, async rendering, hydration diagnostics, stateful component hydration binding, richer named-slot projection, error/loading boundaries, safe route manifests, adapter-level boundary scheduling | `onekit-js/ssr` |
 | Data and forms | HTTP helpers, retry/timeout/cancellation, query invalidation, mutations, optimistic updates, SSR handoff, typed forms, validation | `onekit-js/api`, `onekit-js/query`, `onekit-js/forms` |
 | Runtime boundaries | Explicit server/client detection and guarded callbacks for shared modules | `onekit-js` |
@@ -824,6 +825,8 @@ await pages.revalidateTag("docs");
 
 The memory cache is a reference implementation. Applications own authorization, cache persistence, distributed locking, webhook verification, eviction, observability, response headers, and preview/ISR deployment policy.
 
+For provider-backed deployments, install the separate official integration packages: `@onekit-js/redis` for a node-redis-compatible serialized ISR cache and token-checked lease, `@onekit-js/deno-kv` for Deno KV serialization and atomic expiring lease, or `@onekit-js/vercel-global-config` for read-only runtime configuration. Vendor SDKs are optional peer dependencies and clients are injected explicitly. Vercel Edge Config is now called Global Config; it is not an ISR page cache or lock. See the [official integrations guide](docs/V3_OFFICIAL_INTEGRATIONS.md).
+
 ```ts
 const queries = createQueryClient();
 const router = createRouter([
@@ -1066,6 +1069,7 @@ Push the branch and open a pull request against `V3`. A useful pull request desc
 | [Framework Guide](docs/FRAMEWORK_GUIDE.md) | Architecture and application conventions. |
 | [Migration Guide](MIGRATION_GUIDE.md) | Moving from older OneKit versions and comparing patterns. |
 | [Production Readiness](docs/PRODUCTION_READINESS.md) | Runtime contracts, security guarantees, and release guidance. |
+| [Official integrations](docs/V3_OFFICIAL_INTEGRATIONS.md) | Redis, Deno KV, and Vercel Global Config adapters, setup, and ownership boundaries. |
 | [Release notes](docs/V3_RELEASE_NOTES.md) | Human-readable `3.1.19` upgrade summary and compatibility notes. |
 | [Changelog](CHANGELOG.md) | Version history and release notes. |
 | [Issue tracker](https://github.com/hidecard/onekit-js/issues) | Bugs, feature proposals, and questions. |
