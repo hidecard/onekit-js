@@ -86,7 +86,7 @@ The examples in this README are written against the published V3.1.19 package su
 |---|---|---|
 | TypeScript contract | `npm run type-check` | `tsconfig.json` and the full `src/` declaration graph |
 | Production package | `npm run build` | `scripts/build-library.mjs` and `scripts/build-vite-plugin.mjs` |
-| Package exports | `onekit-js`, `onekit-js/router`, `onekit-js/query`, `onekit-js/ssr` | `package.json#exports`, `scripts/verify-api-contract.mjs`, and `scripts/verify-package.cjs` |
+| Package exports | `onekit-js`, `onekit-js/router`, `onekit-js/query`, `onekit-js/ssr`, `onekit-js/prerender` | `package.json#exports`, `scripts/verify-api-contract.mjs`, and `scripts/verify-package.cjs` |
 | API stability | Stable/Experimental labels and ESM/CJS subpath contract | [API stability matrix](docs/API_STABILITY.md), `npm run verify:api-contract` |
 | CLI workflow | `onekit create`, `onekit dev`, `onekit build`, `onekit preview`, `onekit test` | `bin/onekit.js` and CLI tests |
 | Runtime validation | `npm test -- --runInBand` | Jest configuration and repository test suites |
@@ -763,6 +763,18 @@ if (parsed) applyRouteDataPayload(parsed, createRouter([]), clientQueries);
 
 With a router, give data-owning routes a stable `queryKey` and pass the same client to the router. The loader is then deduplicated and can reuse hydrated data on the client; set `queryOptions.staleTime` or `queryOptions.revalidate` according to the freshness policy of that resource, and use `queryOptions.tags` for shared invalidation. For routes that do not use `QueryClient`, a trusted SSR request may call `router.dehydrate()` after the committed navigation and pass the versioned snapshot through the same validated route-data transport to a fresh client router with `router.hydrate(snapshot)`. The snapshot is reused only when `fullPath` and matched route paths agree, and only for the next matching `start()` call. Route guards and loaders can use `RouteContext.signal`, which is aborted when a newer navigation supersedes the current one or the router stops.
 
+For static generation, use `prerenderRoutes()` with an application-selected finite list of concrete paths. It renders sequentially with an abort signal and can write `/index.html` plus `<path>/index.html` records through the Vite plugin’s opt-in `fileRoutes.prerender` configuration. The application still supplies dynamic paths, authorization, data loading, layout composition, and deployment upload behavior; OneKit does not infer or expose every dynamic route automatically.
+
+```ts
+import { prerenderRoutes, renderToString, h } from "onekit-js";
+
+await prerenderRoutes({
+  paths: ["/", "/about"],
+  render: ({ path }) => renderToString(h("main", {}, path)),
+  onPage: page => writeStaticFile(page.path, page.html),
+});
+```
+
 ```ts
 const queries = createQueryClient();
 const router = createRouter([
@@ -789,7 +801,7 @@ if (isServerRuntime()) {
 }
 ```
 
-See the [V3 Usage Guide](docs/V3_USAGE.md), [SSR route-data guide](docs/V3_SSR_ROUTE_DATA.md), [Migration Guide](MIGRATION_GUIDE.md), and [V3 Release Notes](docs/V3_RELEASE_NOTES.md) for streaming examples, typed loader contracts, and advanced SSR guidance.
+See the [V3 Usage Guide](docs/V3_USAGE.md), [SSR route-data guide](docs/V3_SSR_ROUTE_DATA.md), [prerender/SSG guide](docs/V3_PRERENDER_SSG.md), [Migration Guide](MIGRATION_GUIDE.md), and [V3 Release Notes](docs/V3_RELEASE_NOTES.md) for streaming examples, typed loader contracts, and advanced SSR guidance.
 
 ## Metadata, SEO, and document head
 

@@ -440,6 +440,20 @@ const routePath: FileRoutePath = '/users/:id';
 const routeParams: FileRouteParams<typeof routePath> = { id: 'u-1' };
 ```
 
+The generated declaration module also maps each concrete path to its discovered route module. When a page exports a typed `route.loader` and a typed default component, use `FileRouteLoaderData<Path>` and `FileRouteComponentProps<Path>` to keep data and props aligned:
+
+```ts
+import type {
+  FileRouteComponentProps,
+  FileRouteLoaderData,
+} from 'virtual:onekit/routes.d.ts';
+
+type ReportData = FileRouteLoaderData<'/reports/:id'>;
+type ReportProps = FileRouteComponentProps<'/reports/:id'>;
+```
+
+These helpers infer only statically declared module types. They do not inspect runtime-loaded components, validate arbitrary runtime props, or replace application-level schemas.
+
 For applications that want directory-scoped infrastructure, pass the eager module map to `composeFileRouteInfrastructure()`. It returns page routes with root-to-leaf layout values and middleware values, but does not inject them into Router navigation or select a rendering strategy:
 
 ```ts

@@ -68,6 +68,14 @@ export type TypedRoute<Path extends string, Data = unknown, AppContext = unknown
 
 export type RouteDataFor<R extends Route> = R extends Route<RouteParams, infer Data, unknown> ? Data : unknown;
 export type RouteContextFor<Path extends string, AppContext = unknown> = import('./router').RouteContext<RouteParamsFor<Path>, AppContext>;
+export type FileRouteLoaderDataFor<Module> = Module extends { route?: { loader?: infer Loader } }
+  ? Loader extends (...args: never[]) => infer Result ? Awaited<Result> : unknown
+  : Module extends { loader?: infer Loader }
+    ? Loader extends (...args: never[]) => infer Result ? Awaited<Result> : unknown
+    : unknown;
+export type FileRouteComponentPropsFor<Module> = Module extends { default?: infer Component }
+  ? Component extends (props: infer Props) => unknown ? Props : unknown
+  : unknown;
 
 type LoaderDataForDefinition<Definition> = Definition extends { loader?: infer Loader }
   ? Loader extends (...args: never[]) => infer Result ? Awaited<Result> : unknown

@@ -1,6 +1,7 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { createElement } from '../src/modules/vdom';
 import { oneKitVitePlugin } from '../src/vite-plugin';
 
 describe('Vite plugin production contract', () => {
@@ -28,6 +29,34 @@ describe('Vite plugin production contract', () => {
     expect(generated?.code).toContain('export default routes');
     expect(generatedTypes?.code).toContain('export type FileRoutePath = "/" | "/docs/*?"');
     expect(generatedTypes?.code).toContain('export type FileRouteParams');
+    expect(generatedTypes?.code).toContain('export type FileRouteModuleFor');
+    expect(generatedTypes?.code).toContain('export type FileRouteLoaderData');
+    expect(generatedTypes?.code).toContain('export type FileRouteComponentProps');
+  });
+
+  it('prerenders application-selected paths through the build hook', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'onekit-prerender-'));
+    mkdirSync(join(root, 'src/app'), { recursive: true });
+    writeFileSync(join(root, 'src/app/page.tsx'), 'export default function Home() { return null; }');
+    const outputDir = join(root, 'dist');
+    const completed: string[] = [];
+    const plugin = oneKitVitePlugin({
+      fileRoutes: {
+        root: '/src/app',
+        prerender: {
+          paths: ['/about', '/'],
+          outputDir,
+          render: ({ path }) => createElement('main', {}, path),
+          onPage: page => completed.push(page.path),
+        },
+      },
+    });
+    plugin.configResolved?.({ root });
+    await plugin.closeBundle?.();
+
+    expect(completed).toEqual(['/', '/about']);
+    expect(readFileSync(join(outputDir, 'index.html'), 'utf8')).toBe('<main>/</main>');
+    expect(readFileSync(join(outputDir, 'about/index.html'), 'utf8')).toBe('<main>/about</main>');
   });
 
   it('rejects duplicate normalized file-route paths and exports explicit associations', () => {

@@ -1,8 +1,20 @@
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, relative, resolve as resolvePath } from 'node:path';
 import * as typescript from 'typescript';
 import { compileOkjs } from './okjs';
 import { createFileRouteAssociations, createFileRouteManifest, findFileRouteConflicts } from './modules/file-routes';
+import { prerenderRoutes, type PrerenderPaths, type PrerenderRenderContext, type PrerenderValue, type PrerenderedPage } from './modules/prerender';
+
+export interface OneKitFileRoutePrerenderOptions {
+  /** Concrete URL paths or an application-owned build-time path factory. */
+  paths: PrerenderPaths;
+  /** Application-owned path renderer; loaders and authorization remain explicit. */
+  render: (context: PrerenderRenderContext) => PrerenderValue | Promise<PrerenderValue>;
+  /** Optional output directory for `<path>/index.html` files. */
+  outputDir?: string;
+  /** Optional callback for upload, manifest, or custom output handling. */
+  onPage?: (page: PrerenderedPage) => void | Promise<void>;
+}
 
 export interface OneKitFileRoutesOptions {
   /** Project-relative route directory, for example `/src/app` or `src/pages`. */
@@ -19,6 +31,8 @@ export interface OneKitFileRoutesOptions {
   typesVirtualModuleId?: string;
   /** Optional build-time callback for explicitly handling the generated manifest. */
   onManifest?: (manifest: ReturnType<typeof createFileRouteManifest>) => void;
+  /** Optional build-time prerendering of application-selected concrete paths. */
+  prerender?: OneKitFileRoutePrerenderOptions;
 }
 
 export interface OneKitComponentBoundaryOptions {
@@ -54,6 +68,7 @@ export interface OneKitVitePlugin {
   configResolved?: (config: { root: string }) => void;
   moduleParsed?: (module: OneKitModuleInfo) => void;
   buildEnd?: () => void;
+  closeBundle?: () => void | Promise<void>;
   handleHotUpdate?: (context: { file: string; modules: unknown[]; server: { ws: { send: (message: unknown) => void } } }) => unknown[];
 }
 
@@ -120,6 +135,15 @@ function extensionPattern(extensions: readonly string[] | undefined): RegExp {
   return new RegExp(`\\.(?:${values.join('|')})$`, 'i');
 }
 
+function prerenderOutputFile(outputDir: string, path: string): string {
+  const pathname = path.split(/[?#]/, 1)[0] || '/';
+  const segments = pathname.split('/').filter(Boolean);
+  if (segments.some(segment => segment === '.' || segment === '..' || segment.includes('\\') || segment.includes('\0'))) {
+    throw new TypeError(`Unsafe prerender output path: ${path}`);
+  }
+  return resolvePath(outputDir, ...segments, 'index.html');
+}
+
 function generateFileRouteModule(
   files: readonly string[],
   options: OneKitFileRoutesOptions,
@@ -153,10 +177,19 @@ function generateFileRouteTypes(manifest: ReturnType<typeof createFileRouteManif
   const routePathUnion = manifest.routes.length
     ? manifest.routes.map(entry => JSON.stringify(entry.path)).join(' | ')
     : 'never';
-  return `import type { FileRouteAssociation, FileRouteManifest, FileRouteManifestEntry, RouteParamsFor } from 'onekit-js';
+  const routeImports = manifest.routes
+    .map((entry, index) => `import type * as __route${index} from ${JSON.stringify(entry.file)};`)
+    .join('\n');
+  const routeModuleMap = manifest.routes.length
+    ? `${manifest.routes.map((entry, index) => `Path extends ${JSON.stringify(entry.path)} ? typeof __route${index}`).join(' : ')} : never`
+    : 'never';
+  return `${routeImports}\nimport type { FileRouteAssociation, FileRouteComponentPropsFor, FileRouteLoaderDataFor, FileRouteManifest, FileRouteManifestEntry, RouteParamsFor } from 'onekit-js';
 import type { Route } from 'onekit-js/router';
 export type FileRoutePath = ${routePathUnion};
 export type FileRouteParams<Path extends FileRoutePath> = RouteParamsFor<Path>;
+export type FileRouteModuleFor<Path extends FileRoutePath> = ${routeModuleMap};
+export type FileRouteLoaderData<Path extends FileRoutePath> = FileRouteLoaderDataFor<FileRouteModuleFor<Path>>;
+export type FileRouteComponentProps<Path extends FileRoutePath> = FileRouteComponentPropsFor<FileRouteModuleFor<Path>>;
 export declare const fileRouteManifest: FileRouteManifest;
 export declare const fileRouteEntries: readonly FileRouteManifestEntry[];
 export declare const fileRoutePaths: readonly FileRoutePath[];
@@ -266,6 +299,34 @@ export function oneKitVitePlugin(options: OneKitVitePluginOptions = {}): OneKitV
           }
         }
       }
+    },
+    async closeBundle() {
+      const configured = options.fileRoutes;
+      if (!configured?.prerender) return;
+      const root = configured.root.startsWith('/') ? resolvePath(projectRoot, `.${configured.root}`) : resolvePath(projectRoot, configured.root);
+      const files = discoverFiles(root, configured.include ?? extensionPattern(configured.extensions));
+      const manifest = createFileRouteManifest(files.map(file => projectSourcePath(file, projectRoot)), {
+        root: manifestRoot(configured.root),
+        includeInfrastructure: configured.includeInfrastructure,
+      });
+      const outputDir = configured.prerender.outputDir
+        ? (configured.prerender.outputDir.startsWith('/')
+          ? resolvePath(configured.prerender.outputDir)
+          : resolvePath(projectRoot, configured.prerender.outputDir))
+        : undefined;
+      await prerenderRoutes({
+        paths: configured.prerender.paths,
+        manifest,
+        render: configured.prerender.render,
+        onPage: async page => {
+          if (outputDir) {
+            const outputFile = prerenderOutputFile(outputDir, page.path);
+            mkdirSync(dirname(outputFile), { recursive: true });
+            writeFileSync(outputFile, page.html, 'utf8');
+          }
+          await configured.prerender?.onPage?.(page);
+        },
+      });
     },
     handleHotUpdate({ file, modules, server }) {
       if (!include.test(file) || exclude.test(file)) return modules;

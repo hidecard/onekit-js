@@ -1,4 +1,15 @@
 import { createFileRouteManifest } from './modules/file-routes';
+import { type PrerenderPaths, type PrerenderRenderContext, type PrerenderValue, type PrerenderedPage } from './modules/prerender';
+export interface OneKitFileRoutePrerenderOptions {
+    /** Concrete URL paths or an application-owned build-time path factory. */
+    paths: PrerenderPaths;
+    /** Application-owned path renderer; loaders and authorization remain explicit. */
+    render: (context: PrerenderRenderContext) => PrerenderValue | Promise<PrerenderValue>;
+    /** Optional output directory for `<path>/index.html` files. */
+    outputDir?: string;
+    /** Optional callback for upload, manifest, or custom output handling. */
+    onPage?: (page: PrerenderedPage) => void | Promise<void>;
+}
 export interface OneKitFileRoutesOptions {
     /** Project-relative route directory, for example `/src/app` or `src/pages`. */
     root: string;
@@ -14,6 +25,8 @@ export interface OneKitFileRoutesOptions {
     typesVirtualModuleId?: string;
     /** Optional build-time callback for explicitly handling the generated manifest. */
     onManifest?: (manifest: ReturnType<typeof createFileRouteManifest>) => void;
+    /** Optional build-time prerendering of application-selected concrete paths. */
+    prerender?: OneKitFileRoutePrerenderOptions;
 }
 export interface OneKitComponentBoundaryOptions {
     /** Throw on client-to-server transitive static imports during the build. Defaults to true. */
@@ -53,6 +66,7 @@ export interface OneKitVitePlugin {
     }) => void;
     moduleParsed?: (module: OneKitModuleInfo) => void;
     buildEnd?: () => void;
+    closeBundle?: () => void | Promise<void>;
     handleHotUpdate?: (context: {
         file: string;
         modules: unknown[];

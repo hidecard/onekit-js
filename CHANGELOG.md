@@ -59,6 +59,9 @@ The V3 branch continues production hardening after `3.1.19` without changing the
 - Add shared QueryClient cache tags, `revalidate` freshness aliases, tag invalidation/revalidation, tag-preserving dehydration, and tag-only cross-tab invalidation messages.
 - Extend the Vite file-route plugin with configurable extensions, deterministic duplicate literal/ambiguous dynamic-path diagnostics, generated route entry/path metadata, a declaration-only `FileRoutePath`/`FileRouteParams` virtual module, explicit layout/middleware associations, and relative-root normalization.
 - Add `composeFileRouteInfrastructure()` for application-owned resolution of page routes with ordered directory-scoped layouts and middleware without silently mutating Router behavior.
+- Add `prerenderRoutes()` for deterministic sequential rendering of application-selected concrete paths with abort handling, duplicate removal, VNode/RenderResult normalization, traversal-safe output behavior, and page callbacks.
+- Add opt-in Vite `fileRoutes.prerender` integration with safe `<path>/index.html` output and a dedicated `onekit-js/prerender` export.
+- Add generated `FileRouteModuleFor<Path>`, `FileRouteLoaderData<Path>`, and `FileRouteComponentProps<Path>` declarations mapped to discovered route modules.
 - Strengthen the opt-in component boundary validator with `server-only`/`client-only` marker imports and transitive static graph checks while preserving server-to-client composition.
 - Correct the GitHub Actions Edge matrix to target the configured Playwright `edge` project, install the `msedge` channel, and record cache-backed per-browser performance history.
 
@@ -70,7 +73,7 @@ The V3 branch continues production hardening after `3.1.19` without changing the
 - Make the shortest backend learning path the default README example, while retaining the lower-level API for advanced applications.
 - Document the Node HTTP adapter, security middleware, typed database adapter, session/token providers, `context.body<T>()`, and `app.resource()` examples while keeping provider verification, distributed stores, and decorator-module boundaries explicit.
 - Document typed server errors, safe error serialization, resilient error hooks, the optional full-stack CLI starter workflow, server-data/cache boundaries, functional module/controller organization, optional SQLite/PostgreSQL/MySQL database adapters, the document-native MongoDB adapter boundary, the optional Redis rate-limit store boundary for Node deployments, and SSR adapter-level boundary scheduling with its cancellation/back-pressure responsibilities.
-- Document the public API stability policy, ESM/CJS export contract, browser performance budgets, lifecycle heap methodology, cache-backed trend warnings, file-route conventions, generated declaration-only route types, explicit infrastructure composition, the experimental Vite virtual route/component-boundary plugin, the secure SSR route-data envelope and shared cache-tag policy, the React/Next.js/Express parity boundaries, and the reproducible CI commands in the README and dedicated guides.
+- Document the public API stability policy, ESM/CJS export contract, browser performance budgets, lifecycle heap methodology, cache-backed trend warnings, file-route conventions, generated route/data/props types, explicit infrastructure composition, prerender/SSG constraints, the experimental Vite virtual route/component-boundary plugin, the secure SSR route-data envelope and shared cache-tag policy, the React/Next.js/Express parity boundaries, and the reproducible CI commands in the README and dedicated guides.
 
 ### Validation
 

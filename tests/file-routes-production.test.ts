@@ -7,6 +7,8 @@ import {
   filePathToRoutePath,
   findFileRouteConflicts,
   routeHref,
+  type FileRouteComponentPropsFor,
+  type FileRouteLoaderDataFor,
   type RouteParamsFor,
 } from '../src';
 
@@ -93,6 +95,17 @@ describe('file route helpers', () => {
       layouts: ['RootLayout', 'AccountLayout'],
       middleware: ['AccountMiddleware'],
     });
+  });
+
+  it('extracts loader result and component props from typed route modules', () => {
+    type Module = {
+      default: (props: { id: string; compact?: boolean }) => unknown;
+      route: { loader: () => Promise<{ id: string; total: number }> };
+    };
+    const data: FileRouteLoaderDataFor<Module> = { id: 'r-1', total: 2 };
+    const props: FileRouteComponentPropsFor<Module> = { id: 'r-1', compact: true };
+    expect(data.total).toBe(2);
+    expect(props.id).toBe('r-1');
   });
 
   it('reports ambiguous dynamic route patterns as conflicts', () => {

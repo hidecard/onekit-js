@@ -586,3 +586,13 @@
 - [x] Add `composeFileRouteInfrastructure()` with deterministic root-to-leaf layout and middleware association resolution while keeping runtime injection application-owned.
 - [x] Add regression coverage for declaration-module generation, semantic dynamic conflicts, root-layout association, and page/infrastructure separation.
 - [ ] Decide whether generated route declarations should later include loader-result inference and route-specific component props; keep that work separate from this path-typing increment.
+
+## Continuation increment — 2026-08-27 (prerender and generated typing)
+
+- [x] Add `prerenderRoutes()` with deterministic concrete-path ordering, deduplication, abort handling, VNode/RenderResult normalization, and traversal-safe path validation.
+- [x] Add opt-in Vite `fileRoutes.prerender` output with `<path>/index.html` generation and application-owned `onPage` handling.
+- [x] Add the `onekit-js/prerender` package subpath and regenerate its declaration/runtime coverage through the existing root bundle.
+- [x] Add generated `FileRouteModuleFor<Path>`, `FileRouteLoaderData<Path>`, and `FileRouteComponentProps<Path>` declarations mapped to discovered route modules.
+- [x] Add tests for prerender ordering, abort behavior, SSR context preservation, output files, traversal rejection, and generated type inference.
+- [ ] Add ISR/background regeneration, cache-aware invalidation, asset manifest rewriting, sitemap generation, and official deployment adapters as separate design work.
+- [ ] Extend generated types to infer route-specific loader context, component props validation, and schema-backed data beyond statically declared module exports.

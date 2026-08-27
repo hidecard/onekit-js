@@ -19,6 +19,11 @@ export default defineConfig({
       root: '/src/app',
       extensions: ['tsx', 'ts'],
       includeInfrastructure: true,
+      prerender: {
+        paths: ['/', '/about'],
+        outputDir: 'dist-static',
+        render: ({ path }) => renderPath(path),
+      },
     },
     componentBoundary: {
       strict: true,
@@ -45,7 +50,7 @@ import { createRouter } from 'onekit-js/router';
 const router = createRouter(routes, { mode: 'history' });
 ```
 
-The generated module imports discovered route modules and maps their default export to `component`. It also exports `fileRouteEntries`, `fileRoutePaths`, and `fileRouteAssociations` for explicit integration code. The declaration-only companion exports `FileRoutePath` as a literal union and `FileRouteParams<Path>` for parameter inference:
+The generated module imports discovered route modules and maps their default export to `component`. It also exports `fileRouteEntries`, `fileRoutePaths`, and `fileRouteAssociations` for explicit integration code. The declaration-only companion exports `FileRoutePath` as a literal union and `FileRouteParams<Path>` for parameter inference. It also maps each generated path to its module so `FileRouteLoaderData<Path>` and `FileRouteComponentProps<Path>` can infer statically declared loader results and default-component props:
 
 ```ts
 import type { FileRouteParams, FileRoutePath } from 'virtual:onekit/routes.d.ts';
@@ -81,7 +86,7 @@ The manifest exposes `routes`, `layouts`, and `middleware` entries. Duplicate pa
 | `layout.tsx` or `_layout.tsx` | Layout metadata entry for the containing directory when infrastructure is enabled |
 | `middleware.ts` or `_middleware.ts` | Middleware metadata entry for the containing directory when infrastructure is enabled |
 
-The plugin performs discovery during Vite’s `load` hook and does not access the filesystem in the browser bundle. The generated manifest is deterministic for a fixed set of project files.
+The plugin performs discovery during Vite’s `load` hook and does not access the filesystem in the browser bundle. The generated manifest is deterministic for a fixed set of project files. When `fileRoutes.prerender` is configured, the build `closeBundle` hook renders only the application-selected concrete paths, writes safe `<path>/index.html` files when `outputDir` is provided, and invokes the optional `onPage` callback. Dynamic route values, authorization, data fetching, and deployment upload policy remain application-owned.
 
 ## Server/Client directives
 

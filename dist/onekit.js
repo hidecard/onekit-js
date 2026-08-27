@@ -3601,8 +3601,8 @@
                     ? `${parentPath.replace(/\/$/, '')}/${route.path.replace(/^\//, '')}`
                     : route.path;
                 const entry = {
-                    path: normalizePath(path),
-                    ...(parentPath ? { parentPath: normalizePath(parentPath) } : {}),
+                    path: normalizePath$1(path),
+                    ...(parentPath ? { parentPath: normalizePath$1(parentPath) } : {}),
                     hasLoader: typeof route.loader === 'function',
                     hasLazyComponent: typeof route.lazy === 'function',
                     ...(route.queryKey !== undefined && typeof route.queryKey !== 'function' ? { queryKey: route.queryKey } : {}),
@@ -3616,7 +3616,7 @@
         visit(routes);
         return { version: 1, routes: entries };
     }
-    function normalizePath(path) {
+    function normalizePath$1(path) {
         const withoutHash = path.split('#')[0];
         const withoutQuery = withoutHash.split('?')[0] || '/';
         const normalized = withoutQuery.replace(/\\+/g, '/').replace(/\/+/g, '/');
@@ -3630,7 +3630,7 @@
         const beforeHash = hashIndex >= 0 ? raw.slice(0, hashIndex) : raw;
         const hash = hashIndex >= 0 ? raw.slice(hashIndex) : '';
         const queryIndex = beforeHash.indexOf('?');
-        const path = normalizePath(queryIndex >= 0 ? beforeHash.slice(0, queryIndex) : beforeHash);
+        const path = normalizePath$1(queryIndex >= 0 ? beforeHash.slice(0, queryIndex) : beforeHash);
         const query = {};
         if (queryIndex >= 0) {
             const params = new URLSearchParams(beforeHash.slice(queryIndex + 1));
@@ -3646,7 +3646,7 @@
     }
     function compilePath$1(pattern) {
         const keys = [];
-        const segments = normalizePath(pattern).split('/').filter(Boolean);
+        const segments = normalizePath$1(pattern).split('/').filter(Boolean);
         const source = segments.map(segment => {
             if (segment.startsWith(':')) {
                 keys.push(segment.slice(1).replace(/\\?$/, ''));
@@ -3684,8 +3684,8 @@
         }, {});
     }
     function matchRoutePrefix(route, location) {
-        const patternSegments = normalizePath(route.path).split('/').filter(Boolean);
-        const locationSegments = normalizePath(location.path).split('/').filter(Boolean);
+        const patternSegments = normalizePath$1(route.path).split('/').filter(Boolean);
+        const locationSegments = normalizePath$1(location.path).split('/').filter(Boolean);
         if (locationSegments.length < patternSegments.length)
             return null;
         const prefixLocation = { ...location, path: `/${locationSegments.slice(0, patternSegments.length).join('/')}` };
@@ -3922,7 +3922,7 @@
                     const prefixParams = route.children ? matchRoutePrefix(routeWithFullPath, location) : null;
                     if (prefixParams && route.children) {
                         const parentLocation = { ...location, params: { ...prefixParams } };
-                        const childMatch = search(route.children, normalizePath(fullPattern), [
+                        const childMatch = search(route.children, normalizePath$1(fullPattern), [
                             ...parentMatches,
                             { route, location: parentLocation },
                         ]);
@@ -4016,14 +4016,14 @@
         }
         applyBase(path) {
             const rawBase = this.options.base?.trim() ?? '';
-            const base = rawBase ? normalizePath(rawBase) : '';
+            const base = rawBase ? normalizePath$1(rawBase) : '';
             if (base === '/' || path === base || path.startsWith(`${base}/`))
                 return path;
             return `${base}/${path.replace(/^\//, '')}`;
         }
         removeBase(path) {
             const rawBase = this.options.base?.trim() ?? '';
-            const base = rawBase ? normalizePath(rawBase) : '';
+            const base = rawBase ? normalizePath$1(rawBase) : '';
             if (!base || base === '/')
                 return path;
             if (path === base)
@@ -6305,6 +6305,67 @@ ${bodyContent}
         return parsed;
     }
 
+    function abortError(signal) {
+        if (signal.reason !== undefined)
+            return signal.reason;
+        if (typeof DOMException === 'function')
+            return new DOMException('The prerender operation was aborted', 'AbortError');
+        return new Error('The prerender operation was aborted');
+    }
+    function normalizePath(path) {
+        if (typeof path !== 'string' || !path.startsWith('/') || path.includes('\\') || path.includes('\0')) {
+            throw new TypeError(`Prerender paths must be absolute URL paths: ${String(path)}`);
+        }
+        const pathname = path.split(/[?#]/, 1)[0] || '/';
+        if (pathname.split('/').some(segment => segment === '..' || segment === '.')) {
+            throw new TypeError(`Prerender paths cannot contain traversal segments: ${path}`);
+        }
+        return path;
+    }
+    function isRenderResult(value) {
+        return Boolean(value && typeof value === 'object' && 'html' in value && typeof value.html === 'string' && 'context' in value);
+    }
+    function normalizeRenderValue(value) {
+        if (typeof value === 'string')
+            return renderToString(value);
+        if (isRenderResult(value))
+            return value;
+        return renderToString(value);
+    }
+    /**
+     * Render a finite, application-selected set of concrete paths in deterministic order.
+     * The utility is sequential by design so applications control request/cache isolation.
+     */
+    async function prerenderRoutes(options) {
+        const controller = new AbortController();
+        const externalSignal = options.signal;
+        const abort = () => controller.abort(externalSignal?.reason);
+        if (externalSignal?.aborted)
+            abort();
+        else
+            externalSignal?.addEventListener('abort', abort, { once: true });
+        try {
+            const sourcePaths = typeof options.paths === 'function' ? await options.paths() : options.paths;
+            const paths = [...new Set(sourcePaths.map(normalizePath))].sort((left, right) => left.localeCompare(right));
+            const pages = [];
+            for (const path of paths) {
+                if (controller.signal.aborted)
+                    throw abortError(controller.signal);
+                const rendered = await options.render({ path, signal: controller.signal, manifest: options.manifest });
+                if (controller.signal.aborted)
+                    throw abortError(controller.signal);
+                const result = normalizeRenderValue(rendered);
+                const page = { path, html: result.html, context: result.context };
+                pages.push(page);
+                await options.onPage?.(page);
+            }
+            return pages;
+        }
+        finally {
+            externalSignal?.removeEventListener('abort', abort);
+        }
+    }
+
     /** Safe, typed application error for Fetch-compatible route handlers. */
     class ServerError extends Error {
         status;
@@ -7673,6 +7734,7 @@ return { count, ttl }
     exports.preloadModule = preloadModule;
     exports.preloadScript = preloadScript;
     exports.preloadStyle = preloadStyle;
+    exports.prerenderRoutes = prerenderRoutes;
     exports.put = put;
     exports.reactive = reactive;
     exports.recordDevToolsDependency = recordDevToolsDependency;
