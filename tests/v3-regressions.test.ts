@@ -1,4 +1,4 @@
-import { create, defineComponent, defineStore, mount, nextTick, register, renderToString } from '../src/index';
+import { create, createStoreRegistry, defineComponent, defineStore, mount, nextTick, register, renderToString, useStore } from '../src/index';
 import { compileTemplate } from '../src/modules/template';
 import { reactive } from '../src/modules/reactive';
 
@@ -51,6 +51,41 @@ describe('V3 regression coverage', () => {
 
     store.increment();
     expect(store.$state.count).toBe(1);
+  });
+
+  it('resets store shape and disposes the store from the registry', () => {
+    const id = `regression-store-lifecycle-${Date.now()}`;
+    const store = defineStore(id, () => ({ state: () => ({ count: 0 }) }));
+    const subscriber = jest.fn();
+    store.$subscribe(subscriber);
+    store.$patch(state => {
+      state.count = 2;
+      state.transient = true;
+    });
+    store.$reset();
+
+    expect(store.$state).toEqual({ count: 0 });
+    expect(subscriber).toHaveBeenLastCalledWith({ storeId: id, type: 'reset' }, { count: 0 });
+    store.$dispose();
+    expect(() => useStore(id)).toThrow(`Store \"${id}\" not found`);
+    store.$patch({ count: 3 });
+    expect(subscriber).toHaveBeenCalledTimes(2);
+  });
+
+  it('isolates stores created in separate registries', () => {
+    const first = createStoreRegistry();
+    const second = createStoreRegistry();
+    const id = `registry-isolation-${Date.now()}`;
+    const firstStore = first.defineStore(id, () => ({ state: () => ({ owner: 'first' }) }));
+    const secondStore = second.defineStore(id, () => ({ state: () => ({ owner: 'second' }) }));
+
+    expect(first.useStore(id)).toBe(firstStore);
+    expect(second.useStore(id)).toBe(secondStore);
+    expect(first.useStore(id).$state).toEqual({ owner: 'first' });
+    expect(second.useStore(id).$state).toEqual({ owner: 'second' });
+    expect(() => useStore(id)).toThrow(`Store \"${id}\" not found`);
+    first.dispose();
+    second.dispose();
   });
 
   it('supports framework ergonomic helpers', async () => {

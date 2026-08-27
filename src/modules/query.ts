@@ -34,6 +34,115 @@ export interface QueryStorage {
   removeItem?(key: string): void | Promise<void>;
 }
 
+export interface IndexedDBQueryStorageOptions {
+  databaseName?: string;
+  storeName?: string;
+  version?: number;
+}
+
+/**
+ * Create an optional IndexedDB-backed QueryStorage adapter.
+ *
+ * The adapter is safe to construct during SSR. When IndexedDB is unavailable,
+ * reads return null and writes are ignored so QueryClient persistence remains
+ * best-effort, matching the behavior of other storage adapters.
+ */
+export function createIndexedDBQueryStorage(options: IndexedDBQueryStorageOptions = {}): QueryStorage {
+  const databaseName = options.databaseName ?? 'onekit-query-cache';
+  const storeName = options.storeName ?? 'queries';
+  const version = options.version ?? 1;
+
+  const getIndexedDB = (): IDBFactory | undefined => {
+    if (typeof globalThis === 'undefined') return undefined;
+    return globalThis.indexedDB;
+  };
+
+  const openDatabase = (): Promise<IDBDatabase | undefined> => {
+    const indexedDB = getIndexedDB();
+    if (!indexedDB) return Promise.resolve(undefined);
+    return new Promise((resolve, reject) => {
+      let request: IDBOpenDBRequest;
+      try {
+        request = indexedDB.open(databaseName, version);
+      } catch (error) {
+        reject(error);
+        return;
+      }
+      request.onupgradeneeded = () => {
+        if (!request.result.objectStoreNames.contains(storeName)) {
+          request.result.createObjectStore(storeName);
+        }
+      };
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error ?? new Error('Unable to open IndexedDB'));
+      request.onblocked = () => reject(new Error('IndexedDB upgrade is blocked'));
+    });
+  };
+
+  const run = <T>(mode: IDBTransactionMode, operation: (store: IDBObjectStore) => IDBRequest<T>): Promise<T | undefined> =>
+    openDatabase().then(database => {
+      if (!database) return undefined;
+      return new Promise<T | undefined>((resolve, reject) => {
+        let transaction: IDBTransaction;
+        let request: IDBRequest<T>;
+        try {
+          transaction = database.transaction(storeName, mode);
+          request = operation(transaction.objectStore(storeName));
+        } catch (error) {
+          database.close();
+          reject(error);
+          return;
+        }
+        let result: T | undefined;
+        let settled = false;
+        const fail = (error: unknown) => {
+          if (settled) return;
+          settled = true;
+          database.close();
+          reject(error);
+        };
+        request.onsuccess = () => { result = request.result; };
+        request.onerror = () => fail(request.error ?? new Error('IndexedDB request failed'));
+        transaction.onerror = () => fail(transaction.error ?? new Error('IndexedDB transaction failed'));
+        transaction.onabort = () => fail(transaction.error ?? new Error('IndexedDB transaction aborted'));
+        transaction.oncomplete = () => {
+          if (settled) return;
+          settled = true;
+          database.close();
+          resolve(result);
+        };
+      });
+    });
+
+  return {
+    getItem: async (key: string) => (await run<string | null>('readonly', store => store.get(key))) ?? null,
+    setItem: async (key: string, value: string) => {
+      await run<IDBValidKey>('readwrite', store => store.put(value, key));
+    },
+    removeItem: async (key: string) => {
+      await run<undefined>('readwrite', store => store.delete(key));
+    },
+  };
+}
+
+export interface QueryBroadcastChannel {
+  postMessage(message: unknown): void;
+  addEventListener(type: 'message', listener: (event: MessageEvent<unknown>) => void): void;
+  removeEventListener(type: 'message', listener: (event: MessageEvent<unknown>) => void): void;
+  close?(): void;
+}
+
+export interface QueryBroadcastSyncOptions {
+  channelName?: string;
+  channel?: QueryBroadcastChannel;
+}
+
+export interface QueryBroadcastSync {
+  readonly available: boolean;
+  publishInvalidate(key?: QueryKey): void;
+  dispose(): void;
+}
+
 export interface QueryPersistenceOptions {
   storage: QueryStorage;
   key?: string;
@@ -104,6 +213,7 @@ export class QueryClient {
   private readonly options: QueryClientOptions;
   private readonly cleanupListeners: Array<() => void> = [];
   private persistTimer?: ReturnType<typeof setTimeout>;
+  private disposed = false;
 
   constructor(options: QueryClientOptions = {}) {
     this.options = options;
@@ -299,10 +409,15 @@ export class QueryClient {
     await Promise.allSettled(jobs);
   }
 
-  /** Remove browser event listeners and pending persistence work. */
+  /** Remove browser event listeners and flush the last pending persistence update. */
   dispose(): void {
+    this.disposed = true;
     for (const cleanup of this.cleanupListeners.splice(0)) cleanup();
-    if (this.persistTimer) clearTimeout(this.persistTimer);
+    if (this.persistTimer) {
+      clearTimeout(this.persistTimer);
+      this.persistTimer = undefined;
+      void this.persistNow();
+    }
   }
 
   /** Export settled query states for a trusted SSR-to-client handoff. */
@@ -346,7 +461,7 @@ export class QueryClient {
     try {
       const value = persistence.storage.getItem(persistence.key ?? 'onekit-query-cache');
       Promise.resolve(value).then(serialized => {
-        if (!serialized) return;
+        if (!serialized || this.disposed) return;
         const snapshot = JSON.parse(serialized) as DehydratedQueryState;
         if (persistence.maxAge !== undefined) {
           const now = Date.now();
@@ -360,23 +475,75 @@ export class QueryClient {
   }
 
   private schedulePersist(): void {
-    if (!this.options.persistence) return;
+    if (!this.options.persistence || this.disposed) return;
     if (this.persistTimer) return;
     this.persistTimer = setTimeout(() => {
       this.persistTimer = undefined;
-      const persistence = this.options.persistence!;
-      try {
-        const serialized = JSON.stringify(this.dehydrate());
-        void Promise.resolve(persistence.storage.setItem(persistence.key ?? 'onekit-query-cache', serialized)).catch(() => undefined);
-      } catch {
-        // Non-serializable query data is ignored rather than breaking rendering.
-      }
+      void this.persistNow();
     }, 0);
+  }
+
+  private async persistNow(): Promise<void> {
+    const persistence = this.options.persistence;
+    if (!persistence) return;
+    try {
+      const serialized = JSON.stringify(this.dehydrate());
+      await persistence.storage.setItem(persistence.key ?? 'onekit-query-cache', serialized);
+    } catch {
+      // Non-serializable query data and storage failures are ignored rather than breaking rendering.
+    }
   }
 
   private notify<T>(record: QueryRecord<T>): void {
     for (const listener of record.listeners) listener(record.state);
   }
+}
+
+/**
+ * Connect a QueryClient to an application-controlled cross-tab invalidation channel.
+ *
+ * Only normalized query keys are broadcast; cached data and errors never leave the
+ * current tab. The helper is safe when BroadcastChannel is unavailable and accepts
+ * a compatible custom channel for tests or other runtimes.
+ */
+export function createQueryBroadcastSync(client: QueryClient, options: QueryBroadcastSyncOptions = {}): QueryBroadcastSync {
+  const channel = options.channel ?? (
+    typeof globalThis !== 'undefined' && typeof globalThis.BroadcastChannel === 'function'
+      ? new globalThis.BroadcastChannel(options.channelName ?? 'onekit-query-sync')
+      : undefined
+  );
+  const ownedChannel = channel !== undefined && options.channel === undefined;
+  const source = `onekit-query-${Math.random().toString(36).slice(2)}`;
+  const onMessage = (event: MessageEvent<unknown>) => {
+    const message = event.data;
+    if (!message || typeof message !== 'object') return;
+    const payload = message as { source?: unknown; type?: unknown; key?: unknown };
+    if (payload.source === source || payload.type !== 'invalidate') return;
+    if (payload.key !== undefined && typeof payload.key !== 'string') return;
+    client.invalidate(payload.key as string | undefined);
+  };
+
+  channel?.addEventListener('message', onMessage);
+
+  return {
+    available: channel !== undefined,
+    publishInvalidate(key?: QueryKey): void {
+      if (!channel) return;
+      try {
+        channel.postMessage({
+          source,
+          type: 'invalidate',
+          key: key === undefined ? undefined : normalizeKey(key),
+        });
+      } catch {
+        // Broadcast failures are isolated from application state and rendering.
+      }
+    },
+    dispose(): void {
+      channel?.removeEventListener('message', onMessage);
+      if (ownedChannel) channel?.close?.();
+    },
+  };
 }
 
 export function createQueryClient(options: QueryClientOptions = {}): QueryClient {

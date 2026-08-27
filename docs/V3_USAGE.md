@@ -295,7 +295,30 @@ const unsubscribe = appRouter.subscribe((to, from) => {
 unsubscribe();
 ```
 
-The router resolves navigation and data but does not automatically render route components. Applications should subscribe to matches and connect them to their renderer or component layer. `router.prefetch(path)` runs applicable guards and the route loader without changing the current route, browser history, handlers, or subscribers; use it for hover/focus or viewport-based data warming. Stop a router with `router.stop()` when its application scope is destroyed.
+The router resolves navigation and data first. Applications can still subscribe to matches and connect them to any renderer, or use the optional `createRouterView()` helper to bind committed matches to the existing VDOM patcher. The helper owns only subscription, target patching, and disposal; the application still decides how a `MatchedRoute` becomes a VNode or text. `router.prefetch(path)` runs applicable guards and the route loader without changing the current route, browser history, handlers, or subscribers; use it for hover/focus or viewport-based data warming. Stop a router with `router.stop()` when its application scope is destroyed.
+
+```ts
+import { createElement, createRouter, createRouterView } from "onekit-js";
+
+const router = createRouter([
+  { path: "/", loader: () => ({ title: "Home" }) },
+  { path: "/settings" },
+], { mode: "history" });
+
+const view = createRouterView(router, {
+  target: document.querySelector("#app")!,
+  render: ({ route, data }) => createElement(
+    "main",
+    { "data-route": route.path },
+    typeof data === "object" && data !== null && "title" in data
+      ? String(data.title)
+      : route.path,
+  ),
+});
+
+await router.start();
+// Call view.dispose() and router.stop() with the application scope.
+```
 
 Route loaders can use the same `QueryClient` as the rest of the application. Add `queryKey` and optional `queryOptions` to a route and pass `queryClient` to the router; prefetched, hydrated, and previously loaded data can then be reused according to the query freshness policy. A router-level `loadingBoundary` tracks the latest loader attempt, while `errorBoundary` can convert a loader failure into a controlled fallback:
 
@@ -351,7 +374,7 @@ const manifest = createRouteManifest(routes);
 const href = routeHref('/users/:id', { id: 42 });
 ```
 
-`index.tsx` and `page.tsx` become the parent path, `[id].tsx` becomes `:id`, `[...slug].tsx` becomes `*`, and files beginning with `_` are ignored by default. Use `defineRoute('/reports/:id', options)` when a route literal should retain its TypeScript path type while remaining compatible with the normal router definition:
+`index.tsx` and `page.tsx` become the parent path, `[id].tsx` becomes `:id`, `[...slug].tsx` becomes `*`, `[[...slug]].tsx` becomes the optional catch-all `*?`, route-group directories such as `(marketing)` are omitted from the URL, and files beginning with `_` are ignored by default. Use `defineRoute('/reports/:id', options)` when a route literal should retain its TypeScript path type while remaining compatible with the normal router definition:
 
 ```ts
 const reports = defineRoute('/reports/:id', {
@@ -360,9 +383,9 @@ const reports = defineRoute('/reports/:id', {
 });
 ```
 
-The helper only discovers and normalizes route definitions; it does not import modules itself, enforce authorization, or replace a framework-specific build plugin. This keeps the API compatible with Vite, Rollup, Webpack, and custom code generators.
+The helper only discovers and normalizes route definitions; it does not import modules itself, enforce authorization, or replace a framework-specific build plugin. Optional catch-all routes match both the parent path and deeper paths, and `routeHref('/docs/*?', {})` omits the optional segment. This keeps the API compatible with Vite, Rollup, Webpack, and custom code generators.
 
-Loader callbacks receive a typed `RouteContext`. For a route literal, `to.params` is derived from the path, and the awaited loader return value is retained by the typed route definition. `RouteLoaderData<typeof loader>` extracts the awaited result of an existing loader function, while `RouteContextFor<Path, AppContext>` gives service-heavy applications an explicit context contract:
+Loader callbacks receive a typed `RouteContext`. For a route literal, `to.params` is derived from the path, and the awaited loader return value is retained by the typed route definition. `RouteContext.signal` is aborted when a newer navigation supersedes the current one or when the router stops, so fetch-like loaders should pass it to cancellable work. `RouteLoaderData<typeof loader>` extracts the awaited result of an existing loader function, while `RouteContextFor<Path, AppContext>` gives service-heavy applications an explicit context contract:
 
 ```ts
 import {
@@ -412,25 +435,38 @@ The layout helper is metadata and composition information; it does not impose a 
 
 ### Stores
 
-Define a named store with `state`, actions, and optional getters according to the store definition used by the project. Retrieve it with `useStore`, inspect all stores with `getAllStores`, and remove it with `removeStore`.
+Define a named store with a `state()` factory, actions, and optional getters according to the store definition used by the project. Retrieve it with `useStore`, inspect all stores with `getAllStores`, and remove it with `removeStore`. Call `$reset()` to restore the initial state shape, or `$dispose()` when the store belongs to a disposable application scope. For SSR or concurrent requests, create a separate `createStoreRegistry()` per request so state and plugins do not cross request boundaries.
 
 ```ts
 import { defineStore, useStore } from "onekit-js";
 
 const counter = defineStore("counter", () => ({
-  state: { count: 0 },
+  state: () => ({ count: 0 }),
   actions: {
     increment() {
-      this.state.count += 1;
+      this.$state.count = Number(this.$state.count) + 1;
     },
   },
 }));
 
 const sameCounter = useStore<typeof counter>("counter");
 sameCounter.increment();
+sameCounter.$reset();
+// Use counter.$dispose() when this application scope is destroyed.
 ```
 
-If the application uses a definition object rather than a setup callback, pass the object directly to `defineStore` or `createStore`.
+If the application uses a definition object rather than a setup callback, pass the object directly to `defineStore` or `createStore`. A registry exposes the same operations with `registry.defineStore()`, `registry.useStore()`, `registry.addPlugin()`, and `registry.dispose()`:
+
+```ts
+import { createStoreRegistry } from "onekit-js";
+
+const requestStores = createStoreRegistry();
+const requestUser = requestStores.defineStore("request-user", () => ({
+  state: () => ({ id: null as string | null }),
+}));
+// Dispose the registry at the end of the request.
+requestStores.dispose();
+```
 
 ### Plugins and dependency injection
 
@@ -972,15 +1008,15 @@ await queries.mutate(
 );
 ```
 
-A client can persist settled query state and revalidate remembered loaders after browser focus or network reconnect. Persistence is best-effort: use a storage adapter appropriate for the application, avoid storing secrets, and create one client per SSR request. The adapter may be synchronous or asynchronous.
+A client can persist settled query state and revalidate remembered loaders after browser focus or network reconnect. Persistence is best-effort: use a storage adapter appropriate for the application, avoid storing secrets, and create one client per SSR request. The adapter may be synchronous or asynchronous. For browser caches that should not compete with the limited quota of Web Storage, OneKit also provides an optional IndexedDB adapter. It is safe to construct during SSR; on runtimes without IndexedDB, reads return `null` and writes become no-ops.
 
 ```ts
-import { createQueryClient } from "onekit-js";
+import { createIndexedDBQueryStorage, createQueryClient } from "onekit-js";
 
-const queryStorage = {
-  getItem: (key: string) => localStorage.getItem(key),
-  setItem: (key: string, value: string) => localStorage.setItem(key, value),
-};
+const queryStorage = createIndexedDBQueryStorage({
+  databaseName: "my-app-cache",
+  storeName: "query-state",
+});
 
 const queries = createQueryClient({
   persistence: {
@@ -998,7 +1034,23 @@ await queries.revalidate("manual");
 // Call queries.dispose() when the application scope is destroyed.
 ```
 
-`QueryClient` persistence serializes settled states through `dehydrate()` and restores them without executing loaders. Serialization failures are ignored so cache persistence cannot break application startup. Do not persist authentication tokens or other sensitive data in browser storage, and use an explicit server-safe storage adapter during SSR.
+`QueryClient` persistence serializes settled states through `dehydrate()` and restores them without executing loaders. Serialization failures are ignored so cache persistence cannot break application startup. The IndexedDB adapter stores each configured persistence key as one record in the selected object store and closes its database connection after each operation. Do not persist authentication tokens or other sensitive data in browser storage, and use an explicit server-safe storage adapter during SSR. Cross-tab synchronization is intentionally application-controlled. `createQueryBroadcastSync()` provides a small opt-in invalidation bridge: it broadcasts only the normalized query key, never cached data or errors, and safely becomes inactive when `BroadcastChannel` is unavailable. A compatible custom channel can be injected for tests or other runtimes.
+
+```ts
+import { createQueryBroadcastSync } from "onekit-js";
+
+const querySync = createQueryBroadcastSync(queries, {
+  channelName: "my-app-query-sync",
+});
+
+// In another tab, the matching query becomes stale without sharing its payload.
+querySync.publishInvalidate(["account"]);
+
+// Dispose together with the application scope.
+querySync.dispose();
+```
+
+Applications that need cross-tab data transfer, authenticated coordination, or custom conflict resolution should define those messages outside this helper and validate every received value.
 
 The `onekit-js/forms` entry point provides typed values, touched state, synchronous or asynchronous validation, guarded submit, reset, and subscriptions. Application-specific schema adapters can be layered on top without coupling the framework to a validation library.
 

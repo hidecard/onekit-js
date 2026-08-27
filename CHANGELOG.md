@@ -41,6 +41,18 @@ The V3 branch continues production hardening after `3.1.19` without changing the
 - Add a versioned public API stability matrix covering Stable, Experimental, and application-owned contracts across the root package and runtime subpaths.
 - Add `scripts/verify-api-contract.mjs` and `npm run verify:api-contract` to verify all advertised ESM/CJS runtime exports before publishing.
 - Add four-browser Playwright timing coverage for keyed reorders, DOM-heavy patches, SSR hydration, and slot-heavy hydration/update/reorder workloads with warning and hard budgets.
+- Add the optional SSR-safe `createIndexedDBQueryStorage()` adapter for browser query-cache persistence without coupling the framework to a storage library.
+- Add the opt-in `createQueryBroadcastSync()` bridge for application-controlled cross-tab invalidation; only normalized query keys are broadcast, never cached data or errors.
+- Add `createRouterView()` and `subscribeMatched()` for optional committed-route VDOM rendering with application-owned route-to-view mapping, not-found clearing, and disposal.
+- Fix repeated `Router.start()` calls to return the existing committed `MatchedRoute`, including resolved loader data and lazy components, without rerunning navigation work.
+- Fix store `$reset()` to remove keys that are absent from the initial state and add `$dispose()` for explicit registry and subscription cleanup.
+- Add `createStoreRegistry()` with isolated store maps, plugins, and disposal for SSR/concurrent-request boundaries without changing the existing global store helpers.
+- Add explicit `app.head()` and `app.options()` server helpers, with bodyless HEAD response finalization that preserves status and headers.
+- Return `405 Method Not Allowed` with an aggregated `Allow` header when a registered path receives an unsupported method.
+- Extend bundler-safe file routes with route groups, optional catch-all segments, optional dynamic URL generation, and matching coverage while keeping filesystem access outside the runtime.
+- Add versioned `Router.dehydrate()`/`Router.hydrate()` route-data snapshots so a trusted SSR match can be reused once by a matching client start without rerunning loaders.
+- Propagate a navigation-scoped `AbortSignal` to guards/loaders and treat router-owned superseded-navigation aborts as silent stale results while preserving current-navigation errors.
+- Flush the last scheduled query-cache persistence update when `QueryClient.dispose()` is called, preventing lifecycle teardown from silently dropping cache changes.
 - Add Chromium CDP lifecycle heap snapshots, retained post-GC heap-growth enforcement, cache-backed trend comparison, and GitHub Actions diagnostic artifacts.
 
 ### Documentation
@@ -51,14 +63,14 @@ The V3 branch continues production hardening after `3.1.19` without changing the
 - Make the shortest backend learning path the default README example, while retaining the lower-level API for advanced applications.
 - Document the Node HTTP adapter, security middleware, typed database adapter, session/token providers, `context.body<T>()`, and `app.resource()` examples while keeping provider verification, distributed stores, and decorator-module boundaries explicit.
 - Document typed server errors, safe error serialization, resilient error hooks, the optional full-stack CLI starter workflow, server-data/cache boundaries, functional module/controller organization, optional SQLite/PostgreSQL/MySQL database adapters, the document-native MongoDB adapter boundary, the optional Redis rate-limit store boundary for Node deployments, and SSR adapter-level boundary scheduling with its cancellation/back-pressure responsibilities.
-- Document the public API stability policy, ESM/CJS export contract, browser performance budgets, lifecycle heap methodology, cache-backed trend warnings, and the reproducible CI commands in the README and dedicated guides.
+- Document the public API stability policy, ESM/CJS export contract, browser performance budgets, lifecycle heap methodology, cache-backed trend warnings, file-route conventions, the React/Next.js/Express parity boundaries, and the reproducible CI commands in the README and dedicated guides.
 
 ### Validation
 
 - The focused observability, VDOM, CLI, and server suites pass, together with strict TypeScript checking and the full Jest matrix; the CLI suite covers ten tests and the server regression suite covers fourteen tests.
 - The latest focused validation passes strict `type-check`; the server production suite covers **18 tests**, the SSR production suite covers **12 tests** including adapter scheduling, and the SQLite, PostgreSQL, Redis, MySQL, and MongoDB adapter suites add **12 tests** for database mapping, transactions, rollback, pool/client lifecycle, distributed counter/TTL mapping, and document collection operations. The full release matrix is run after documentation and integration changes are complete. The generated TypeScript starter also passes npm install, type-check, its smoke test, and Vite production build.
 - The Vite plugin build still prints expected non-fatal externalization notices for `node:fs`, `node:path`, and `typescript`; these are intentional server/tooling externals and do not fail the build.
-- The current V3 validation state is **35 Jest suites / 195 tests**, 22 ESM/CJS runtime exports verified, 48 four-browser Playwright tests passed, and one Chromium lifecycle heap test passed with three intentional non-Chromium skips.
+- The published `3.1.19` baseline records 195 tests; the current continuation working tree validates **35 Jest suites / 207 tests**, 22 ESM/CJS runtime exports, Chromium browser coverage, and the Chromium lifecycle heap test. Historical release counts remain version-specific until the next package release.
 
 ## [3.1.19] - 2026-08-18
 

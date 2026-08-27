@@ -104,7 +104,11 @@
 - [x] Add `npm run verify:api-contract` to validate every advertised runtime export target and ESM/CJS subpath import before release.
 - [x] Correct production documentation to the current **195 Jest tests** state.
 - [ ] Define the route-level data loader/payload/cache contract with cancellation, hydration reuse, invalidation, and error/loading states.
+  - [x] Add versioned `Router.dehydrate()`/`Router.hydrate()` snapshots with URL/route validation and one-shot matching-client reuse.
+  - [ ] Complete the application transport, sensitive-data policy, stream integration, cache/revalidation unification, and cancellation contract.
 - [ ] Add file-based route conventions and generated typed route parameters/data.
+  - [x] Extend the bundler-safe helper with route groups, optional catch-all segments, optional dynamic URL generation, and runtime matching coverage.
+  - [ ] Add the full project-level file convention/plugin, generated typed route metadata, middleware/layout discovery, and prerender integration.
 
 ## Production-readiness audit
 
@@ -540,6 +544,24 @@
   - [x] Added the forced-GC Node memory benchmark and lifecycle cleanup guard.
   - [ ] Add browser heap-snapshot collection for supported browser CI environments.
 - [ ] Expand query persistence with optional IndexedDB storage and application-controlled cross-tab synchronization while keeping the current storage contract backward compatible.
-- [ ] Add optional automatic route-component rendering integration while preserving the router's current data-resolution-only contract.
+  - [x] Added the optional SSR-safe `createIndexedDBQueryStorage()` adapter and preserved the existing `QueryStorage` contract.
+  - [x] Added `createQueryBroadcastSync()` for application-controlled cross-tab invalidation through `BroadcastChannel` or a compatible custom channel; it broadcasts normalized keys only.
+- [x] Add optional automatic route-component rendering integration while preserving the router's current data-resolution-first contract.
+  - [x] Added `createRouterView()` and `subscribeMatched()` for committed-match VDOM binding, target replacement, not-found clearing, and disposal without forcing a component shape.
+  - [x] Fixed repeated `Router.start()` calls to return the existing committed match with resolved data/components instead of reconstructing incomplete route state.
 - [ ] Expand framework adapters and deployment examples for production observability, distributed queues, and database/Redis integrations without bundling provider clients into the browser core.
 - [ ] Re-run the full release checklist for the next patch/minor release after each roadmap increment.
+
+## Continuation audit — 2026-08-26
+
+- [x] Re-audit current source, roadmap, package exports, documentation examples, test coverage, and browser-performance tooling.
+- [x] Fix repeated `Router.start()` calls so they return the committed match with resolved loader data and lazy components.
+- [x] Fix store `$reset()` to remove transient keys and add `$dispose()` for registry/subscription teardown; extend the typed DevTools store lifecycle phase.
+- [x] Correct README and V3 Usage store examples and synchronize RouterView, query persistence, and cross-tab invalidation guidance.
+- [x] Add `createStoreRegistry()` for per-request store isolation and explicit registry disposal.
+- [x] Add `app.head()`/`app.options()` helpers, enforce empty response bodies for HEAD requests, and return 405 with aggregated Allow headers for unsupported methods.
+- [x] Add the React/Next.js/Express parity audit at `docs/REACT_NEXT_EXPRESS_PARITY.md`.
+- [x] Validate the continuation working tree with **35 Jest suites / 207 tests**, strict TypeScript, docs build, production build, declaration/package/API/HMR checks, dependency audit, and Chromium browser coverage.
+- [ ] Run the complete Firefox/WebKit/Microsoft Edge matrix on CI runners with those browser executables installed before the next release.
+- [ ] Decide whether store persistence and SSR request isolation belong in the next public contract before implementation.
+- [ ] Continue SSR streamed-route integration, browser performance trend storage, cross-browser heap collection, and framework adapter/deployment examples.

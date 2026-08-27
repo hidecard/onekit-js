@@ -315,12 +315,14 @@ For classic JSX transforms, import `jsx`, `jsxDEV`, `h`, and `Fragment` from `on
 
 ## Routing and nested layouts
 
-The router supports memory, browser, and hash navigation modes, dynamic parameters, query parsing, guards, async loaders, redirects, lazy components, prefetching, JSON-safe manifests, typed route contexts, and nested layout records. It resolves navigation and data; your application remains responsible for rendering the matched route.
+The router supports memory, browser, and hash navigation modes, dynamic parameters, query parsing, guards, async loaders, redirects, lazy components, prefetching, JSON-safe manifests, typed route contexts, nested layout records, and optional `createRouterView()` VDOM binding. It resolves navigation and data first; your application still owns the route-to-view mapping.
 
 ```ts
 import {
   createRouter,
+  createRouterView,
   defineRoute,
+  h,
   type RouteContextFor,
   type RouteLoaderData,
 } from "onekit-js";
@@ -351,6 +353,12 @@ const router = createRouter([
 
 await router.start();
 await router.navigate("/projects/onekit/settings");
+
+const view = createRouterView(router, {
+  target: document.querySelector("#app")!,
+  render: ({ route, data }) => h("main", { "data-route": route.path }, route.path),
+});
+// Dispose view and router with the application scope.
 ```
 
 Use `RouteParamsFor<Path>` and `routeHref()` when constructing typed links, `createFileRoutes()` when discovering routes from a bundler module map, and `createRouteManifest()` or `router.getManifest()` for SSR preload and hydration planning. Keep route loaders and guards abortable. OneKit protects the application from stale asynchronous navigation committing after a newer navigation wins. Use `prefetch()` to warm route data without changing the current URL or committed route state.
@@ -407,7 +415,9 @@ process.once("SIGTERM", async () => {
 });
 ```
 
-The server context exposes `request`, method/path, decoded `params`, `URLSearchParams` query values, per-request `state`, a scoped `DependencyInjector`, an optional typed `database` adapter, a one-read typed `body<T>()` helper, and concise response helpers: `ok(data)`, `json(data, init)`, `text(data, init)`, and `fail(message, status)`. Security helpers are intentionally explicit: `securityMiddleware.authenticate(resolveUser)` stores a verified application user in `state.user`, `securityMiddleware.session(provider)` and `securityMiddleware.token(provider)` adapt application-owned identity providers, `securityMiddleware.authorize(rule)` enforces a permission rule, and `securityMiddleware.rateLimit({ max, windowMs, key })` adds bounded in-memory limits and standard rate-limit headers. Use `app.get`, `app.post`, `app.put`, `app.patch`, `app.delete`, or `app.route` for endpoints; use `app.use` for cross-cutting middleware. `validateBody` parses JSON from a cloned request and turns validation failures into a `400` response. The built-in CORS middleware handles `OPTIONS` preflight requests with `204`, allows configurable methods/headers/credentials/max-age, and also applies CORS headers to `404` responses because global middleware runs before the fallback route. Unhandled route errors return a generic `500` response by default so internal messages are not leaked; provide `onError` to integrate application-owned logging and error reporting. For safe application failures, throw `createServerError(message, { status, code, details, headers })`; client-visible messages are exposed only for statuses below `500` unless `expose` is explicitly set. Use `errorResponse` when the application needs a final response envelope, and keep `onError` focused on telemetry because a failing error hook is isolated and cannot replace the safe fallback.
+The server context exposes `request`, method/path, decoded `params`, `URLSearchParams` query values, per-request `state`, a scoped `DependencyInjector`, an optional typed `database` adapter, a one-read typed `body<T>()` helper, and concise response helpers: `ok(data)`, `json(data, init)`, `text(data, init)`, and `fail(message, status)`. Security helpers are intentionally explicit: `securityMiddleware.authenticate(resolveUser)` stores a verified application user in `state.user`, `securityMiddleware.session(provider)` and `securityMiddleware.token(provider)` adapt application-owned identity providers, `securityMiddleware.authorize(rule)` enforces a permission rule, and `securityMiddleware.rateLimit({ max, windowMs, key })` adds bounded in-memory limits and standard rate-limit headers. Use `app.get`, `app.post`, `app.put`, `app.patch`, `app.delete`, `app.head`, `app.options`, or `app.route` for endpoints; use `app.use` for cross-cutting middleware. `HEAD` handlers preserve status and headers while returning an empty body, and `OPTIONS` handlers can provide explicit responses when the built-in CORS preflight behavior is not sufficient. A known path receiving an unsupported method returns `405` with an `Allow` header listing the registered methods. `validateBody` parses JSON from a cloned request and turns validation failures into a `400` response.
+ The built-in CORS middleware handles `OPTIONS` preflight requests with `204`, allows configurable methods/headers/credentials/max-age, and also applies CORS headers to `404` responses because global middleware runs before the fallback route.
+ Unhandled route errors return a generic `500` response by default so internal messages are not leaked; provide `onError` to integrate application-owned logging and error reporting. For safe application failures, throw `createServerError(message, { status, code, details, headers })`; client-visible messages are exposed only for statuses below `500` unless `expose` is explicitly set. Use `errorResponse` when the application needs a final response envelope, and keep `onError` focused on telemetry because a failing error hook is isolated and cannot replace the safe fallback.
 
 ```ts
 app.get(
@@ -625,7 +635,7 @@ Install `mongodb` separately and keep the client server-only. MongoDB transactio
 
 ### Stores
 
-Use stores for shared application state with explicit actions and subscriptions. Keep server data separate from local UI state when that separation makes invalidation and loading behavior clearer.
+Use stores for shared application state with explicit actions and subscriptions. `$reset()` restores the initial state shape, while `$dispose()` unregisters the store and clears its subscriptions. Keep server data separate from local UI state when that separation makes invalidation and loading behavior clearer.
 
 ### Query client
 
@@ -653,7 +663,7 @@ const mutation = await queries.mutate(
 );
 ```
 
-Use stable query keys. Do not create a fresh object or array as a query input on every render unless the client intentionally treats it as a new request.
+Use stable query keys. Do not create a fresh object or array as a query input on every render unless the client intentionally treats it as a new request. For browser persistence, use `createIndexedDBQueryStorage()` and optionally `createQueryBroadcastSync()` to broadcast invalidation keys without sending cached data; both are safe to omit when the runtime does not provide the required browser API.
 
 ### Route loading and boundaries
 
@@ -746,7 +756,7 @@ const clientQueries = createQueryClient();
 clientQueries.hydrate(JSON.parse(payload));
 ```
 
-With a router, give data-owning routes a stable `queryKey` and pass the same client to the router. The loader is then deduplicated and can reuse hydrated data on the client; set `queryOptions.staleTime` according to the freshness policy of that resource.
+With a router, give data-owning routes a stable `queryKey` and pass the same client to the router. The loader is then deduplicated and can reuse hydrated data on the client; set `queryOptions.staleTime` according to the freshness policy of that resource. For routes that do not use `QueryClient`, a trusted SSR request may call `router.dehydrate()` after the committed navigation and pass the versioned snapshot to a fresh client router with `router.hydrate(snapshot)`. The snapshot is reused only when `fullPath` and matched route paths agree, and only for the next matching `start()` call. Route guards and loaders can use `RouteContext.signal`, which is aborted when a newer navigation supersedes the current one or the router stops.
 
 ```ts
 const queries = createQueryClient();

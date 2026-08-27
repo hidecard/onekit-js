@@ -23,6 +23,8 @@ type SegmentParams<Segment extends string> = Segment extends `:${infer Param}` ?
     [Key in Name]?: string;
 } : {
     [Key in Param]: string;
+} : Segment extends '*?' ? {
+    wildcard?: string;
 } : Segment extends '*' ? {
     wildcard: string;
 } : Record<never, never>;

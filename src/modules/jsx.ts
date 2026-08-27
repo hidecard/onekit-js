@@ -1,6 +1,6 @@
 // OKJS - OneKit JavaScript Template Syntax Module
 import { createElement, VNode } from './vdom';
-import { ComponentDefinition, ComponentInstance, StatefulComponentFactory, create, register } from './component';
+import { ComponentDefinition, StatefulComponentFactory, create, register } from './component';
 
 export interface OKJSElement {
   tag: string | Function;

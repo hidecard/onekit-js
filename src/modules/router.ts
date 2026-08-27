@@ -5,6 +5,7 @@ import { onScopeDispose } from '../core/scope';
 import type { ErrorBoundary, LoadingBoundary } from '../core/error-handler';
 import type { HeadManager, HeadMetadata } from './head';
 import type { QueryClient, QueryKey, QueryOptions } from './query';
+import { patch, type VNode } from './vdom';
 
 export type RouteParams = Record<string, string>;
 export type QueryParams = Record<string, string | string[]>;
@@ -27,6 +28,8 @@ export interface RouteContext<Params extends RouteParams = RouteParams, AppConte
   to: RouteLocation<Params>;
   from: RouteLocation | null;
   matched?: readonly RouteMatch[];
+  /** Aborted when this navigation is superseded or the router is stopped. */
+  signal?: AbortSignal;
   /** Optional application context supplied through RouterOptions.context. */
   context: AppContext;
 }
@@ -109,6 +112,13 @@ export interface MatchedRoute {
   components?: readonly unknown[];
 }
 
+/** JSON-safe route-loader data captured from a committed SSR match for one client handoff. */
+export interface RouteDataSnapshot {
+  version: 1;
+  fullPath: string;
+  routes: readonly { path: string; data?: unknown }[];
+}
+
 export interface RouterOptions<AppContext = unknown> {
   /** Optional application services/context exposed to route callbacks. */
   context?: AppContext;
@@ -129,6 +139,17 @@ export interface RouterOptions<AppContext = unknown> {
 }
 
 type Listener = (to: RouteLocation, from: RouteLocation | null) => void;
+export type MatchedRouteListener = (matched: MatchedRoute | null, from: RouteLocation | null) => void;
+export type RouterViewRender = (matched: MatchedRoute) => VNode | string | null;
+
+export interface RouterViewOptions {
+  target: Element;
+  render: RouterViewRender;
+}
+
+export interface RouterViewController {
+  dispose(): void;
+}
 
 function normalizePath(path: string): string {
   const withoutHash = path.split('#')[0];
@@ -161,19 +182,32 @@ function parseLocation(input: string): RouteLocation {
 
 function compilePath(pattern: string): { regex: RegExp; keys: string[] } {
   const keys: string[] = [];
-  const path = normalizePath(pattern);
-  const source = path.split('/').map(segment => {
+  const segments = normalizePath(pattern).split('/').filter(Boolean);
+  const source = segments.map(segment => {
     if (segment.startsWith(':')) {
       keys.push(segment.slice(1).replace(/\\?$/, ''));
-      return segment.endsWith('?') ? '([^/]*)?' : '([^/]+)';
+      return segment.endsWith('?') ? '(?:/([^/]+))?' : '/([^/]+)';
+    }
+    if (segment === '*?') {
+      keys.push('wildcard');
+      return '(?:/(.*))?';
     }
     if (segment === '*') {
       keys.push('wildcard');
-      return '(.*)';
+      return '/(.*)';
     }
-    return segment.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  }).join('/');
+    return `/${segment.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`;
+  }).join('');
   return { regex: new RegExp(`^${source || '/'}/?$`), keys };
+}
+
+function isRouteDataSnapshot(value: unknown): value is RouteDataSnapshot {
+  if (!value || typeof value !== 'object') return false;
+  const snapshot = value as { version?: unknown; fullPath?: unknown; routes?: unknown };
+  return snapshot.version === 1
+    && typeof snapshot.fullPath === 'string'
+    && Array.isArray(snapshot.routes)
+    && snapshot.routes.every(entry => entry && typeof entry === 'object' && typeof (entry as { path?: unknown }).path === 'string');
 }
 
 function matchRoute(route: Route, location: RouteLocation): RouteParams | null {
@@ -197,9 +231,13 @@ function matchRoutePrefix(route: Route, location: RouteLocation): RouteParams | 
 export class Router<AppContext = unknown> {
   private routes: Route[] = [];
   private listeners = new Set<Listener>();
+  private matchedListeners = new Set<MatchedRouteListener>();
   private current: RouteLocation | null = null;
+  private currentMatch: MatchedRoute | null = null;
   private started = false;
   private navigationToken = 0;
+  private activeNavigation?: AbortController;
+  private hydratedRouteData?: RouteDataSnapshot;
   private readonly options: RouterOptions<AppContext>;
   private readonly popstateHandler = () => { void this.resolve(this.readBrowserPath(), false); };
 
@@ -238,8 +276,40 @@ export class Router<AppContext = unknown> {
     return unsubscribe;
   }
 
+  /** Subscribe to committed route matches with loader data and components. */
+  subscribeMatched(listener: MatchedRouteListener): () => void {
+    this.matchedListeners.add(listener);
+    const unsubscribe = () => this.matchedListeners.delete(listener);
+    onScopeDispose(unsubscribe);
+    return unsubscribe;
+  }
+
+  getCurrentRoute(): MatchedRoute | null { return this.currentMatch; }
+
+  /** Export the committed route-loader data for a trusted SSR-to-client handoff. */
+  dehydrate(): RouteDataSnapshot | null {
+    const match = this.currentMatch;
+    if (!match) return null;
+    const records = match.matched ?? [{ route: match.route, location: match.location }];
+    return {
+      version: 1,
+      fullPath: match.location.fullPath,
+      routes: records.map((record, index) => ({ path: record.route.path, data: match.dataByRoute?.[index] })),
+    };
+  }
+
+  /** Queue one trusted SSR route-data snapshot for reuse by the next matching navigation. */
+  hydrate(snapshot: RouteDataSnapshot): void {
+    if (!isRouteDataSnapshot(snapshot)) return;
+    this.hydratedRouteData = {
+      version: 1,
+      fullPath: snapshot.fullPath,
+      routes: snapshot.routes.map(entry => ({ path: entry.path, data: entry.data })),
+    };
+  }
+
   start(): Promise<MatchedRoute | null> {
-    if (this.started) return Promise.resolve(this.current ? this.match(this.current) : null);
+    if (this.started) return Promise.resolve(this.currentMatch);
     this.started = true;
     if (typeof window !== 'undefined' && this.options.mode !== 'memory') window.addEventListener('popstate', this.popstateHandler);
     return this.resolve(this.options.initialPath ?? this.readBrowserPath(), false);
@@ -248,6 +318,8 @@ export class Router<AppContext = unknown> {
   stop(): void {
     if (typeof window !== 'undefined') window.removeEventListener('popstate', this.popstateHandler);
     this.navigationToken += 1;
+    this.activeNavigation?.abort();
+    this.activeNavigation = undefined;
     this.started = false;
   }
 
@@ -290,21 +362,25 @@ export class Router<AppContext = unknown> {
 
   async resolve(input: string, push = false): Promise<MatchedRoute | null> {
     const navigationToken = ++this.navigationToken;
-    const isCurrentNavigation = () => navigationToken === this.navigationToken;
+    this.activeNavigation?.abort();
+    const controller = new AbortController();
+    this.activeNavigation = controller;
+    const isCurrentNavigation = () => navigationToken === this.navigationToken && !controller.signal.aborted;
     const requested = parseLocation(this.removeBase(input));
     const matched = this.match(requested);
     const to = matched?.location ?? requested;
     const from = this.current;
     const route = matched?.route ?? this.options.notFound;
     emitDevToolsEvent({ type: 'router:navigation', phase: 'start', to: to.fullPath, from: from?.fullPath ?? null });
-    const baseContext: RouteContext = { to, from, context: this.options.context as AppContext };
+    const baseContext: RouteContext = { to, from, signal: controller.signal, context: this.options.context as AppContext };
     const guardResult = await this.runGuard(this.options.beforeEach, baseContext);
     if (!isCurrentNavigation()) return null;
     if (guardResult === false) return null;
     if (typeof guardResult === 'string' && guardResult !== to.fullPath) return this.resolve(guardResult, true);
     if (!route) {
       this.current = to;
-      this.notify(to, from);
+      this.currentMatch = null;
+      this.notify(to, from, null);
       return null;
     }
     const records = this.recordsFor(matched, route, to);
@@ -323,14 +399,20 @@ export class Router<AppContext = unknown> {
     result.matched = records;
     result.components = records.map(record => record.route.component ?? record.route.layout).filter(component => component !== undefined);
     const data: unknown[] = [];
+    const hydratedData = this.consumeHydratedData(to, records);
     try {
-      for (const record of records) {
-        if (!record.route.loader) { data.push(undefined); continue; }
-        const loaded = await this.loadRoute(record, context, 'route-loader');
-        data.push(loaded);
-        if (!isCurrentNavigation()) return null;
+      if (hydratedData) {
+        data.push(...hydratedData);
+      } else {
+        for (const record of records) {
+          if (!record.route.loader) { data.push(undefined); continue; }
+          const loaded = await this.loadRoute(record, context, 'route-loader');
+          data.push(loaded);
+          if (!isCurrentNavigation()) return null;
+        }
       }
     } catch (error) {
+      if (controller.signal.aborted && !isCurrentNavigation()) return null;
       emitDevToolsEvent({ type: 'router:navigation', phase: 'error', to: to.fullPath, from: from?.fullPath ?? null, route: route.path, error });
       throw error;
     }
@@ -339,12 +421,13 @@ export class Router<AppContext = unknown> {
     if (!isCurrentNavigation()) return null;
     if (push) this.commit(to);
     this.current = to;
+    this.currentMatch = result;
     this.updateHead(records);
     if (route.handler) await route.handler({ ...context, to });
     if (!isCurrentNavigation()) return null;
     await this.options.scrollBehavior?.(to, from);
     if (!isCurrentNavigation()) return null;
-    this.notify(to, from);
+    this.notify(to, from, result);
     this.options.afterEach?.({ to: context.to, from: context.from, context: context.context, matched: result, routeMatches: records });
     emitDevToolsEvent({ type: 'router:navigation', phase: 'success', to: to.fullPath, from: from?.fullPath ?? null, route: route.path });
     return result;
@@ -395,6 +478,14 @@ export class Router<AppContext = unknown> {
     return matched?.matched ? [...matched.matched] : [{ route, location }];
   }
 
+  private consumeHydratedData(location: RouteLocation, records: readonly RouteMatch[]): readonly unknown[] | undefined {
+    const snapshot = this.hydratedRouteData;
+    if (!snapshot || snapshot.fullPath !== location.fullPath || snapshot.routes.length !== records.length) return undefined;
+    if (snapshot.routes.some((entry, index) => entry.path !== records[index]?.route.path)) return undefined;
+    this.hydratedRouteData = undefined;
+    return snapshot.routes.map(entry => entry.data);
+  }
+
   private async loadRoute(record: RouteMatch, context: RouteContext, boundaryContext: string): Promise<unknown> {
     const load = async (): Promise<unknown> => {
       const runLoader = () => record.route.loader!({ ...context, to: record.location });
@@ -441,8 +532,9 @@ export class Router<AppContext = unknown> {
     this.options.head.set(metadata);
   }
 
-  private notify(to: RouteLocation, from: RouteLocation | null): void {
+  private notify(to: RouteLocation, from: RouteLocation | null, matched: MatchedRoute | null): void {
     this.listeners.forEach(listener => listener(to, from));
+    this.matchedListeners.forEach(listener => listener(matched, from));
   }
 
   private applyBase(path: string): string {
@@ -473,6 +565,41 @@ export class Router<AppContext = unknown> {
     if (this.options.mode === 'hash') window.history.pushState({}, '', `#${target}`);
     else window.history.pushState({}, '', target);
   }
+}
+
+/**
+ * Bind committed router matches to an application-owned view renderer.
+ *
+ * The router remains data-resolution-first: callers choose how a MatchedRoute
+ * becomes a VNode or text, while this helper owns subscription, patching, and
+ * cleanup of the target subtree.
+ */
+export function createRouterView(router: Router, options: RouterViewOptions): RouterViewController {
+  let previous: VNode | string | undefined;
+  const renderMatch = (matched: MatchedRoute | null): void => {
+    const next = matched ? options.render(matched) ?? '' : '';
+    if (previous === undefined) {
+      options.target.textContent = '';
+      patch(options.target, next);
+    } else {
+      patch(options.target, next, previous);
+    }
+    previous = next;
+  };
+  const unsubscribe = router.subscribeMatched(matched => renderMatch(matched));
+  const current = router.getCurrentRoute();
+  if (current) renderMatch(current);
+
+  return {
+    dispose(): void {
+      unsubscribe();
+      if (previous !== undefined) {
+        patch(options.target, '', previous);
+        options.target.textContent = '';
+        previous = undefined;
+      }
+    },
+  };
 }
 
 export function createRouter<AppContext = unknown>(routes: readonly Route[] = [], options: RouterOptions<AppContext> = {}): Router<AppContext> {

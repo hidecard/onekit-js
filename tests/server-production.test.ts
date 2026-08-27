@@ -193,6 +193,24 @@ describe('full-stack server production contract', () => {
     expect(JSON.parse(new TextDecoder().decode(output.body))).toEqual({ value: { value: 42 } });
   });
 
+  it('supports explicit HEAD and OPTIONS route helpers', async () => {
+    const app = createApi();
+    app.head('/health', ({ text }) => text('ok'));
+    app.options('/health', ({ text }) => text('allowed'));
+
+    const head = await app.handle(new Request('http://localhost/health', { method: 'HEAD' }));
+    const options = await app.handle(new Request('http://localhost/health', { method: 'OPTIONS' }));
+
+    expect(head.status).toBe(200);
+    expect(await head.text()).toBe('');
+    expect(options.status).toBe(200);
+    expect(await options.text()).toBe('allowed');
+
+    const unsupported = await app.handle(new Request('http://localhost/health', { method: 'POST' }));
+    expect(unsupported.status).toBe(405);
+    expect(unsupported.headers.get('allow')).toBe('HEAD, OPTIONS');
+  });
+
   it('supports authentication, authorization, and rate limiting guards', async () => {
     const app = createApi();
     app.get(

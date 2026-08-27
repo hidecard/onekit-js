@@ -1,6 +1,7 @@
 import type { ErrorBoundary, LoadingBoundary } from '../core/error-handler';
 import type { HeadManager, HeadMetadata } from './head';
 import type { QueryClient, QueryKey, QueryOptions } from './query';
+import { type VNode } from './vdom';
 export type RouteParams = Record<string, string>;
 export type QueryParams = Record<string, string | string[]>;
 export interface RouteLocation<Params extends RouteParams = RouteParams> {
@@ -19,6 +20,8 @@ export interface RouteContext<Params extends RouteParams = RouteParams, AppConte
     to: RouteLocation<Params>;
     from: RouteLocation | null;
     matched?: readonly RouteMatch[];
+    /** Aborted when this navigation is superseded or the router is stopped. */
+    signal?: AbortSignal;
     /** Optional application context supplied through RouterOptions.context. */
     context: AppContext;
 }
@@ -73,6 +76,15 @@ export interface MatchedRoute {
     /** Resolved parent-to-leaf components for layout composition. */
     components?: readonly unknown[];
 }
+/** JSON-safe route-loader data captured from a committed SSR match for one client handoff. */
+export interface RouteDataSnapshot {
+    version: 1;
+    fullPath: string;
+    routes: readonly {
+        path: string;
+        data?: unknown;
+    }[];
+}
 export interface RouterOptions<AppContext = unknown> {
     /** Optional application services/context exposed to route callbacks. */
     context?: AppContext;
@@ -95,12 +107,25 @@ export interface RouterOptions<AppContext = unknown> {
     head?: HeadManager;
 }
 type Listener = (to: RouteLocation, from: RouteLocation | null) => void;
+export type MatchedRouteListener = (matched: MatchedRoute | null, from: RouteLocation | null) => void;
+export type RouterViewRender = (matched: MatchedRoute) => VNode | string | null;
+export interface RouterViewOptions {
+    target: Element;
+    render: RouterViewRender;
+}
+export interface RouterViewController {
+    dispose(): void;
+}
 export declare class Router<AppContext = unknown> {
     private routes;
     private listeners;
+    private matchedListeners;
     private current;
+    private currentMatch;
     private started;
     private navigationToken;
+    private activeNavigation?;
+    private hydratedRouteData?;
     private readonly options;
     private readonly popstateHandler;
     constructor(routes?: readonly Route[], options?: RouterOptions<AppContext>);
@@ -112,6 +137,13 @@ export declare class Router<AppContext = unknown> {
     getCurrentPath(): string;
     getCurrentLocation(): RouteLocation | null;
     subscribe(listener: Listener): () => void;
+    /** Subscribe to committed route matches with loader data and components. */
+    subscribeMatched(listener: MatchedRouteListener): () => void;
+    getCurrentRoute(): MatchedRoute | null;
+    /** Export the committed route-loader data for a trusted SSR-to-client handoff. */
+    dehydrate(): RouteDataSnapshot | null;
+    /** Queue one trusted SSR route-data snapshot for reuse by the next matching navigation. */
+    hydrate(snapshot: RouteDataSnapshot): void;
     start(): Promise<MatchedRoute | null>;
     stop(): void;
     navigate(path: string): Promise<MatchedRoute | null>;
@@ -122,6 +154,7 @@ export declare class Router<AppContext = unknown> {
     resolve(input: string, push?: boolean): Promise<MatchedRoute | null>;
     private match;
     private recordsFor;
+    private consumeHydratedData;
     private loadRoute;
     private resolveQueryKey;
     private runGuard;
@@ -133,6 +166,14 @@ export declare class Router<AppContext = unknown> {
     private readBrowserPath;
     private commit;
 }
+/**
+ * Bind committed router matches to an application-owned view renderer.
+ *
+ * The router remains data-resolution-first: callers choose how a MatchedRoute
+ * becomes a VNode or text, while this helper owns subscription, patching, and
+ * cleanup of the target subtree.
+ */
+export declare function createRouterView(router: Router, options: RouterViewOptions): RouterViewController;
 export declare function createRouter<AppContext = unknown>(routes?: readonly Route[], options?: RouterOptions<AppContext>): Router<AppContext>;
 export declare const router: Router<unknown>;
 export {};

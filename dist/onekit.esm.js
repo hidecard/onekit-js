@@ -3640,19 +3640,32 @@ function parseLocation(input) {
 }
 function compilePath$1(pattern) {
     const keys = [];
-    const path = normalizePath(pattern);
-    const source = path.split('/').map(segment => {
+    const segments = normalizePath(pattern).split('/').filter(Boolean);
+    const source = segments.map(segment => {
         if (segment.startsWith(':')) {
             keys.push(segment.slice(1).replace(/\\?$/, ''));
-            return segment.endsWith('?') ? '([^/]*)?' : '([^/]+)';
+            return segment.endsWith('?') ? '(?:/([^/]+))?' : '/([^/]+)';
+        }
+        if (segment === '*?') {
+            keys.push('wildcard');
+            return '(?:/(.*))?';
         }
         if (segment === '*') {
             keys.push('wildcard');
-            return '(.*)';
+            return '/(.*)';
         }
-        return segment.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    }).join('/');
+        return `/${segment.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`;
+    }).join('');
     return { regex: new RegExp(`^${source || '/'}/?$`), keys };
+}
+function isRouteDataSnapshot(value) {
+    if (!value || typeof value !== 'object')
+        return false;
+    const snapshot = value;
+    return snapshot.version === 1
+        && typeof snapshot.fullPath === 'string'
+        && Array.isArray(snapshot.routes)
+        && snapshot.routes.every(entry => entry && typeof entry === 'object' && typeof entry.path === 'string');
 }
 function matchRoute(route, location) {
     const { regex, keys } = compilePath$1(route.path);
@@ -3675,9 +3688,13 @@ function matchRoutePrefix(route, location) {
 class Router {
     routes = [];
     listeners = new Set();
+    matchedListeners = new Set();
     current = null;
+    currentMatch = null;
     started = false;
     navigationToken = 0;
+    activeNavigation;
+    hydratedRouteData;
     options;
     popstateHandler = () => { void this.resolve(this.readBrowserPath(), false); };
     constructor(routes = [], options = {}) {
@@ -3708,9 +3725,39 @@ class Router {
         onScopeDispose(unsubscribe);
         return unsubscribe;
     }
+    /** Subscribe to committed route matches with loader data and components. */
+    subscribeMatched(listener) {
+        this.matchedListeners.add(listener);
+        const unsubscribe = () => this.matchedListeners.delete(listener);
+        onScopeDispose(unsubscribe);
+        return unsubscribe;
+    }
+    getCurrentRoute() { return this.currentMatch; }
+    /** Export the committed route-loader data for a trusted SSR-to-client handoff. */
+    dehydrate() {
+        const match = this.currentMatch;
+        if (!match)
+            return null;
+        const records = match.matched ?? [{ route: match.route, location: match.location }];
+        return {
+            version: 1,
+            fullPath: match.location.fullPath,
+            routes: records.map((record, index) => ({ path: record.route.path, data: match.dataByRoute?.[index] })),
+        };
+    }
+    /** Queue one trusted SSR route-data snapshot for reuse by the next matching navigation. */
+    hydrate(snapshot) {
+        if (!isRouteDataSnapshot(snapshot))
+            return;
+        this.hydratedRouteData = {
+            version: 1,
+            fullPath: snapshot.fullPath,
+            routes: snapshot.routes.map(entry => ({ path: entry.path, data: entry.data })),
+        };
+    }
     start() {
         if (this.started)
-            return Promise.resolve(this.current ? this.match(this.current) : null);
+            return Promise.resolve(this.currentMatch);
         this.started = true;
         if (typeof window !== 'undefined' && this.options.mode !== 'memory')
             window.addEventListener('popstate', this.popstateHandler);
@@ -3720,6 +3767,8 @@ class Router {
         if (typeof window !== 'undefined')
             window.removeEventListener('popstate', this.popstateHandler);
         this.navigationToken += 1;
+        this.activeNavigation?.abort();
+        this.activeNavigation = undefined;
         this.started = false;
     }
     navigate(path) {
@@ -3767,14 +3816,17 @@ class Router {
         window.history.forward(); }
     async resolve(input, push = false) {
         const navigationToken = ++this.navigationToken;
-        const isCurrentNavigation = () => navigationToken === this.navigationToken;
+        this.activeNavigation?.abort();
+        const controller = new AbortController();
+        this.activeNavigation = controller;
+        const isCurrentNavigation = () => navigationToken === this.navigationToken && !controller.signal.aborted;
         const requested = parseLocation(this.removeBase(input));
         const matched = this.match(requested);
         const to = matched?.location ?? requested;
         const from = this.current;
         const route = matched?.route ?? this.options.notFound;
         emitDevToolsEvent({ type: 'router:navigation', phase: 'start', to: to.fullPath, from: from?.fullPath ?? null });
-        const baseContext = { to, from, context: this.options.context };
+        const baseContext = { to, from, signal: controller.signal, context: this.options.context };
         const guardResult = await this.runGuard(this.options.beforeEach, baseContext);
         if (!isCurrentNavigation())
             return null;
@@ -3784,7 +3836,8 @@ class Router {
             return this.resolve(guardResult, true);
         if (!route) {
             this.current = to;
-            this.notify(to, from);
+            this.currentMatch = null;
+            this.notify(to, from, null);
             return null;
         }
         const records = this.recordsFor(matched, route, to);
@@ -3807,19 +3860,27 @@ class Router {
         result.matched = records;
         result.components = records.map(record => record.route.component ?? record.route.layout).filter(component => component !== undefined);
         const data = [];
+        const hydratedData = this.consumeHydratedData(to, records);
         try {
-            for (const record of records) {
-                if (!record.route.loader) {
-                    data.push(undefined);
-                    continue;
+            if (hydratedData) {
+                data.push(...hydratedData);
+            }
+            else {
+                for (const record of records) {
+                    if (!record.route.loader) {
+                        data.push(undefined);
+                        continue;
+                    }
+                    const loaded = await this.loadRoute(record, context, 'route-loader');
+                    data.push(loaded);
+                    if (!isCurrentNavigation())
+                        return null;
                 }
-                const loaded = await this.loadRoute(record, context, 'route-loader');
-                data.push(loaded);
-                if (!isCurrentNavigation())
-                    return null;
             }
         }
         catch (error) {
+            if (controller.signal.aborted && !isCurrentNavigation())
+                return null;
             emitDevToolsEvent({ type: 'router:navigation', phase: 'error', to: to.fullPath, from: from?.fullPath ?? null, route: route.path, error });
             throw error;
         }
@@ -3830,6 +3891,7 @@ class Router {
         if (push)
             this.commit(to);
         this.current = to;
+        this.currentMatch = result;
         this.updateHead(records);
         if (route.handler)
             await route.handler({ ...context, to });
@@ -3838,7 +3900,7 @@ class Router {
         await this.options.scrollBehavior?.(to, from);
         if (!isCurrentNavigation())
             return null;
-        this.notify(to, from);
+        this.notify(to, from, result);
         this.options.afterEach?.({ to: context.to, from: context.from, context: context.context, matched: result, routeMatches: records });
         emitDevToolsEvent({ type: 'router:navigation', phase: 'success', to: to.fullPath, from: from?.fullPath ?? null, route: route.path });
         return result;
@@ -3887,6 +3949,15 @@ class Router {
     recordsFor(matched, route, location) {
         return matched?.matched ? [...matched.matched] : [{ route, location }];
     }
+    consumeHydratedData(location, records) {
+        const snapshot = this.hydratedRouteData;
+        if (!snapshot || snapshot.fullPath !== location.fullPath || snapshot.routes.length !== records.length)
+            return undefined;
+        if (snapshot.routes.some((entry, index) => entry.path !== records[index]?.route.path))
+            return undefined;
+        this.hydratedRouteData = undefined;
+        return snapshot.routes.map(entry => entry.data);
+    }
     async loadRoute(record, context, boundaryContext) {
         const load = async () => {
             const runLoader = () => record.route.loader({ ...context, to: record.location });
@@ -3933,8 +4004,9 @@ class Router {
         }
         this.options.head.set(metadata);
     }
-    notify(to, from) {
+    notify(to, from, matched) {
         this.listeners.forEach(listener => listener(to, from));
+        this.matchedListeners.forEach(listener => listener(matched, from));
     }
     applyBase(path) {
         const rawBase = this.options.base?.trim() ?? '';
@@ -3971,6 +4043,41 @@ class Router {
             window.history.pushState({}, '', target);
     }
 }
+/**
+ * Bind committed router matches to an application-owned view renderer.
+ *
+ * The router remains data-resolution-first: callers choose how a MatchedRoute
+ * becomes a VNode or text, while this helper owns subscription, patching, and
+ * cleanup of the target subtree.
+ */
+function createRouterView(router, options) {
+    let previous;
+    const renderMatch = (matched) => {
+        const next = matched ? options.render(matched) ?? '' : '';
+        if (previous === undefined) {
+            options.target.textContent = '';
+            patch$1(options.target, next);
+        }
+        else {
+            patch$1(options.target, next, previous);
+        }
+        previous = next;
+    };
+    const unsubscribe = router.subscribeMatched(matched => renderMatch(matched));
+    const current = router.getCurrentRoute();
+    if (current)
+        renderMatch(current);
+    return {
+        dispose() {
+            unsubscribe();
+            if (previous !== undefined) {
+                patch$1(options.target, '', previous);
+                options.target.textContent = '';
+                previous = undefined;
+            }
+        },
+    };
+}
 function createRouter(routes = [], options = {}) {
     return new Router(routes, options);
 }
@@ -4001,8 +4108,12 @@ function filePathToRoutePath(filePath, root = '') {
     for (const segment of segments) {
         if (/^(?:index|page)$/.test(segment))
             continue;
-        if (segment === '_layout' || segment === 'layout')
+        if (segment === '_layout' || segment === 'layout' || /^\(.+\)$/.test(segment))
             continue;
+        if (/^\[\[\.\.\.(.+)\]\]$/.test(segment)) {
+            routeSegments.push('*?');
+            continue;
+        }
         if (/^\[\.\.\.(.+)\]$/.test(segment)) {
             routeSegments.push('*');
             continue;
@@ -4038,7 +4149,14 @@ function createFileRoutes(modules, options = {}) {
         .sort((left, right) => left.path.localeCompare(right.path));
 }
 function routeHref(path, params = {}) {
-    return path.replace(/:([A-Za-z0-9_]+)\??/g, (_, key) => encodeURIComponent(String(params[key] ?? ''))).replace(/\*/g, encodeURIComponent(String(params.wildcard ?? '')));
+    let result = path.replace(/\/:([A-Za-z0-9_]+)\?/g, (_, key) => {
+        const value = params[key];
+        return value === undefined ? '' : `/${encodeURIComponent(String(value))}`;
+    });
+    result = result.replace(/\/:([A-Za-z0-9_]+)/g, (_, key) => `/${encodeURIComponent(String(params[key] ?? ''))}`);
+    result = result.replace(/\/\*\?/g, params.wildcard === undefined ? '' : `/${encodeURIComponent(String(params.wildcard))}`);
+    result = result.replace(/\*/g, encodeURIComponent(String(params.wildcard ?? '')));
+    return result || '/';
 }
 
 // Storage Utilities Module
@@ -4490,145 +4608,251 @@ function validateAccessibility(element) {
     return { errors, warnings };
 }
 
-// Integrated State Manager (Pinia-like)
-const stores = new Map();
-const storeSubscriptions = new WeakMap();
-registerDevToolsInspector('stores', () => Array.from(stores.values()).map((store) => ({
-    id: store.$id,
-    state: store.$state,
-    subscriberCount: storeSubscriptions.get(store)?.size ?? 0,
-})));
-function defineStore(id, setup) {
-    let definition;
-    if (typeof id === 'string') {
-        if (!setup) {
-            throw new Error('[OneKit Store] defineStore requires setup function when id is a string');
-        }
-        definition = { ...setup(), id };
-    }
-    else {
-        definition = id;
-    }
-    // Check if store already exists
-    if (stores.has(definition.id)) {
-        console.warn(`[OneKit Store] Store "${definition.id}" already exists. Returning existing store.`);
-        return stores.get(definition.id);
-    }
-    // Create reactive state
-    const state = reactive(definition.state());
-    // Create store instance
-    const store = {
-        $id: definition.id,
-        $state: state,
-        $patch: (partialState) => {
-            if (typeof partialState === 'function') {
-                partialState(state);
+function createRegistry() {
+    const stores = new Map();
+    const storeSubscriptions = new WeakMap();
+    const plugins = [];
+    const registry = {
+        defineStore(id, setup) {
+            let definition;
+            if (typeof id === 'string') {
+                if (!setup) {
+                    throw new Error('[OneKit Store] defineStore requires setup function when id is a string');
+                }
+                definition = { ...setup(), id };
             }
             else {
-                Object.assign(state, partialState);
+                definition = id;
             }
-            // Notify subscribers
-            const subscribers = storeSubscriptions.get(store);
-            if (subscribers) {
-                subscribers.forEach(callback => {
-                    callback({ storeId: definition.id, type: 'patch', payload: partialState }, { ...state });
-                });
+            if (stores.has(definition.id)) {
+                console.warn(`[OneKit Store] Store "${definition.id}" already exists. Returning existing store.`);
+                return stores.get(definition.id);
             }
-        },
-        $reset: () => {
-            const newState = definition.state();
-            Object.assign(state, newState);
-            // Notify subscribers
-            const subscribers = storeSubscriptions.get(store);
-            if (subscribers) {
-                subscribers.forEach(callback => {
-                    callback({ storeId: definition.id, type: 'reset' }, { ...state });
-                });
-            }
-        },
-        $subscribe: (callback) => {
-            let subscribers = storeSubscriptions.get(store);
-            if (!subscribers) {
-                subscribers = new Set();
-                storeSubscriptions.set(store, subscribers);
-            }
-            subscribers.add(callback);
-            emitDevToolsEvent({ type: 'store:lifecycle', storeId: definition.id, phase: 'subscribe', listenerCount: subscribers.size });
-            // Return unsubscribe function and bind it to the current disposable scope.
-            const unsubscribe = () => {
-                subscribers.delete(callback);
-                emitDevToolsEvent({ type: 'store:lifecycle', storeId: definition.id, phase: 'unsubscribe', listenerCount: subscribers.size });
-            };
-            onScopeDispose(unsubscribe);
-            return unsubscribe;
-        }
-    };
-    // Add getters
-    if (definition.getters) {
-        Object.keys(definition.getters).forEach(getterName => {
-            const getterFn = definition.getters[getterName];
-            store[getterName] = computed(() => getterFn(state));
-        });
-    }
-    // Add actions
-    if (definition.actions) {
-        Object.keys(definition.actions).forEach(actionName => {
-            const actionFn = definition.actions[actionName];
-            store[actionName] = function (...args) {
-                const result = actionFn.apply(store, args);
-                // Notify subscribers
-                const subscribers = storeSubscriptions.get(store);
-                if (subscribers) {
-                    subscribers.forEach(callback => {
-                        callback({ storeId: definition.id, type: 'action', payload: { action: actionName, args, result } }, { ...state });
+            const state = reactive(definition.state());
+            const store = {
+                $id: definition.id,
+                $state: state,
+                $patch: (partialState) => {
+                    if (typeof partialState === 'function') {
+                        partialState(state);
+                    }
+                    else {
+                        Object.assign(state, partialState);
+                    }
+                    const subscribers = storeSubscriptions.get(store);
+                    subscribers?.forEach(callback => {
+                        callback({ storeId: definition.id, type: 'patch', payload: partialState }, { ...state });
                     });
-                }
-                return result;
+                },
+                $reset: () => {
+                    const newState = definition.state();
+                    Object.keys(state).forEach(key => {
+                        if (!(key in newState))
+                            delete state[key];
+                    });
+                    Object.assign(state, newState);
+                    const subscribers = storeSubscriptions.get(store);
+                    subscribers?.forEach(callback => {
+                        callback({ storeId: definition.id, type: 'reset' }, { ...state });
+                    });
+                },
+                $dispose: () => {
+                    if (!stores.has(definition.id))
+                        return;
+                    const subscribers = storeSubscriptions.get(store);
+                    const listenerCount = subscribers?.size ?? 0;
+                    subscribers?.clear();
+                    storeSubscriptions.delete(store);
+                    stores.delete(definition.id);
+                    emitDevToolsEvent({ type: 'store:lifecycle', storeId: definition.id, phase: 'dispose', listenerCount });
+                },
+                $subscribe: (callback) => {
+                    let subscribers = storeSubscriptions.get(store);
+                    if (!subscribers) {
+                        subscribers = new Set();
+                        storeSubscriptions.set(store, subscribers);
+                    }
+                    subscribers.add(callback);
+                    emitDevToolsEvent({ type: 'store:lifecycle', storeId: definition.id, phase: 'subscribe', listenerCount: subscribers.size });
+                    const unsubscribe = () => {
+                        if (!subscribers?.delete(callback))
+                            return;
+                        emitDevToolsEvent({ type: 'store:lifecycle', storeId: definition.id, phase: 'unsubscribe', listenerCount: subscribers.size });
+                    };
+                    onScopeDispose(unsubscribe);
+                    return unsubscribe;
+                },
             };
-        });
-    }
-    // Store the instance
-    stores.set(definition.id, store);
-    emitDevToolsEvent({ type: 'store:lifecycle', storeId: definition.id, phase: 'create', listenerCount: 0 });
-    applyPlugins(store);
-    return store;
+            if (definition.getters) {
+                Object.keys(definition.getters).forEach(getterName => {
+                    const getterFn = definition.getters[getterName];
+                    store[getterName] = computed(() => getterFn(state));
+                });
+            }
+            if (definition.actions) {
+                Object.keys(definition.actions).forEach(actionName => {
+                    const actionFn = definition.actions[actionName];
+                    store[actionName] = function (...args) {
+                        const result = actionFn.apply(store, args);
+                        const subscribers = storeSubscriptions.get(store);
+                        subscribers?.forEach(callback => {
+                            callback({ storeId: definition.id, type: 'action', payload: { action: actionName, args, result } }, { ...state });
+                        });
+                        return result;
+                    };
+                });
+            }
+            stores.set(definition.id, store);
+            emitDevToolsEvent({ type: 'store:lifecycle', storeId: definition.id, phase: 'create', listenerCount: 0 });
+            plugins.forEach(plugin => plugin(store));
+            return store;
+        },
+        useStore(id) {
+            const store = stores.get(id);
+            if (!store) {
+                throw new Error(`[OneKit Store] Store "${id}" not found. Make sure to define it first.`);
+            }
+            return store;
+        },
+        getAllStores() {
+            return Array.from(stores.values());
+        },
+        getInspectorSnapshot() {
+            return Array.from(stores.values(), store => ({
+                id: store.$id,
+                state: store.$state,
+                subscriberCount: storeSubscriptions.get(store)?.size ?? 0,
+            }));
+        },
+        removeStore(id) {
+            const store = stores.get(id);
+            if (!store)
+                return false;
+            store.$dispose();
+            emitDevToolsEvent({ type: 'store:lifecycle', storeId: id, phase: 'remove', listenerCount: 0 });
+            return true;
+        },
+        addPlugin(plugin) {
+            plugins.push(plugin);
+            stores.forEach(store => plugin(store));
+        },
+        dispose() {
+            Array.from(stores.values()).forEach(store => store.$dispose());
+            plugins.length = 0;
+        },
+    };
+    return registry;
+}
+const defaultRegistry = createRegistry();
+registerDevToolsInspector('stores', () => defaultRegistry.getInspectorSnapshot());
+function createStoreRegistry() {
+    return createRegistry();
+}
+function defineStore(id, setup) {
+    return defaultRegistry.defineStore(id, setup);
 }
 function useStore(id) {
-    const store = stores.get(id);
-    if (!store) {
-        throw new Error(`[OneKit Store] Store "${id}" not found. Make sure to define it first.`);
-    }
-    return store;
+    return defaultRegistry.useStore(id);
 }
 function getAllStores() {
-    return Array.from(stores.values());
+    return defaultRegistry.getAllStores();
 }
 function removeStore(id) {
-    const store = stores.get(id);
-    if (store) {
-        storeSubscriptions.delete(store);
-        emitDevToolsEvent({ type: 'store:lifecycle', storeId: id, phase: 'remove', listenerCount: 0 });
-        return stores.delete(id);
-    }
-    return false;
+    return defaultRegistry.removeStore(id);
 }
-const plugins = [];
 function addStorePlugin(plugin) {
-    plugins.push(plugin);
-    // Apply plugin to existing stores
-    stores.forEach(store => {
-        plugin(store);
-    });
+    defaultRegistry.addPlugin(plugin);
 }
-// Apply plugins to newly created stores
-function applyPlugins(store) {
-    plugins.forEach(plugin => plugin(store));
-}
-// Explicit alias for applications that prefer a create-style API.
 function createStore(id, setup) {
     return defineStore(id, setup);
 }
 
+/**
+ * Create an optional IndexedDB-backed QueryStorage adapter.
+ *
+ * The adapter is safe to construct during SSR. When IndexedDB is unavailable,
+ * reads return null and writes are ignored so QueryClient persistence remains
+ * best-effort, matching the behavior of other storage adapters.
+ */
+function createIndexedDBQueryStorage(options = {}) {
+    const databaseName = options.databaseName ?? 'onekit-query-cache';
+    const storeName = options.storeName ?? 'queries';
+    const version = options.version ?? 1;
+    const getIndexedDB = () => {
+        if (typeof globalThis === 'undefined')
+            return undefined;
+        return globalThis.indexedDB;
+    };
+    const openDatabase = () => {
+        const indexedDB = getIndexedDB();
+        if (!indexedDB)
+            return Promise.resolve(undefined);
+        return new Promise((resolve, reject) => {
+            let request;
+            try {
+                request = indexedDB.open(databaseName, version);
+            }
+            catch (error) {
+                reject(error);
+                return;
+            }
+            request.onupgradeneeded = () => {
+                if (!request.result.objectStoreNames.contains(storeName)) {
+                    request.result.createObjectStore(storeName);
+                }
+            };
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error ?? new Error('Unable to open IndexedDB'));
+            request.onblocked = () => reject(new Error('IndexedDB upgrade is blocked'));
+        });
+    };
+    const run = (mode, operation) => openDatabase().then(database => {
+        if (!database)
+            return undefined;
+        return new Promise((resolve, reject) => {
+            let transaction;
+            let request;
+            try {
+                transaction = database.transaction(storeName, mode);
+                request = operation(transaction.objectStore(storeName));
+            }
+            catch (error) {
+                database.close();
+                reject(error);
+                return;
+            }
+            let result;
+            let settled = false;
+            const fail = (error) => {
+                if (settled)
+                    return;
+                settled = true;
+                database.close();
+                reject(error);
+            };
+            request.onsuccess = () => { result = request.result; };
+            request.onerror = () => fail(request.error ?? new Error('IndexedDB request failed'));
+            transaction.onerror = () => fail(transaction.error ?? new Error('IndexedDB transaction failed'));
+            transaction.onabort = () => fail(transaction.error ?? new Error('IndexedDB transaction aborted'));
+            transaction.oncomplete = () => {
+                if (settled)
+                    return;
+                settled = true;
+                database.close();
+                resolve(result);
+            };
+        });
+    });
+    return {
+        getItem: async (key) => (await run('readonly', store => store.get(key))) ?? null,
+        setItem: async (key, value) => {
+            await run('readwrite', store => store.put(value, key));
+        },
+        removeItem: async (key) => {
+            await run('readwrite', store => store.delete(key));
+        },
+    };
+}
 function normalizeKey(key) {
     return typeof key === 'string' ? key : JSON.stringify(key);
 }
@@ -4662,6 +4886,7 @@ class QueryClient {
     options;
     cleanupListeners = [];
     persistTimer;
+    disposed = false;
     constructor(options = {}) {
         this.options = options;
         this.restorePersisted();
@@ -4849,12 +5074,16 @@ class QueryClient {
         }
         await Promise.allSettled(jobs);
     }
-    /** Remove browser event listeners and pending persistence work. */
+    /** Remove browser event listeners and flush the last pending persistence update. */
     dispose() {
+        this.disposed = true;
         for (const cleanup of this.cleanupListeners.splice(0))
             cleanup();
-        if (this.persistTimer)
+        if (this.persistTimer) {
             clearTimeout(this.persistTimer);
+            this.persistTimer = undefined;
+            void this.persistNow();
+        }
     }
     /** Export settled query states for a trusted SSR-to-client handoff. */
     dehydrate() {
@@ -4900,7 +5129,7 @@ class QueryClient {
         try {
             const value = persistence.storage.getItem(persistence.key ?? 'onekit-query-cache');
             Promise.resolve(value).then(serialized => {
-                if (!serialized)
+                if (!serialized || this.disposed)
                     return;
                 const snapshot = JSON.parse(serialized);
                 if (persistence.maxAge !== undefined) {
@@ -4915,26 +5144,79 @@ class QueryClient {
         }
     }
     schedulePersist() {
-        if (!this.options.persistence)
+        if (!this.options.persistence || this.disposed)
             return;
         if (this.persistTimer)
             return;
         this.persistTimer = setTimeout(() => {
             this.persistTimer = undefined;
-            const persistence = this.options.persistence;
-            try {
-                const serialized = JSON.stringify(this.dehydrate());
-                void Promise.resolve(persistence.storage.setItem(persistence.key ?? 'onekit-query-cache', serialized)).catch(() => undefined);
-            }
-            catch {
-                // Non-serializable query data is ignored rather than breaking rendering.
-            }
+            void this.persistNow();
         }, 0);
+    }
+    async persistNow() {
+        const persistence = this.options.persistence;
+        if (!persistence)
+            return;
+        try {
+            const serialized = JSON.stringify(this.dehydrate());
+            await persistence.storage.setItem(persistence.key ?? 'onekit-query-cache', serialized);
+        }
+        catch {
+            // Non-serializable query data and storage failures are ignored rather than breaking rendering.
+        }
     }
     notify(record) {
         for (const listener of record.listeners)
             listener(record.state);
     }
+}
+/**
+ * Connect a QueryClient to an application-controlled cross-tab invalidation channel.
+ *
+ * Only normalized query keys are broadcast; cached data and errors never leave the
+ * current tab. The helper is safe when BroadcastChannel is unavailable and accepts
+ * a compatible custom channel for tests or other runtimes.
+ */
+function createQueryBroadcastSync(client, options = {}) {
+    const channel = options.channel ?? (typeof globalThis !== 'undefined' && typeof globalThis.BroadcastChannel === 'function'
+        ? new globalThis.BroadcastChannel(options.channelName ?? 'onekit-query-sync')
+        : undefined);
+    const ownedChannel = channel !== undefined && options.channel === undefined;
+    const source = `onekit-query-${Math.random().toString(36).slice(2)}`;
+    const onMessage = (event) => {
+        const message = event.data;
+        if (!message || typeof message !== 'object')
+            return;
+        const payload = message;
+        if (payload.source === source || payload.type !== 'invalidate')
+            return;
+        if (payload.key !== undefined && typeof payload.key !== 'string')
+            return;
+        client.invalidate(payload.key);
+    };
+    channel?.addEventListener('message', onMessage);
+    return {
+        available: channel !== undefined,
+        publishInvalidate(key) {
+            if (!channel)
+                return;
+            try {
+                channel.postMessage({
+                    source,
+                    type: 'invalidate',
+                    key: key === undefined ? undefined : normalizeKey(key),
+                });
+            }
+            catch {
+                // Broadcast failures are isolated from application state and rendering.
+            }
+        },
+        dispose() {
+            channel?.removeEventListener('message', onMessage);
+            if (ownedChannel)
+                channel?.close?.();
+        },
+    };
 }
 function createQueryClient(options = {}) {
     return new QueryClient(options);
@@ -5327,7 +5609,12 @@ function walkAndHydrate(element, vnode, path, mismatches, cleanups) {
             cleanups.push(() => element.removeEventListener(eventName, listener));
         }
     }
-    element._vnode = vnode;
+    const vnodeMetadata = element;
+    vnodeMetadata._vnode = vnode;
+    cleanups.push(() => {
+        if (vnodeMetadata._vnode === vnode)
+            delete vnodeMetadata._vnode;
+    });
     const childNodes = Array.from(element.childNodes);
     vnode.children.forEach((child, index) => {
         const domChild = childNodes[index];
@@ -5771,6 +6058,8 @@ function createServerApp(options = {}) {
         put(path, ...handlers) { return app.route('PUT', path, ...handlers); },
         patch(path, ...handlers) { return app.route('PATCH', path, ...handlers); },
         delete(path, ...handlers) { return app.route('DELETE', path, ...handlers); },
+        head(path, ...handlers) { return app.route('HEAD', path, ...handlers); },
+        options(path, ...handlers) { return app.route('OPTIONS', path, ...handlers); },
         resource(path, handlers) {
             const base = path === '/' ? '' : `/${path.replace(/^\/+|\/+$/g, '')}`;
             if (handlers.list)
@@ -5845,14 +6134,16 @@ function createServerApp(options = {}) {
         async handle(request) {
             const url = new URL(request.url);
             const method = request.method.toUpperCase();
-            const route = compiled.find(item => (item.definition.method === '*' || item.definition.method === method) && item.match(url.pathname));
+            const pathRoutes = compiled.filter(item => item.match(url.pathname));
+            const pathRoute = pathRoutes[0];
+            const route = pathRoutes.find(item => item.definition.method === '*' || item.definition.method === method);
             let parsedBody;
             let bodyLoaded = false;
             const context = {
                 request,
                 method,
                 path: url.pathname,
-                params: route ? itemMatch(route, url.pathname) : {},
+                params: route ? itemMatch(route, url.pathname) : pathRoute ? itemMatch(pathRoute, url.pathname) : {},
                 query: url.searchParams,
                 state: {},
                 services: injector,
@@ -5871,8 +6162,13 @@ function createServerApp(options = {}) {
             };
             const handlers = [
                 ...middleware,
-                ...(route ? route.definition.handlers : [() => json({ error: 'Not Found' }, { status: 404 })])
+                ...(route
+                    ? route.definition.handlers
+                    : pathRoute
+                        ? [() => new Response(null, { status: 405, headers: { Allow: allowedMethods(pathRoutes) } })]
+                        : [() => json({ error: 'Not Found' }, { status: 404 })])
             ];
+            const finalize = (response) => method === 'HEAD' ? withoutResponseBody(response) : response;
             let index = -1;
             const dispatch = async (position) => {
                 if (position <= index)
@@ -5884,29 +6180,47 @@ function createServerApp(options = {}) {
                 return handler(context, () => dispatch(position + 1));
             };
             try {
-                return await dispatch(0);
+                return finalize(await dispatch(0));
             }
             catch (error) {
                 try {
                     if (options.onError)
-                        return await options.onError(error, context);
+                        return finalize(await options.onError(error, context));
                 }
                 catch (hookError) {
                     error = hookError;
                 }
                 if (options.errorResponse) {
                     try {
-                        return await options.errorResponse(error, context);
+                        return finalize(await options.errorResponse(error, context));
                     }
                     catch {
-                        return serverErrorResponse(error);
+                        return finalize(serverErrorResponse(error));
                     }
                 }
-                return serverErrorResponse(error);
+                return finalize(serverErrorResponse(error));
             }
         }
     };
     return app;
+}
+function allowedMethods(routes) {
+    const methods = new Set();
+    for (const route of routes) {
+        const routeMethods = route.definition.method === '*'
+            ? ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']
+            : [route.definition.method];
+        routeMethods.forEach(routeMethod => methods.add(routeMethod));
+    }
+    return Array.from(methods).join(', ');
+}
+function withoutResponseBody(response) {
+    void response.body?.cancel().catch(() => undefined);
+    return new Response(null, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: response.headers,
+    });
 }
 function itemMatch(route, path) {
     return route.match(path) ?? {};
@@ -6808,5 +7122,5 @@ const jsxDEV = jsx;
 // Version info
 const VERSION = '3.1.19';
 
-export { API, DependencyInjector, Fragment, HydrationMismatchError, OneKit, OneKitWebComponent, QueryClient, Router, ServerError, StreamingRenderer, VERSION, activate, addScript, addStorePlugin, addStyle, addToBody, addToHead, animations, announce, patch as apiPatch, applyHead, assertClient, assertServer, autorun, batch, bind, bindHydratedComponent, cache, cleanup, clearDevToolsDependencies, clientOnly, compileOkjs, compileTemplate, component, computed, create, createApi, createApp, createElement, createErrorBoundary, createErrorReport, createFileRoutes, createForm, createHeadManager, createLandmarks, createLoadingBoundary, createMemoryRateLimitStore, createMemoryServerDataCache, createMongoDBAdapter, createMySQLAdapter, createNodeHandler, createPostgreSQLAdapter, createQueryClient, createRedisRateLimitStore, createRouteManifest, createRouter, createSQLiteAdapter, createSSRContext, createServerApp, createServerData, createServerError, createSkipLink, createStorage, createStore, createStreamingBoundary, debounce, deepClone, defineComponent, defineController, defineHandler, defineLayoutRoute, defineMiddleware, defineModule, defineRoute, defineStore, del, derive, destroy, devToolsSnapshot, di, disableScopeLeakWarnings, disposeDevToolsResource, effect, effectScope, emitDevToolsEvent, enableDevTools, enableScopeLeakWarnings, errorHandler, filePathToRoutePath, fireEvent, flush, generateId, get, getActiveScopeDiagnostics, getAllStores, getCurrentScope, getDependencyGraph, getDevToolsEffectId, getDevToolsScopeId, getDevToolsTargetId, getInstance, getResourceGraph, getRuntimeEnvironment, h, hotUpdateComponent, hydrate, initTemplateEngine, isClient, isClientRuntime, isDevToolsEnabled, isServer, isServerRuntime, jsonResponse, jsx$1 as jsx, jsxDEV$1 as jsxDEV, jsx as jsxRuntime, jsxDEV as jsxRuntimeDEV, jsxs, localStorage, makeFocusable, makeUnfocusable, manageTabOrder, measureDevTools, mount, nextTick, normalizeSlots, ok, okjs, onDestroyed, onDevToolsEvent, onMounted, onPropsChanged, onScopeDispose, onUpdated, parseOkjs, patch$1 as patch, pluginManager, post, preloadModule, preloadScript, preloadStyle, put, reactive, recordDevToolsDependency, recordDevToolsError, register, registerDevToolsInspector, registerDevToolsResource, registerDirective, registerDisposable, registerWebComponent, removeStore, render, renderHead, renderMeta$1 as renderMeta, renderOpenGraph, renderTest, renderTitle, renderToString, request, resolveSlot, resumeStreamingBoundary, resumeStreamingBoundaryChunk, routeHref, router, safeMethod, securityMiddleware, serverErrorResponse, serverMiddleware, serverOnly, sessionStorage, setAriaAttributes, setErrorReporter, setMeta, setupComponent, skipToContent, snapshot, state, stop, textResponse, throttle, trapFocus, unbindHydratedComponent, unmount, updateComponentProps, useStore, validateAccessibility, validateBody, patch$1 as vdomPatch, waitFor, watch, watchEffect, withCache, withScope };
+export { API, DependencyInjector, Fragment, HydrationMismatchError, OneKit, OneKitWebComponent, QueryClient, Router, ServerError, StreamingRenderer, VERSION, activate, addScript, addStorePlugin, addStyle, addToBody, addToHead, animations, announce, patch as apiPatch, applyHead, assertClient, assertServer, autorun, batch, bind, bindHydratedComponent, cache, cleanup, clearDevToolsDependencies, clientOnly, compileOkjs, compileTemplate, component, computed, create, createApi, createApp, createElement, createErrorBoundary, createErrorReport, createFileRoutes, createForm, createHeadManager, createIndexedDBQueryStorage, createLandmarks, createLoadingBoundary, createMemoryRateLimitStore, createMemoryServerDataCache, createMongoDBAdapter, createMySQLAdapter, createNodeHandler, createPostgreSQLAdapter, createQueryBroadcastSync, createQueryClient, createRedisRateLimitStore, createRouteManifest, createRouter, createRouterView, createSQLiteAdapter, createSSRContext, createServerApp, createServerData, createServerError, createSkipLink, createStorage, createStore, createStoreRegistry, createStreamingBoundary, debounce, deepClone, defineComponent, defineController, defineHandler, defineLayoutRoute, defineMiddleware, defineModule, defineRoute, defineStore, del, derive, destroy, devToolsSnapshot, di, disableScopeLeakWarnings, disposeDevToolsResource, effect, effectScope, emitDevToolsEvent, enableDevTools, enableScopeLeakWarnings, errorHandler, filePathToRoutePath, fireEvent, flush, generateId, get, getActiveScopeDiagnostics, getAllStores, getCurrentScope, getDependencyGraph, getDevToolsEffectId, getDevToolsScopeId, getDevToolsTargetId, getInstance, getResourceGraph, getRuntimeEnvironment, h, hotUpdateComponent, hydrate, initTemplateEngine, isClient, isClientRuntime, isDevToolsEnabled, isServer, isServerRuntime, jsonResponse, jsx$1 as jsx, jsxDEV$1 as jsxDEV, jsx as jsxRuntime, jsxDEV as jsxRuntimeDEV, jsxs, localStorage, makeFocusable, makeUnfocusable, manageTabOrder, measureDevTools, mount, nextTick, normalizeSlots, ok, okjs, onDestroyed, onDevToolsEvent, onMounted, onPropsChanged, onScopeDispose, onUpdated, parseOkjs, patch$1 as patch, pluginManager, post, preloadModule, preloadScript, preloadStyle, put, reactive, recordDevToolsDependency, recordDevToolsError, register, registerDevToolsInspector, registerDevToolsResource, registerDirective, registerDisposable, registerWebComponent, removeStore, render, renderHead, renderMeta$1 as renderMeta, renderOpenGraph, renderTest, renderTitle, renderToString, request, resolveSlot, resumeStreamingBoundary, resumeStreamingBoundaryChunk, routeHref, router, safeMethod, securityMiddleware, serverErrorResponse, serverMiddleware, serverOnly, sessionStorage, setAriaAttributes, setErrorReporter, setMeta, setupComponent, skipToContent, snapshot, state, stop, textResponse, throttle, trapFocus, unbindHydratedComponent, unmount, updateComponentProps, useStore, validateAccessibility, validateBody, patch$1 as vdomPatch, waitFor, watch, watchEffect, withCache, withScope };
 //# sourceMappingURL=onekit.esm.js.map

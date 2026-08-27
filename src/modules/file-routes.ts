@@ -27,9 +27,11 @@ type SegmentParams<Segment extends string> = Segment extends `:${infer Param}`
   ? Param extends `${infer Name}?`
     ? { [Key in Name]?: string }
     : { [Key in Param]: string }
-  : Segment extends '*'
-    ? { wildcard: string }
-    : Record<never, never>;
+  : Segment extends '*?'
+    ? { wildcard?: string }
+    : Segment extends '*'
+      ? { wildcard: string }
+      : Record<never, never>;
 
 export type ExtractRouteParams<Path extends string> = string extends Path
   ? Record<string, string>
@@ -80,7 +82,11 @@ export function filePathToRoutePath(filePath: string, root = ''): string {
   const routeSegments: string[] = [];
   for (const segment of segments) {
     if (/^(?:index|page)$/.test(segment)) continue;
-    if (segment === '_layout' || segment === 'layout') continue;
+    if (segment === '_layout' || segment === 'layout' || /^\(.+\)$/.test(segment)) continue;
+    if (/^\[\[\.\.\.(.+)\]\]$/.test(segment)) {
+      routeSegments.push('*?');
+      continue;
+    }
     if (/^\[\.\.\.(.+)\]$/.test(segment)) {
       routeSegments.push('*');
       continue;
@@ -124,5 +130,12 @@ export function createFileRoutes(
 export function routeHref<const Path extends string>(path: Path): string;
 export function routeHref<const Path extends string>(path: Path, params: RouteParamsFor<Path> & Record<string, string | number>): string;
 export function routeHref<const Path extends string>(path: Path, params: Record<string, string | number> = {}): string {
-  return path.replace(/:([A-Za-z0-9_]+)\??/g, (_, key: string) => encodeURIComponent(String(params[key] ?? ''))).replace(/\*/g, encodeURIComponent(String(params.wildcard ?? '')));
+  let result = path.replace(/\/:([A-Za-z0-9_]+)\?/g, (_, key: string) => {
+    const value = params[key];
+    return value === undefined ? '' : `/${encodeURIComponent(String(value))}`;
+  });
+  result = result.replace(/\/:([A-Za-z0-9_]+)/g, (_, key: string) => `/${encodeURIComponent(String(params[key] ?? ''))}`);
+  result = result.replace(/\/\*\?/g, params.wildcard === undefined ? '' : `/${encodeURIComponent(String(params.wildcard))}`);
+  result = result.replace(/\*/g, encodeURIComponent(String(params.wildcard ?? '')));
+  return result || '/';
 }

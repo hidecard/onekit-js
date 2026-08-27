@@ -27,6 +27,34 @@ export interface QueryStorage {
     setItem(key: string, value: string): void | Promise<void>;
     removeItem?(key: string): void | Promise<void>;
 }
+export interface IndexedDBQueryStorageOptions {
+    databaseName?: string;
+    storeName?: string;
+    version?: number;
+}
+/**
+ * Create an optional IndexedDB-backed QueryStorage adapter.
+ *
+ * The adapter is safe to construct during SSR. When IndexedDB is unavailable,
+ * reads return null and writes are ignored so QueryClient persistence remains
+ * best-effort, matching the behavior of other storage adapters.
+ */
+export declare function createIndexedDBQueryStorage(options?: IndexedDBQueryStorageOptions): QueryStorage;
+export interface QueryBroadcastChannel {
+    postMessage(message: unknown): void;
+    addEventListener(type: 'message', listener: (event: MessageEvent<unknown>) => void): void;
+    removeEventListener(type: 'message', listener: (event: MessageEvent<unknown>) => void): void;
+    close?(): void;
+}
+export interface QueryBroadcastSyncOptions {
+    channelName?: string;
+    channel?: QueryBroadcastChannel;
+}
+export interface QueryBroadcastSync {
+    readonly available: boolean;
+    publishInvalidate(key?: QueryKey): void;
+    dispose(): void;
+}
 export interface QueryPersistenceOptions {
     storage: QueryStorage;
     key?: string;
@@ -58,6 +86,7 @@ export declare class QueryClient {
     private readonly options;
     private readonly cleanupListeners;
     private persistTimer?;
+    private disposed;
     constructor(options?: QueryClientOptions);
     private record;
     getState<T>(key: QueryKey): QueryState<T>;
@@ -73,7 +102,7 @@ export declare class QueryClient {
     clear(): void;
     /** Re-fetch queries with remembered loaders after focus or reconnect. */
     revalidate(reason?: 'focus' | 'reconnect' | 'manual'): Promise<void>;
-    /** Remove browser event listeners and pending persistence work. */
+    /** Remove browser event listeners and flush the last pending persistence update. */
     dispose(): void;
     /** Export settled query states for a trusted SSR-to-client handoff. */
     dehydrate(): DehydratedQueryState;
@@ -82,6 +111,15 @@ export declare class QueryClient {
     private fetchFromRecord;
     private restorePersisted;
     private schedulePersist;
+    private persistNow;
     private notify;
 }
+/**
+ * Connect a QueryClient to an application-controlled cross-tab invalidation channel.
+ *
+ * Only normalized query keys are broadcast; cached data and errors never leave the
+ * current tab. The helper is safe when BroadcastChannel is unavailable and accepts
+ * a compatible custom channel for tests or other runtimes.
+ */
+export declare function createQueryBroadcastSync(client: QueryClient, options?: QueryBroadcastSyncOptions): QueryBroadcastSync;
 export declare function createQueryClient(options?: QueryClientOptions): QueryClient;

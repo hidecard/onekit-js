@@ -1,4 +1,4 @@
-import { createRouter } from '../src/index';
+import { createElement, createRouter, createRouterView } from '../src/index';
 import { createErrorBoundary, createHeadManager, createLoadingBoundary, createQueryClient, createRouteManifest } from '../src/index';
 describe('M2 router production contract', () => {
 
@@ -17,6 +17,42 @@ describe('M2 router production contract', () => {
     expect(router.getCurrentPath()).toBe('/');
     expect(listener).not.toHaveBeenCalled();
   });
+  it('dehydrates and reuses matching SSR route data once without rerunning the loader', async () => {
+    let serverCalls = 0;
+    const serverRouter = createRouter([{ path: '/profile/:id', loader: ({ to }) => ({ id: to.params.id, source: 'server' }) }], {
+      mode: 'memory',
+      initialPath: '/profile/42',
+    });
+    await serverRouter.start();
+    const snapshot = serverRouter.dehydrate();
+    expect(snapshot).toMatchObject({ version: 1, fullPath: '/profile/42' });
+
+    const clientRouter = createRouter([{ path: '/profile/:id', loader: ({ to }) => {
+      serverCalls += 1;
+      return { id: to.params.id, source: 'client' };
+    } }], { mode: 'memory', initialPath: '/profile/42' });
+    clientRouter.hydrate(snapshot!);
+    const hydrated = await clientRouter.start();
+    expect(hydrated?.data).toEqual({ id: '42', source: 'server' });
+    expect(serverCalls).toBe(0);
+
+    const fresh = await clientRouter.navigate('/profile/42');
+    expect(fresh?.data).toEqual({ id: '42', source: 'client' });
+    expect(serverCalls).toBe(1);
+  });
+
+  it('ignores route-data snapshots for a different URL', async () => {
+    let calls = 0;
+    const router = createRouter([{ path: '/docs/:id', loader: ({ to }) => {
+      calls += 1;
+      return { id: to.params.id };
+    } }], { mode: 'memory', initialPath: '/docs/2' });
+    router.hydrate({ version: 1, fullPath: '/docs/1', routes: [{ path: '/docs/:id', data: { id: '1' } }] });
+    const result = await router.start();
+    expect(result?.data).toEqual({ id: '2' });
+    expect(calls).toBe(1);
+  });
+
   it('creates a JSON-safe manifest for nested routes and excludes dynamic query keys', () => {
     const loader = () => ({ ready: true });
     const lazy = async () => ({ default: 'ReportsPage' });
@@ -69,6 +105,52 @@ describe('M2 router production contract', () => {
     expect(first?.data).toEqual({ id: '7' });
     expect(second?.data).toEqual({ id: '8' });
     expect(lazy).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns the committed match when start is called more than once', async () => {
+    const lazy = jest.fn(async () => ({ default: 'HomePage' }));
+    const loader = jest.fn(async () => ({ ready: true }));
+    const router = createRouter([{ path: '/', lazy, loader }], { mode: 'memory', initialPath: '/' });
+
+    const first = await router.start();
+    const second = await router.start();
+
+    expect(second).toBe(first);
+    expect(second?.data).toEqual({ ready: true });
+    expect(second?.components).toEqual(['HomePage']);
+    expect(lazy).toHaveBeenCalledTimes(1);
+    expect(loader).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders committed route matches through an optional RouterView controller', async () => {
+    const target = document.createElement('main');
+    document.body.appendChild(target);
+    const router = createRouter([
+      { path: '/home', loader: () => ({ title: 'Home' }) },
+      { path: '/about' },
+    ], { mode: 'memory' });
+    const view = createRouterView(router, {
+      target,
+      render: ({ route, data }) => createElement(
+        'article',
+        { 'data-route': route.path },
+        typeof data === 'object' && data !== null && 'title' in data ? String(data.title) : route.path,
+      ),
+    });
+
+    await router.navigate('/home');
+    expect(target.querySelector('article')?.textContent).toBe('Home');
+    expect(target.querySelector('article')?.getAttribute('data-route')).toBe('/home');
+
+    await router.navigate('/about');
+    expect(target.querySelector('article')?.textContent).toBe('/about');
+    await router.navigate('/missing');
+    expect(target.textContent).toBe('');
+
+    view.dispose();
+    await router.navigate('/home');
+    expect(target.textContent).toBe('');
+    target.remove();
   });
 
   it('runs scroll behavior after a successful navigation', async () => {
@@ -274,6 +356,31 @@ describe('M2 router production contract', () => {
     expect(await slowNavigation).toBeNull();
     expect(router.getCurrentPath()).toBe('/fast');
     expect(events).toEqual(['/fast']);
+  });
+
+  it('aborts superseded route loaders and resolves them as stale navigations', async () => {
+    let aborted = false;
+    let loaderStarted!: () => void;
+    const started = new Promise<void>(resolve => { loaderStarted = resolve; });
+    const router = createRouter([
+      { path: '/slow', loader: ({ signal }) => new Promise((resolve, reject) => {
+        loaderStarted();
+        signal?.addEventListener('abort', () => {
+          aborted = true;
+          reject(signal.reason ?? new DOMException('aborted', 'AbortError'));
+        }, { once: true });
+      }) },
+      { path: '/fast' },
+    ], { mode: 'memory' });
+
+    const slowNavigation = router.navigate('/slow');
+    await started;
+    const fastNavigation = router.navigate('/fast');
+    expect((await fastNavigation)?.route.path).toBe('/fast');
+    expect(await slowNavigation).toBeNull();
+    expect(aborted).toBe(true);
+
+    router.stop();
   });
 
   it('ignores stale post-commit handler completion', async () => {

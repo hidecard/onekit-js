@@ -112,6 +112,8 @@ export interface ServerApp {
     put(path: string, ...handlers: ServerHandler[]): this;
     patch(path: string, ...handlers: ServerHandler[]): this;
     delete(path: string, ...handlers: ServerHandler[]): this;
+    head(path: string, ...handlers: ServerHandler[]): this;
+    options(path: string, ...handlers: ServerHandler[]): this;
     resource(path: string, handlers: ResourceHandlers): this;
     module(module: ServerModule): this;
     start(): Promise<void>;

@@ -171,6 +171,8 @@ export interface ServerApp {
   put(path: string, ...handlers: ServerHandler[]): this;
   patch(path: string, ...handlers: ServerHandler[]): this;
   delete(path: string, ...handlers: ServerHandler[]): this;
+  head(path: string, ...handlers: ServerHandler[]): this;
+  options(path: string, ...handlers: ServerHandler[]): this;
   resource(path: string, handlers: ResourceHandlers): this;
   module(module: ServerModule): this;
   start(): Promise<void>;
@@ -335,6 +337,8 @@ export function createServerApp(options: ServerAppOptions = {}): ServerApp {
     put(path, ...handlers) { return app.route('PUT', path, ...handlers); },
     patch(path, ...handlers) { return app.route('PATCH', path, ...handlers); },
     delete(path, ...handlers) { return app.route('DELETE', path, ...handlers); },
+    head(path, ...handlers) { return app.route('HEAD', path, ...handlers); },
+    options(path, ...handlers) { return app.route('OPTIONS', path, ...handlers); },
     resource(path, handlers) {
       const base = path === '/' ? '' : `/${path.replace(/^\/+|\/+$/g, '')}`;
       if (handlers.list) app.get(base || '/', handlers.list);
@@ -395,14 +399,16 @@ export function createServerApp(options: ServerAppOptions = {}): ServerApp {
     async handle(request) {
       const url = new URL(request.url);
       const method = request.method.toUpperCase();
-      const route = compiled.find(item => (item.definition.method === '*' || item.definition.method === method) && item.match(url.pathname));
+      const pathRoutes = compiled.filter(item => item.match(url.pathname));
+      const pathRoute = pathRoutes[0];
+      const route = pathRoutes.find(item => item.definition.method === '*' || item.definition.method === method);
       let parsedBody: unknown;
       let bodyLoaded = false;
       const context: ServerRequestContext = {
         request,
         method,
         path: url.pathname,
-        params: route ? itemMatch(route, url.pathname) : {},
+        params: route ? itemMatch(route, url.pathname) : pathRoute ? itemMatch(pathRoute, url.pathname) : {},
         query: url.searchParams,
         state: {},
         services: injector,
@@ -421,8 +427,13 @@ export function createServerApp(options: ServerAppOptions = {}): ServerApp {
       };
       const handlers = [
         ...middleware,
-        ...(route ? route.definition.handlers : [() => json({ error: 'Not Found' }, { status: 404 }) as Response])
+        ...(route
+          ? route.definition.handlers
+          : pathRoute
+            ? [() => new Response(null, { status: 405, headers: { Allow: allowedMethods(pathRoutes) } })]
+            : [() => json({ error: 'Not Found' }, { status: 404 }) as Response])
       ];
+      const finalize = (response: Response): Response => method === 'HEAD' ? withoutResponseBody(response) : response;
       let index = -1;
       const dispatch = async (position: number): Promise<Response> => {
         if (position <= index) throw new Error('next() called multiple times');
@@ -432,25 +443,45 @@ export function createServerApp(options: ServerAppOptions = {}): ServerApp {
         return handler(context, () => dispatch(position + 1));
       };
       try {
-        return await dispatch(0);
+        return finalize(await dispatch(0));
       } catch (error) {
         try {
-          if (options.onError) return await options.onError(error, context);
+          if (options.onError) return finalize(await options.onError(error, context));
         } catch (hookError) {
           error = hookError;
         }
         if (options.errorResponse) {
           try {
-            return await options.errorResponse(error, context);
+            return finalize(await options.errorResponse(error, context));
           } catch {
-            return serverErrorResponse(error);
+            return finalize(serverErrorResponse(error));
           }
         }
-        return serverErrorResponse(error);
+        return finalize(serverErrorResponse(error));
       }
     }
   };
   return app;
+}
+
+function allowedMethods(routes: readonly CompiledRoute[]): string {
+  const methods = new Set<string>();
+  for (const route of routes) {
+    const routeMethods = route.definition.method === '*'
+      ? ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']
+      : [route.definition.method];
+    routeMethods.forEach(routeMethod => methods.add(routeMethod));
+  }
+  return Array.from(methods).join(', ');
+}
+
+function withoutResponseBody(response: Response): Response {
+  void response.body?.cancel().catch(() => undefined);
+  return new Response(null, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers,
+  });
 }
 
 function itemMatch(route: CompiledRoute, path: string): Record<string, string> {

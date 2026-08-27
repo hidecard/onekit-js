@@ -23,7 +23,7 @@ export type DevToolsEvent = {
 } | {
     type: 'store:lifecycle';
     storeId: string;
-    phase: 'create' | 'subscribe' | 'unsubscribe' | 'remove';
+    phase: 'create' | 'subscribe' | 'unsubscribe' | 'remove' | 'dispose';
     listenerCount?: number;
 } | {
     type: 'scope:lifecycle';

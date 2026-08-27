@@ -14,6 +14,13 @@ describe('file route helpers', () => {
     expect(filePathToRoutePath('/src/pages/docs/[...slug].tsx', '/src/pages')).toBe('/docs/*');
   });
 
+  it('supports route groups and optional catch-all segments', () => {
+    expect(filePathToRoutePath('/src/app/(marketing)/about/page.tsx', '/src/app')).toBe('/about');
+    expect(filePathToRoutePath('/src/app/docs/[[...slug]]/page.tsx', '/src/app')).toBe('/docs/*?');
+    expect(routeHref('/docs/*?', {})).toBe('/docs');
+    expect(routeHref('/docs/*?', { wildcard: 'guide/getting-started' })).toBe('/docs/guide%2Fgetting-started');
+  });
+
   it('creates sorted routes from bundler module maps', () => {
     const routes = createFileRoutes({
       '/src/pages/users/[id].tsx': { default: 'UserPage' },

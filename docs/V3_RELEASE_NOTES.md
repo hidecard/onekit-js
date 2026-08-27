@@ -147,7 +147,7 @@ The 3.1.19 V3 branch was validated with strict TypeScript compilation, **35 Jest
 
 ## Known boundaries
 
-OneKit’s router resolves navigation and data but does not automatically render route components. Applications must connect `MatchedRoute` values to their renderer. Route manifests are preload and hydration planning metadata; they are not an authorization mechanism. The SSR `scheduleBoundary()` hook is additive and adapter-controlled; built-in queue, back-pressure, timeout, and platform-specific scheduling policies remain application or adapter responsibilities. Query persistence and automatic focus/reconnect revalidation remain follow-up parity work rather than assumptions of this release. Database and Redis drivers are optional application dependencies and are not bundled into the core package.
+OneKit’s router resolves navigation and data first. Applications may connect `MatchedRoute` values to any renderer, or use the optional `createRouterView()` helper for VDOM target binding while retaining ownership of the route-to-view function. Route manifests are preload and hydration planning metadata; they are not an authorization mechanism. The SSR `scheduleBoundary()` hook is additive and adapter-controlled; built-in queue, back-pressure, timeout, and platform-specific scheduling policies remain application or adapter responsibilities. Query persistence and automatic focus/reconnect revalidation remain follow-up parity work rather than assumptions of this release. Database and Redis drivers are optional application dependencies and are not bundled into the core package.
 
 ## Related documentation
 

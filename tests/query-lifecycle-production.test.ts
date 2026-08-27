@@ -1,4 +1,5 @@
-import { createQueryClient } from '../src';
+import indexedDB from 'fake-indexeddb';
+import { createIndexedDBQueryStorage, createQueryBroadcastSync, createQueryClient, type QueryBroadcastChannel } from '../src';
 
 describe('query lifecycle', () => {
   it('invalidates and notifies subscribers', () => {
@@ -51,6 +52,82 @@ describe('query lifecycle', () => {
     expect(second.getData<{ name: string }>('profile')).toEqual({ name: 'OneKit' });
     first.dispose();
     second.dispose();
+  });
+
+  it('persists and restores query state through the IndexedDB adapter', async () => {
+    const originalIndexedDB = globalThis.indexedDB;
+    const originalStructuredClone = globalThis.structuredClone;
+    Object.defineProperty(globalThis, 'indexedDB', { configurable: true, value: indexedDB });
+    if (!globalThis.structuredClone) {
+      Object.defineProperty(globalThis, 'structuredClone', {
+        configurable: true,
+        value: <T>(value: T) => JSON.parse(JSON.stringify(value)) as T,
+      });
+    }
+    const databaseName = `onekit-query-test-${Date.now()}-${Math.random()}`;
+    const storage = createIndexedDBQueryStorage({ databaseName });
+    try {
+      await storage.setItem('cache', JSON.stringify({ queries: [{ key: 'profile', state: { status: 'success', data: { name: 'OneKit' }, updatedAt: Date.now() } }] }));
+      expect(JSON.parse((await storage.getItem('cache')) ?? '{}').queries[0].state.data).toEqual({ name: 'OneKit' });
+
+      const client = createQueryClient({ persistence: { storage, key: 'cache' } });
+      for (let attempt = 0; attempt < 20 && client.getData<{ name: string }>('profile') === undefined; attempt += 1) {
+        await new Promise(resolve => setTimeout(resolve, 5));
+      }
+      expect(client.getData<{ name: string }>('profile')).toEqual({ name: 'OneKit' });
+      client.dispose();
+      await storage.removeItem?.('cache');
+      expect(await storage.getItem('cache')).toBeNull();
+    } finally {
+      Object.defineProperty(globalThis, 'indexedDB', { configurable: true, value: originalIndexedDB });
+      Object.defineProperty(globalThis, 'structuredClone', { configurable: true, value: originalStructuredClone });
+    }
+  });
+
+  it('synchronizes invalidation through an application-controlled channel without sharing data', () => {
+    const listeners = new Set<(event: MessageEvent<unknown>) => void>();
+    const messages: unknown[] = [];
+    const channel: QueryBroadcastChannel = {
+      postMessage: (message) => {
+        messages.push(message);
+        for (const listener of listeners) listener({ data: message } as MessageEvent<unknown>);
+      },
+      addEventListener: (_type, listener) => { listeners.add(listener); },
+      removeEventListener: (_type, listener) => { listeners.delete(listener); },
+    };
+    const sender = createQueryClient();
+    const receiver = createQueryClient();
+    const senderSync = createQueryBroadcastSync(sender, { channel });
+    const receiverSync = createQueryBroadcastSync(receiver, { channel });
+    sender.setData(['todos', 1], ['draft']);
+    receiver.setData(['todos', 1], ['cached']);
+
+    senderSync.publishInvalidate(['todos', 1]);
+    expect(receiver.getState(['todos', 1]).updatedAt).toBe(0);
+    expect(messages[0]).toMatchObject({ type: 'invalidate', key: '["todos",1]' });
+    expect(messages[0]).not.toHaveProperty('data');
+
+    receiver.setData(['todos', 1], ['fresh']);
+    receiverSync.dispose();
+    senderSync.publishInvalidate(['todos', 1]);
+    expect(receiver.getState(['todos', 1]).updatedAt).toBeGreaterThan(0);
+
+    senderSync.dispose();
+    sender.dispose();
+    receiver.dispose();
+  });
+
+  it('flushes pending persistence when disposed', async () => {
+    const values = new Map<string, string>();
+    const storage = {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: async (key: string, value: string) => { values.set(key, value); },
+    };
+    const client = createQueryClient({ persistence: { storage, key: 'dispose-cache' } });
+    client.setData('profile', { name: 'OneKit' });
+    client.dispose();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(JSON.parse(values.get('dispose-cache') ?? '{}').queries[0].key).toBe('profile');
   });
 
   it('revalidates remembered loaders on window focus and reconnect', async () => {
