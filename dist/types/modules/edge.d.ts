@@ -33,12 +33,14 @@ export interface EdgeRequestContext {
 export interface EdgeHandlerOptions extends EdgeRuntimeOptions {
     onError?: (error: unknown, request: Request) => Response | Promise<Response>;
 }
+export interface EdgeFetchContext {
+    env?: unknown;
+    executionContext?: EdgeExecutionContext;
+}
 export interface EdgeHandler {
     readonly capabilities: EdgeRuntimeCapabilities;
-    fetch(request: Request, context?: {
-        env?: unknown;
-        executionContext?: EdgeExecutionContext;
-    }): Promise<Response>;
+    fetch(request: Request, context?: EdgeFetchContext): Promise<Response>;
+    schedule(promise: Promise<unknown>, context?: EdgeFetchContext): void;
 }
 /**
  * Wrap a Fetch-compatible ServerApp for Workers/Deno/Vercel-style deployments.

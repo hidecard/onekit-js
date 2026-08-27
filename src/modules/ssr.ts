@@ -504,6 +504,36 @@ export type StreamingBoundaryScheduler = (
   boundary: StreamingBoundary,
 ) => Promise<void> | void;
 
+function createBoundedBoundaryScheduler(
+  scheduler: StreamingBoundaryScheduler | undefined,
+  maxConcurrentBoundaries: number | undefined,
+): StreamingBoundaryScheduler | undefined {
+  const limit = maxConcurrentBoundaries ?? Infinity;
+  if (limit !== Infinity && (!Number.isInteger(limit) || limit < 1)) {
+    throw new RangeError('maxConcurrentBoundaries must be a positive integer');
+  }
+  if (!scheduler && limit === Infinity) return undefined;
+  const queue: Array<{ task: StreamingBoundaryTask; boundary: StreamingBoundary; resolve: () => void; reject: (error: unknown) => void }> = [];
+  let active = 0;
+  const runNext = (): void => {
+    while (active < limit && queue.length) {
+      const item = queue.shift()!;
+      active += 1;
+      Promise.resolve()
+        .then(() => (scheduler ? scheduler(item.task, item.boundary) : item.task()))
+        .then(item.resolve, item.reject)
+        .finally(() => {
+          active -= 1;
+          runNext();
+        });
+    }
+  };
+  return (task, boundary) => new Promise<void>((resolve, reject) => {
+    queue.push({ task, boundary, resolve, reject });
+    runNext();
+  });
+}
+
 export interface StreamingPayloadOptions {
   /** Secure, application-owned route-data envelope emitted as inert JSON script data. */
   routeDataPayload?: string;
@@ -519,6 +549,8 @@ export interface StreamingRenderOptions extends StreamingPayloadOptions {
   onError?: (error: unknown) => void;
   /** Schedule deferred boundary work; defaults to immediate FIFO scheduling. */
   scheduleBoundary?: StreamingBoundaryScheduler;
+  /** Maximum number of deferred boundary tasks allowed to run concurrently. */
+  maxConcurrentBoundaries?: number;
 }
 
 export class StreamingRenderer {
@@ -531,6 +563,7 @@ export class StreamingRenderer {
   async renderToStream(vnode: AsyncVNode, options: StreamingRenderOptions = {}): Promise<ReadableStream<string>> {
     const { readable, writable } = new TransformStream<string, string>();
     const writer = writable.getWriter();
+    const scheduleBoundary = createBoundedBoundaryScheduler(options.scheduleBoundary, options.maxConcurrentBoundaries);
     let terminated = false;
     let errorReported = false;
     const reportError = (error: unknown): void => {
@@ -554,7 +587,7 @@ export class StreamingRenderer {
       else options.signal.addEventListener('abort', onAbort, { once: true });
     }
 
-    this.renderAsync(vnode, writer, options.signal, abortStream, () => { terminated = true; }, reportError, options.scheduleBoundary, options)
+    this.renderAsync(vnode, writer, options.signal, abortStream, () => { terminated = true; }, reportError, scheduleBoundary, options)
       .catch(error => {
         reportError(error);
         if (!(error instanceof Error && error.name === 'AbortError')) console.error('SSR streaming error:', error);

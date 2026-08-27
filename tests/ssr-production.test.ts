@@ -127,6 +127,32 @@ describe('SSR production contracts', () => {
     expect(html).toContain('<template data-okjs-boundary-content="scheduled-boundary"><span>scheduled</span></template>');
   });
 
+  it('bounds concurrent deferred boundary work for edge back-pressure control', async () => {
+    let active = 0;
+    let maximum = 0;
+    const renderer = new StreamingRenderer();
+    const stream = await renderer.renderToStream(h('main', {}, [
+      createStreamingBoundary(Promise.resolve(h('span', {}, 'one')), h('span', {}, 'loading-one'), { id: 'one' }),
+      createStreamingBoundary(Promise.resolve(h('span', {}, 'two')), h('span', {}, 'loading-two'), { id: 'two' }),
+    ]), {
+      maxConcurrentBoundaries: 1,
+      scheduleBoundary: async task => {
+        active += 1;
+        maximum = Math.max(maximum, active);
+        await new Promise<void>(resolve => setTimeout(resolve, 0));
+        await task();
+        active -= 1;
+      },
+    });
+    const reader = stream.getReader();
+    while (!(await reader.read()).done) { /* consume */ }
+    expect(maximum).toBe(1);
+  });
+
+  it('rejects invalid streaming concurrency limits', async () => {
+    await expect(new StreamingRenderer().renderToStream(h('div', {}, 'x'), { maxConcurrentBoundaries: 0 })).rejects.toThrow('positive integer');
+  });
+
   it('resumes a streamed boundary chunk in the client shell', () => {
     document.body.innerHTML = '<main><div data-okjs-boundary="profile"><span>loading</span></div></main>';
     const applied = resumeStreamingBoundaryChunk(

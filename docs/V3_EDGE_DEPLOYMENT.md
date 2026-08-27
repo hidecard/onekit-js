@@ -32,7 +32,7 @@ export default {
 
 ## Streaming and cancellation
 
-`createEdgeHandler()` returns the `Response` from `ServerApp.handle()` directly, including a `ReadableStream` body. It never buffers the response. An application-owned renderer should receive `request.signal`; if the client disconnects or a platform deadline aborts the request, the renderer should stop work and close or abort its stream. Background work registered through `waitUntil()` is separate from the response lifetime.
+`createEdgeHandler()` returns the `Response` from `ServerApp.handle()` directly, including a `ReadableStream` body. It never buffers the response. An application-owned renderer should receive `request.signal`; if the client disconnects or a platform deadline aborts the request, the renderer should stop work and close or abort its stream. Background work registered through `waitUntil()` is separate from the response lifetime. The adapter’s `schedule(promise, context)` helper forwards a promise to the platform execution context and is suitable for ISR `scheduleRevalidation` or telemetry tasks. For example, an application can configure `scheduleRevalidation: (promise, path) => edge.schedule(promise, { env, executionContext })` while rendering a request.
 
 ## Runtime checks
 

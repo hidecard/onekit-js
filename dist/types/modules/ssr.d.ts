@@ -63,6 +63,8 @@ export interface StreamingRenderOptions extends StreamingPayloadOptions {
     onError?: (error: unknown) => void;
     /** Schedule deferred boundary work; defaults to immediate FIFO scheduling. */
     scheduleBoundary?: StreamingBoundaryScheduler;
+    /** Maximum number of deferred boundary tasks allowed to run concurrently. */
+    maxConcurrentBoundaries?: number;
 }
 export declare class StreamingRenderer {
     private context;

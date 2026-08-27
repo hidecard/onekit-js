@@ -1,6 +1,11 @@
 import { createQueryClient } from '../src/modules/query';
 import { createElement } from '../src/modules/vdom';
-import { createISRRenderer, createMemoryISRCache } from '../src/modules/isr';
+import {
+  createISRRenderer,
+  createMemoryISRCache,
+  createSerializedISRCache,
+  ISRLockUnavailableError,
+} from '../src/modules/isr';
 
 describe('ISR cache-aware revalidation contract', () => {
   it('returns hits while fresh and stale pages while regenerating in the background', async () => {
@@ -114,6 +119,96 @@ describe('ISR cache-aware revalidation contract', () => {
     await expect(stale.revalidation).rejects.toThrow('refresh failed');
     expect(stale.html).toBe('<main>/stable</main>');
     clock.mockRestore();
+  });
+
+  it('adapts a namespaced string KV store and rejects malformed cache entries', async () => {
+    const values = new Map<string, string>();
+    const cache = createSerializedISRCache({
+      get: key => values.get(key),
+      put: (key, value) => { values.set(key, value); },
+      delete: key => { values.delete(key); },
+      list: prefix => [...values.keys()].filter(key => key.startsWith(prefix)),
+    }, { prefix: 'tenant-a:' });
+    const entry = {
+      path: '/cached',
+      html: '<main>cached</main>',
+      context: {},
+      generatedAt: 1_000,
+      revalidate: 10_000,
+      tags: ['docs'],
+    };
+
+    await cache.set('/cached', entry);
+    expect([...values.keys()]).toEqual(['tenant-a:%2Fcached']);
+    expect(await cache.get('/cached')).toEqual(entry);
+    expect(await cache.entries?.()).toEqual([entry]);
+    values.set('tenant-a:bad', '{"path":"/bad"}');
+    expect(await cache.entries?.()).toEqual([entry]);
+    await cache.clear?.();
+    expect(values.size).toBe(0);
+  });
+
+  it('uses an adapter-owned lease and emits lifecycle events', async () => {
+    const release = jest.fn();
+    const acquire = jest.fn(async () => ({ release }));
+    const events: string[] = [];
+    const renderer = createISRRenderer({
+      cache: createMemoryISRCache(),
+      lock: { acquire },
+      lockLeaseMs: 5_000,
+      onEvent: event => events.push(event.type),
+      render: ({ path }) => createElement('main', {}, path),
+    });
+
+    await renderer.renderISRPage('/locked');
+    expect(acquire).toHaveBeenCalledWith('/locked', expect.objectContaining({ leaseMs: 5_000 }));
+    expect(release).toHaveBeenCalledTimes(1);
+    expect(events).toEqual(['revalidation-start', 'revalidation-success', 'miss']);
+  });
+
+  it('returns stale content while scheduling refresh through the deployment lifecycle hook', async () => {
+    let now = 1_000;
+    const clock = jest.spyOn(Date, 'now').mockImplementation(() => now);
+    const scheduled: Array<{ path: string; promise: Promise<unknown> }> = [];
+    let renders = 0;
+    const renderer = createISRRenderer({
+      cache: createMemoryISRCache(),
+      revalidate: 10,
+      scheduleRevalidation: (promise, path) => scheduled.push({ promise, path }),
+      render: ({ path }) => createElement('main', {}, `${path}:${++renders}`),
+    });
+
+    await renderer.renderISRPage('/scheduled');
+    now = 1_020;
+    const stale = await renderer.renderISRPage('/scheduled');
+    expect(stale.status).toBe('stale');
+    expect(scheduled).toHaveLength(1);
+    expect(scheduled[0].path).toBe('/scheduled');
+    await scheduled[0].promise;
+    expect(renders).toBe(2);
+    clock.mockRestore();
+  });
+
+  it('fails closed when a required distributed lease is unavailable', async () => {
+    const events: string[] = [];
+    const renderer = createISRRenderer({
+      cache: createMemoryISRCache(),
+      lock: { acquire: async () => null },
+      onEvent: event => events.push(event.type),
+      render: () => 'never',
+    });
+
+    await expect(renderer.renderISRPage('/busy')).rejects.toBeInstanceOf(ISRLockUnavailableError);
+    expect(events).toEqual(['lock-unavailable']);
+  });
+
+  it('isolates diagnostics callback failures from rendering', async () => {
+    const renderer = createISRRenderer({
+      cache: createMemoryISRCache(),
+      onEvent: () => { throw new Error('telemetry failed'); },
+      render: () => 'ok',
+    });
+    await expect(renderer.renderISRPage('/diagnostics')).resolves.toMatchObject({ status: 'miss', html: 'ok' });
   });
 
   it('rejects invalid paths and invalid freshness values', async () => {

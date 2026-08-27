@@ -622,3 +622,11 @@
 - [x] Add edge adapter tests for capability detection, fail-fast requirements, direct response identity, streaming body preservation, and waitUntil forwarding.
 - [x] Document edge deployment ownership and add the `onekit-js/edge` package subpath.
 - [ ] Add official Workers/Deno/Vercel adapter packages, platform-native environment typings, CDN cache headers, distributed ISR storage/locks, vendor observability, and deployment manifests as separate integrations.
+
+## Continuation increment — 2026-08-27 (production adapter seams)
+
+- [x] Add generic serialized KV-backed `ISRCache` support with namespaced keys, safe entry validation, optional enumeration, and adapter-owned storage lifecycle.
+- [x] Add optional `ISRCacheLock` lease acquisition/release, fail-closed lock-unavailable behavior, stale-refresh scheduling, and structured ISR lifecycle events.
+- [x] Add bounded `maxConcurrentBoundaries` scheduling for streaming SSR back-pressure control.
+- [x] Add `EdgeHandler.schedule()` and a vendor-neutral Fetch/Workers-style deployment example using application-owned KV, lock, environment, and telemetry adapters.
+- [ ] Add vendor-specific Workers/Deno/Vercel packages, durable ISR implementation, lease expiry guarantees, CDN headers, webhook authentication, observability exporters, and deployment manifests as separate packages.

@@ -26,6 +26,34 @@ export interface ISRRenderOptions {
   signal?: AbortSignal;
 }
 
+export interface ISRLockOptions {
+  signal?: AbortSignal;
+  leaseMs?: number;
+}
+
+export interface ISRCacheLease {
+  release(): void | Promise<void>;
+}
+
+/** Adapter contract for cross-instance regeneration exclusion. The adapter owns durability and lease expiry. */
+export interface ISRCacheLock {
+  acquire(path: string, options?: ISRLockOptions): ISRCacheLease | null | Promise<ISRCacheLease | null>;
+}
+
+export type ISRRevalidationEvent =
+  | { type: 'hit' | 'miss' | 'stale'; path: string; tags: readonly string[] }
+  | { type: 'revalidation-start'; path: string; tags: readonly string[] }
+  | { type: 'revalidation-success'; path: string; tags: readonly string[]; generatedAt: number }
+  | { type: 'revalidation-failure'; path: string; error: unknown }
+  | { type: 'lock-unavailable'; path: string };
+
+export class ISRLockUnavailableError extends Error {
+  constructor(path: string) {
+    super(`ISR regeneration lock is unavailable for ${path}`);
+    this.name = 'ISRLockUnavailableError';
+  }
+}
+
 export interface ISRPageResult extends ISRPageEntry {
   status: 'hit' | 'miss' | 'stale';
   /** Background regeneration for a stale response, when one was scheduled. */
@@ -34,6 +62,10 @@ export interface ISRPageResult extends ISRPageEntry {
 
 export interface ISRRendererOptions {
   cache: ISRCache;
+  /** Optional cross-instance lock; local single-flight remains active even without it. */
+  lock?: ISRCacheLock;
+  /** Lease duration requested from the lock adapter. The adapter may cap or ignore it. */
+  lockLeaseMs?: number;
   /** Milliseconds that a generated page remains fresh. Defaults to 0. */
   revalidate?: number | ((path: string) => number);
   /** Static or path-derived cache tags shared with QueryClient. */
@@ -42,10 +74,27 @@ export interface ISRRendererOptions {
   render: (context: PrerenderRenderContext) => PrerenderValue | Promise<PrerenderValue>;
   /** Optional query cache whose matching tags are invalidated/revalidated together. */
   queryClient?: QueryClient;
+  /** Register stale refreshes with a platform lifecycle hook such as `waitUntil()`. */
+  scheduleRevalidation?: (promise: Promise<ISRPageEntry>, path: string) => void;
+  /** Structured lifecycle events for logs, traces, metrics, and diagnostics. */
+  onEvent?: (event: ISRRevalidationEvent) => void;
 }
 
 export interface MemoryISRCache extends ISRCache {
   entries(): readonly ISRPageEntry[];
+}
+
+export interface ISRKeyValueStore {
+  get(key: string): string | undefined | Promise<string | undefined>;
+  put(key: string, value: string): void | Promise<void>;
+  delete?(key: string): void | Promise<void>;
+  list?(prefix: string): readonly string[] | Promise<readonly string[]>;
+}
+
+export interface SerializedISRCacheOptions {
+  prefix?: string;
+  serialize?: (entry: ISRPageEntry) => string | Promise<string>;
+  deserialize?: (value: string) => ISRPageEntry | undefined | Promise<ISRPageEntry | undefined>;
 }
 
 function normalizePath(path: string): string {
@@ -57,6 +106,73 @@ function normalizePath(path: string): string {
     throw new TypeError(`ISR paths cannot contain traversal segments: ${path}`);
   }
   return path;
+}
+
+function cacheKey(prefix: string, path: string): string {
+  return `${prefix}${encodeURIComponent(path)}`;
+}
+
+function defaultDeserialize(value: string): ISRPageEntry | undefined {
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (!parsed || typeof parsed !== 'object') return undefined;
+    const candidate = parsed as Partial<ISRPageEntry>;
+    if (typeof candidate.path !== 'string' || typeof candidate.html !== 'string'
+      || typeof candidate.generatedAt !== 'number' || !Number.isFinite(candidate.generatedAt)
+      || typeof candidate.revalidate !== 'number' || !Number.isFinite(candidate.revalidate)
+      || !Array.isArray(candidate.tags) || !candidate.tags.every(tag => typeof tag === 'string')) return undefined;
+    normalizePath(candidate.path);
+    return {
+      path: candidate.path,
+      html: candidate.html,
+      context: candidate.context ?? {},
+      generatedAt: candidate.generatedAt,
+      revalidate: candidate.revalidate,
+      tags: [...candidate.tags],
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+/** Adapt an edge KV/Redis-like string store to ISR without choosing a vendor or storage lifetime. */
+export function createSerializedISRCache(
+  storage: ISRKeyValueStore,
+  options: SerializedISRCacheOptions = {},
+): ISRCache {
+  const prefix = options.prefix ?? 'onekit:isr:';
+  const serialize = options.serialize ?? ((entry: ISRPageEntry) => JSON.stringify(entry));
+  const deserialize = options.deserialize ?? defaultDeserialize;
+  return {
+    async get(path) {
+      const value = await storage.get(cacheKey(prefix, normalizePath(path)));
+      return value === undefined ? undefined : await deserialize(value);
+    },
+    async set(path, entry) {
+      await storage.put(cacheKey(prefix, normalizePath(path)), await serialize(entry));
+    },
+    async delete(path) {
+      await storage.delete?.(cacheKey(prefix, normalizePath(path)));
+    },
+    async clear() {
+      if (!storage.list || !storage.delete) return;
+      const keys = await storage.list(prefix);
+      await Promise.all(keys.map(key => storage.delete!(key)));
+    },
+    ...(storage.list ? {
+      async entries() {
+        const keys = await storage.list!(prefix);
+        const values = await Promise.all(keys.map(key => storage.get(key)));
+        const entries: ISRPageEntry[] = [];
+        for (const value of values) {
+          if (value === undefined) continue;
+          const entry = await deserialize(value);
+          if (entry) entries.push(entry);
+        }
+        return entries;
+      },
+    } : {}),
+  };
 }
 
 function abortError(signal: AbortSignal): unknown {
@@ -124,9 +240,38 @@ export class ISRRenderer {
   private async regenerate(path: string, signal?: AbortSignal): Promise<ISRPageEntry> {
     const existing = this.inFlight.get(path);
     if (existing) return existing;
-    const promise = this.renderEntry(path, signal).finally(() => this.inFlight.delete(path));
+    const promise = this.regenerateWithLock(path, signal).finally(() => this.inFlight.delete(path));
     this.inFlight.set(path, promise);
     return promise;
+  }
+
+  private async regenerateWithLock(path: string, signal?: AbortSignal): Promise<ISRPageEntry> {
+    const lease = this.options.lock
+      ? await this.options.lock.acquire(path, { signal, leaseMs: this.options.lockLeaseMs })
+      : null;
+    if (this.options.lock && !lease) {
+      this.emit({ type: 'lock-unavailable', path });
+      throw new ISRLockUnavailableError(path);
+    }
+    this.emit({ type: 'revalidation-start', path, tags: resolveTags(this.options.tags, path) });
+    try {
+      const entry = await this.renderEntry(path, signal);
+      this.emit({ type: 'revalidation-success', path, tags: entry.tags, generatedAt: entry.generatedAt });
+      return entry;
+    } catch (error) {
+      this.emit({ type: 'revalidation-failure', path, error });
+      throw error;
+    } finally {
+      await lease?.release();
+    }
+  }
+
+  private emit(event: ISRRevalidationEvent): void {
+    try {
+      this.options.onEvent?.(event);
+    } catch {
+      // Diagnostics must never break page rendering or cache correctness.
+    }
   }
 
   private async renderEntry(path: string, signal?: AbortSignal): Promise<ISRPageEntry> {
@@ -155,12 +300,18 @@ export class ISRRenderer {
     const cached = await this.get(normalized);
     if (!cached) {
       const entry = await this.regenerate(normalized, options.signal);
+      this.emit({ type: 'miss', path: normalized, tags: entry.tags });
       return { ...entry, status: 'miss' };
     }
     const isFresh = cached.revalidate > 0 && Date.now() - cached.generatedAt < cached.revalidate;
-    if (isFresh) return { ...cached, status: 'hit' };
+    if (isFresh) {
+      this.emit({ type: 'hit', path: normalized, tags: cached.tags });
+      return { ...cached, status: 'hit' };
+    }
     const revalidation = this.regenerate(normalized);
     void revalidation.catch(() => undefined);
+    this.options.scheduleRevalidation?.(revalidation, normalized);
+    this.emit({ type: 'stale', path: normalized, tags: cached.tags });
     return { ...cached, status: 'stale', revalidation };
   }
 

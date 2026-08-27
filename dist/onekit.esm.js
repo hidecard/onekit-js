@@ -5836,6 +5836,33 @@ function createSSRAbortError() {
     error.name = 'AbortError';
     return error;
 }
+function createBoundedBoundaryScheduler(scheduler, maxConcurrentBoundaries) {
+    const limit = maxConcurrentBoundaries ?? Infinity;
+    if (limit !== Infinity && (!Number.isInteger(limit) || limit < 1)) {
+        throw new RangeError('maxConcurrentBoundaries must be a positive integer');
+    }
+    if (!scheduler && limit === Infinity)
+        return undefined;
+    const queue = [];
+    let active = 0;
+    const runNext = () => {
+        while (active < limit && queue.length) {
+            const item = queue.shift();
+            active += 1;
+            Promise.resolve()
+                .then(() => (scheduler ? scheduler(item.task, item.boundary) : item.task()))
+                .then(item.resolve, item.reject)
+                .finally(() => {
+                active -= 1;
+                runNext();
+            });
+        }
+    };
+    return (task, boundary) => new Promise((resolve, reject) => {
+        queue.push({ task, boundary, resolve, reject });
+        runNext();
+    });
+}
 class StreamingRenderer {
     context;
     constructor(context = {}) {
@@ -5844,6 +5871,7 @@ class StreamingRenderer {
     async renderToStream(vnode, options = {}) {
         const { readable, writable } = new TransformStream();
         const writer = writable.getWriter();
+        const scheduleBoundary = createBoundedBoundaryScheduler(options.scheduleBoundary, options.maxConcurrentBoundaries);
         let terminated = false;
         let errorReported = false;
         const reportError = (error) => {
@@ -5870,7 +5898,7 @@ class StreamingRenderer {
             else
                 options.signal.addEventListener('abort', onAbort, { once: true });
         }
-        this.renderAsync(vnode, writer, options.signal, abortStream, () => { terminated = true; }, reportError, options.scheduleBoundary, options)
+        this.renderAsync(vnode, writer, options.signal, abortStream, () => { terminated = true; }, reportError, scheduleBoundary, options)
             .catch(error => {
             reportError(error);
             if (!(error instanceof Error && error.name === 'AbortError'))
@@ -6384,6 +6412,12 @@ async function prerenderRoutes(options) {
     }
 }
 
+class ISRLockUnavailableError extends Error {
+    constructor(path) {
+        super(`ISR regeneration lock is unavailable for ${path}`);
+        this.name = 'ISRLockUnavailableError';
+    }
+}
 function normalizePath(path) {
     if (typeof path !== 'string' || !path.startsWith('/') || path.includes('\\') || path.includes('\0')) {
         throw new TypeError(`ISR paths must be absolute URL paths: ${String(path)}`);
@@ -6393,6 +6427,73 @@ function normalizePath(path) {
         throw new TypeError(`ISR paths cannot contain traversal segments: ${path}`);
     }
     return path;
+}
+function cacheKey(prefix, path) {
+    return `${prefix}${encodeURIComponent(path)}`;
+}
+function defaultDeserialize(value) {
+    try {
+        const parsed = JSON.parse(value);
+        if (!parsed || typeof parsed !== 'object')
+            return undefined;
+        const candidate = parsed;
+        if (typeof candidate.path !== 'string' || typeof candidate.html !== 'string'
+            || typeof candidate.generatedAt !== 'number' || !Number.isFinite(candidate.generatedAt)
+            || typeof candidate.revalidate !== 'number' || !Number.isFinite(candidate.revalidate)
+            || !Array.isArray(candidate.tags) || !candidate.tags.every(tag => typeof tag === 'string'))
+            return undefined;
+        normalizePath(candidate.path);
+        return {
+            path: candidate.path,
+            html: candidate.html,
+            context: candidate.context ?? {},
+            generatedAt: candidate.generatedAt,
+            revalidate: candidate.revalidate,
+            tags: [...candidate.tags],
+        };
+    }
+    catch {
+        return undefined;
+    }
+}
+/** Adapt an edge KV/Redis-like string store to ISR without choosing a vendor or storage lifetime. */
+function createSerializedISRCache(storage, options = {}) {
+    const prefix = options.prefix ?? 'onekit:isr:';
+    const serialize = options.serialize ?? ((entry) => JSON.stringify(entry));
+    const deserialize = options.deserialize ?? defaultDeserialize;
+    return {
+        async get(path) {
+            const value = await storage.get(cacheKey(prefix, normalizePath(path)));
+            return value === undefined ? undefined : await deserialize(value);
+        },
+        async set(path, entry) {
+            await storage.put(cacheKey(prefix, normalizePath(path)), await serialize(entry));
+        },
+        async delete(path) {
+            await storage.delete?.(cacheKey(prefix, normalizePath(path)));
+        },
+        async clear() {
+            if (!storage.list || !storage.delete)
+                return;
+            const keys = await storage.list(prefix);
+            await Promise.all(keys.map(key => storage.delete(key)));
+        },
+        ...(storage.list ? {
+            async entries() {
+                const keys = await storage.list(prefix);
+                const values = await Promise.all(keys.map(key => storage.get(key)));
+                const entries = [];
+                for (const value of values) {
+                    if (value === undefined)
+                        continue;
+                    const entry = await deserialize(value);
+                    if (entry)
+                        entries.push(entry);
+                }
+                return entries;
+            },
+        } : {}),
+    };
 }
 function abortError(signal) {
     if (signal.reason !== undefined)
@@ -6458,9 +6559,39 @@ class ISRRenderer {
         const existing = this.inFlight.get(path);
         if (existing)
             return existing;
-        const promise = this.renderEntry(path, signal).finally(() => this.inFlight.delete(path));
+        const promise = this.regenerateWithLock(path, signal).finally(() => this.inFlight.delete(path));
         this.inFlight.set(path, promise);
         return promise;
+    }
+    async regenerateWithLock(path, signal) {
+        const lease = this.options.lock
+            ? await this.options.lock.acquire(path, { signal, leaseMs: this.options.lockLeaseMs })
+            : null;
+        if (this.options.lock && !lease) {
+            this.emit({ type: 'lock-unavailable', path });
+            throw new ISRLockUnavailableError(path);
+        }
+        this.emit({ type: 'revalidation-start', path, tags: resolveTags(this.options.tags, path) });
+        try {
+            const entry = await this.renderEntry(path, signal);
+            this.emit({ type: 'revalidation-success', path, tags: entry.tags, generatedAt: entry.generatedAt });
+            return entry;
+        }
+        catch (error) {
+            this.emit({ type: 'revalidation-failure', path, error });
+            throw error;
+        }
+        finally {
+            await lease?.release();
+        }
+    }
+    emit(event) {
+        try {
+            this.options.onEvent?.(event);
+        }
+        catch {
+            // Diagnostics must never break page rendering or cache correctness.
+        }
     }
     async renderEntry(path, signal) {
         if (signal?.aborted)
@@ -6489,13 +6620,18 @@ class ISRRenderer {
         const cached = await this.get(normalized);
         if (!cached) {
             const entry = await this.regenerate(normalized, options.signal);
+            this.emit({ type: 'miss', path: normalized, tags: entry.tags });
             return { ...entry, status: 'miss' };
         }
         const isFresh = cached.revalidate > 0 && Date.now() - cached.generatedAt < cached.revalidate;
-        if (isFresh)
+        if (isFresh) {
+            this.emit({ type: 'hit', path: normalized, tags: cached.tags });
             return { ...cached, status: 'hit' };
+        }
         const revalidation = this.regenerate(normalized);
         void revalidation.catch(() => undefined);
+        this.options.scheduleRevalidation?.(revalidation, normalized);
+        this.emit({ type: 'stale', path: normalized, tags: cached.tags });
         return { ...cached, status: 'stale', revalidation };
     }
     async revalidatePath(path, options = {}) {
@@ -7236,6 +7372,9 @@ function createEdgeHandler(app, options = {}) {
                     return options.onError(error, request);
                 return serverErrorResponse(error);
             }
+        },
+        schedule(promise, context = {}) {
+            createEdgeRequestContext(context).waitUntil(promise);
         },
     };
 }
@@ -8005,5 +8144,5 @@ const jsxDEV = jsx;
 // Version info
 const VERSION = '3.1.19';
 
-export { API, DependencyInjector, EdgeRuntimeError, Fragment, HydrationMismatchError, ISRRenderer, ONEKIT_RSC_PROTOCOL_VERSION, OneKit, OneKitWebComponent, QueryClient, RouteDataTransportError, Router, ServerError, StreamingRenderer, VERSION, activate, addScript, addStorePlugin, addStyle, addToBody, addToHead, animations, announce, patch as apiPatch, applyHead, applyRouteDataPayload, assertClient, assertEdgeRuntime, assertServer, autorun, batch, bind, bindHydratedComponent, cache, cleanup, clearDevToolsDependencies, clientOnly, compileOkjs, compileTemplate, component, composeFileRouteInfrastructure, computed, create, createApi, createApp, createEdgeHandler, createEdgeRequestContext, createElement, createErrorBoundary, createErrorReport, createFileRouteAssociations, createFileRouteManifest, createFileRoutes, createForm, createHeadManager, createHmacSha256Signer, createISRRenderer, createIndexedDBQueryStorage, createLandmarks, createLoadingBoundary, createMemoryISRCache, createMemoryRateLimitStore, createMemoryServerDataCache, createMongoDBAdapter, createMySQLAdapter, createNodeHandler, createPostgreSQLAdapter, createQueryBroadcastSync, createQueryClient, createRSCClientReference, createRSCFlightRecord, createRSCFlightStream, createRedisRateLimitStore, createRouteDataPayload, createRouteManifest, createRouter, createRouterView, createSQLiteAdapter, createSSRContext, createServerApp, createServerData, createServerError, createSkipLink, createStorage, createStore, createStoreRegistry, createStreamingBoundary, debounce, decodeRSCFlight, deepClone, defineComponent, defineController, defineHandler, defineLayoutRoute, defineMiddleware, defineModule, defineRoute, defineStore, del, derive, destroy, detectEdgeRuntime, devToolsSnapshot, di, disableScopeLeakWarnings, disposeDevToolsResource, effect, effectScope, emitDevToolsEvent, enableDevTools, enableScopeLeakWarnings, encodeRSCFlight, errorHandler, filePathToRoutePath, findFileRouteConflicts, fireEvent, flush, generateId, get, getActiveScopeDiagnostics, getAllStores, getCurrentScope, getDependencyGraph, getDevToolsEffectId, getDevToolsScopeId, getDevToolsTargetId, getInstance, getResourceGraph, getRuntimeEnvironment, h, hotUpdateComponent, hydrate, initTemplateEngine, isClient, isClientRuntime, isDevToolsEnabled, isServer, isServerRuntime, jsonResponse, jsx$1 as jsx, jsxDEV$1 as jsxDEV, jsx as jsxRuntime, jsxDEV as jsxRuntimeDEV, jsxs, localStorage, makeFocusable, makeUnfocusable, manageTabOrder, measureDevTools, mount, nextTick, normalizeSlots, ok, okjs, onDestroyed, onDevToolsEvent, onMounted, onPropsChanged, onScopeDispose, onUpdated, parseOkjs, parseRouteDataPayload, patch$1 as patch, pluginManager, post, preloadModule, preloadScript, preloadStyle, prerenderRoutes, put, reactive, readStreamingPayloads, recordDevToolsDependency, recordDevToolsError, register, registerDevToolsInspector, registerDevToolsResource, registerDirective, registerDisposable, registerWebComponent, removeStore, render, renderHead, renderMeta$1 as renderMeta, renderOpenGraph, renderTest, renderTitle, renderToString, request, resolveRSCFlight, resolveSlot, resumeStreamingBoundary, resumeStreamingBoundaryChunk, routeHref, router, safeMethod, securityMiddleware, serverErrorResponse, serverMiddleware, serverOnly, sessionStorage, setAriaAttributes, setErrorReporter, setMeta, setupComponent, skipToContent, snapshot, state, stop, textResponse, throttle, trapFocus, unbindHydratedComponent, unmount, updateComponentProps, useStore, validateAccessibility, validateBody, patch$1 as vdomPatch, waitFor, watch, watchEffect, withCache, withScope };
+export { API, DependencyInjector, EdgeRuntimeError, Fragment, HydrationMismatchError, ISRLockUnavailableError, ISRRenderer, ONEKIT_RSC_PROTOCOL_VERSION, OneKit, OneKitWebComponent, QueryClient, RouteDataTransportError, Router, ServerError, StreamingRenderer, VERSION, activate, addScript, addStorePlugin, addStyle, addToBody, addToHead, animations, announce, patch as apiPatch, applyHead, applyRouteDataPayload, assertClient, assertEdgeRuntime, assertServer, autorun, batch, bind, bindHydratedComponent, cache, cleanup, clearDevToolsDependencies, clientOnly, compileOkjs, compileTemplate, component, composeFileRouteInfrastructure, computed, create, createApi, createApp, createEdgeHandler, createEdgeRequestContext, createElement, createErrorBoundary, createErrorReport, createFileRouteAssociations, createFileRouteManifest, createFileRoutes, createForm, createHeadManager, createHmacSha256Signer, createISRRenderer, createIndexedDBQueryStorage, createLandmarks, createLoadingBoundary, createMemoryISRCache, createMemoryRateLimitStore, createMemoryServerDataCache, createMongoDBAdapter, createMySQLAdapter, createNodeHandler, createPostgreSQLAdapter, createQueryBroadcastSync, createQueryClient, createRSCClientReference, createRSCFlightRecord, createRSCFlightStream, createRedisRateLimitStore, createRouteDataPayload, createRouteManifest, createRouter, createRouterView, createSQLiteAdapter, createSSRContext, createSerializedISRCache, createServerApp, createServerData, createServerError, createSkipLink, createStorage, createStore, createStoreRegistry, createStreamingBoundary, debounce, decodeRSCFlight, deepClone, defineComponent, defineController, defineHandler, defineLayoutRoute, defineMiddleware, defineModule, defineRoute, defineStore, del, derive, destroy, detectEdgeRuntime, devToolsSnapshot, di, disableScopeLeakWarnings, disposeDevToolsResource, effect, effectScope, emitDevToolsEvent, enableDevTools, enableScopeLeakWarnings, encodeRSCFlight, errorHandler, filePathToRoutePath, findFileRouteConflicts, fireEvent, flush, generateId, get, getActiveScopeDiagnostics, getAllStores, getCurrentScope, getDependencyGraph, getDevToolsEffectId, getDevToolsScopeId, getDevToolsTargetId, getInstance, getResourceGraph, getRuntimeEnvironment, h, hotUpdateComponent, hydrate, initTemplateEngine, isClient, isClientRuntime, isDevToolsEnabled, isServer, isServerRuntime, jsonResponse, jsx$1 as jsx, jsxDEV$1 as jsxDEV, jsx as jsxRuntime, jsxDEV as jsxRuntimeDEV, jsxs, localStorage, makeFocusable, makeUnfocusable, manageTabOrder, measureDevTools, mount, nextTick, normalizeSlots, ok, okjs, onDestroyed, onDevToolsEvent, onMounted, onPropsChanged, onScopeDispose, onUpdated, parseOkjs, parseRouteDataPayload, patch$1 as patch, pluginManager, post, preloadModule, preloadScript, preloadStyle, prerenderRoutes, put, reactive, readStreamingPayloads, recordDevToolsDependency, recordDevToolsError, register, registerDevToolsInspector, registerDevToolsResource, registerDirective, registerDisposable, registerWebComponent, removeStore, render, renderHead, renderMeta$1 as renderMeta, renderOpenGraph, renderTest, renderTitle, renderToString, request, resolveRSCFlight, resolveSlot, resumeStreamingBoundary, resumeStreamingBoundaryChunk, routeHref, router, safeMethod, securityMiddleware, serverErrorResponse, serverMiddleware, serverOnly, sessionStorage, setAriaAttributes, setErrorReporter, setMeta, setupComponent, skipToContent, snapshot, state, stop, textResponse, throttle, trapFocus, unbindHydratedComponent, unmount, updateComponentProps, useStore, validateAccessibility, validateBody, patch$1 as vdomPatch, waitFor, watch, watchEffect, withCache, withScope };
 //# sourceMappingURL=onekit.esm.js.map
