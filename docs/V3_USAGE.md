@@ -431,6 +431,27 @@ const dashboard = defineLayoutRoute('/dashboard', DashboardLayout, [
 
 The layout helper is metadata and composition information; it does not impose a rendering strategy. Applications may render `layout`, `components`, and matched route data using their preferred renderer while retaining compatibility with the standard router.
 
+When the Vite plugin is enabled, import the declaration-only companion to obtain the generated route-path union and parameter inference. The runtime module remains ordinary JavaScript and `Route[]`; the declaration module is a TypeScript tooling contract:
+
+```ts
+import type { FileRouteParams, FileRoutePath } from 'virtual:onekit/routes.d.ts';
+
+const routePath: FileRoutePath = '/users/:id';
+const routeParams: FileRouteParams<typeof routePath> = { id: 'u-1' };
+```
+
+For applications that want directory-scoped infrastructure, pass the eager module map to `composeFileRouteInfrastructure()`. It returns page routes with root-to-leaf layout values and middleware values, but does not inject them into Router navigation or select a rendering strategy:
+
+```ts
+import { composeFileRouteInfrastructure } from 'onekit-js';
+
+const composed = composeFileRouteInfrastructure(import.meta.glob('/src/app/**/*.{ts,tsx}', { eager: true }), {
+  root: '/src/app',
+});
+const firstPage = composed[0];
+// firstPage.route, firstPage.layouts, and firstPage.middleware are application-owned.
+```
+
 ## 8. Stores and plugins
 
 ### Stores

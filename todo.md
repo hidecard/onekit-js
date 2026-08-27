@@ -582,3 +582,7 @@
 - [ ] Execute the full Firefox/WebKit/Edge matrix on CI and verify the Edge channel installation on the hosted runner.
 - [ ] Integrate route-data transport with official streaming/deployment adapters and decide replay/key-rotation policy.
 - [ ] Add generated fully typed route declarations, runtime layout/middleware composition, prerendering, RSC/Flight, Server Functions, and cross-browser heap collection only as separate reviewed milestones.
+- [x] Add a declaration-only `virtual:onekit/routes.d.ts` module with literal `FileRoutePath` and `FileRouteParams<Path>` types, plus configurable `typesVirtualModuleId`.
+- [x] Add `composeFileRouteInfrastructure()` with deterministic root-to-leaf layout and middleware association resolution while keeping runtime injection application-owned.
+- [x] Add regression coverage for declaration-module generation, semantic dynamic conflicts, root-layout association, and page/infrastructure separation.
+- [ ] Decide whether generated route declarations should later include loader-result inference and route-specific component props; keep that work separate from this path-typing increment.

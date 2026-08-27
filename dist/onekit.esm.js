@@ -4144,7 +4144,7 @@ function findFileRouteConflicts(manifest) {
 /** Return explicit directory-scoped layout/middleware metadata without composing it. */
 function createFileRouteAssociations(manifest) {
     const containing = (entry, kind) => manifest[kind]
-        .filter(candidate => candidate.path === entry.path || entry.path === '/' || entry.path.startsWith(`${candidate.path}/`))
+        .filter(candidate => candidate.path === '/' || candidate.path === entry.path || entry.path === '/' || entry.path.startsWith(`${candidate.path}/`))
         .sort((left, right) => left.path.localeCompare(right.path) || left.file.localeCompare(right.file))
         .map(candidate => candidate.file);
     return manifest.routes.map(entry => ({
@@ -4152,6 +4152,38 @@ function createFileRouteAssociations(manifest) {
         layouts: containing(entry, 'layouts'),
         middleware: containing(entry, 'middleware'),
     }));
+}
+function infrastructureValue(module) {
+    if (!module || typeof module !== 'object')
+        return module;
+    const value = module;
+    return value.default ?? value.layout ?? value.middleware ?? module;
+}
+/**
+ * Resolve file-route infrastructure explicitly for application-owned composition.
+ * This helper does not mutate routes or inject middleware into Router navigation.
+ */
+function composeFileRouteInfrastructure(modules, options = {}) {
+    const manifest = createFileRouteManifest(Object.keys(modules), { ...options, includeInfrastructure: true });
+    const routeModules = Object.fromEntries(manifest.routes.map(entry => [entry.file, modules[entry.file]]));
+    const routes = createFileRoutes(routeModules, options);
+    const associations = createFileRouteAssociations(manifest);
+    const routesByPath = new Map(routes.map(route => [route.path, route]));
+    const modulesByFile = new Map(Object.entries(modules));
+    const composed = [];
+    for (const association of associations) {
+        const route = routesByPath.get(association.path);
+        if (!route)
+            continue;
+        composed.push({
+            path: association.path,
+            route,
+            layouts: association.layouts.map(file => infrastructureValue(modulesByFile.get(file))),
+            middleware: association.middleware.map(file => infrastructureValue(modulesByFile.get(file))),
+            association,
+        });
+    }
+    return composed;
 }
 function createFileRouteManifest(filePaths, options = {}) {
     const entries = filePaths
@@ -7481,5 +7513,5 @@ const jsxDEV = jsx;
 // Version info
 const VERSION = '3.1.19';
 
-export { API, DependencyInjector, Fragment, HydrationMismatchError, OneKit, OneKitWebComponent, QueryClient, RouteDataTransportError, Router, ServerError, StreamingRenderer, VERSION, activate, addScript, addStorePlugin, addStyle, addToBody, addToHead, animations, announce, patch as apiPatch, applyHead, applyRouteDataPayload, assertClient, assertServer, autorun, batch, bind, bindHydratedComponent, cache, cleanup, clearDevToolsDependencies, clientOnly, compileOkjs, compileTemplate, component, computed, create, createApi, createApp, createElement, createErrorBoundary, createErrorReport, createFileRouteAssociations, createFileRouteManifest, createFileRoutes, createForm, createHeadManager, createHmacSha256Signer, createIndexedDBQueryStorage, createLandmarks, createLoadingBoundary, createMemoryRateLimitStore, createMemoryServerDataCache, createMongoDBAdapter, createMySQLAdapter, createNodeHandler, createPostgreSQLAdapter, createQueryBroadcastSync, createQueryClient, createRedisRateLimitStore, createRouteDataPayload, createRouteManifest, createRouter, createRouterView, createSQLiteAdapter, createSSRContext, createServerApp, createServerData, createServerError, createSkipLink, createStorage, createStore, createStoreRegistry, createStreamingBoundary, debounce, deepClone, defineComponent, defineController, defineHandler, defineLayoutRoute, defineMiddleware, defineModule, defineRoute, defineStore, del, derive, destroy, devToolsSnapshot, di, disableScopeLeakWarnings, disposeDevToolsResource, effect, effectScope, emitDevToolsEvent, enableDevTools, enableScopeLeakWarnings, errorHandler, filePathToRoutePath, findFileRouteConflicts, fireEvent, flush, generateId, get, getActiveScopeDiagnostics, getAllStores, getCurrentScope, getDependencyGraph, getDevToolsEffectId, getDevToolsScopeId, getDevToolsTargetId, getInstance, getResourceGraph, getRuntimeEnvironment, h, hotUpdateComponent, hydrate, initTemplateEngine, isClient, isClientRuntime, isDevToolsEnabled, isServer, isServerRuntime, jsonResponse, jsx$1 as jsx, jsxDEV$1 as jsxDEV, jsx as jsxRuntime, jsxDEV as jsxRuntimeDEV, jsxs, localStorage, makeFocusable, makeUnfocusable, manageTabOrder, measureDevTools, mount, nextTick, normalizeSlots, ok, okjs, onDestroyed, onDevToolsEvent, onMounted, onPropsChanged, onScopeDispose, onUpdated, parseOkjs, parseRouteDataPayload, patch$1 as patch, pluginManager, post, preloadModule, preloadScript, preloadStyle, put, reactive, recordDevToolsDependency, recordDevToolsError, register, registerDevToolsInspector, registerDevToolsResource, registerDirective, registerDisposable, registerWebComponent, removeStore, render, renderHead, renderMeta$1 as renderMeta, renderOpenGraph, renderTest, renderTitle, renderToString, request, resolveSlot, resumeStreamingBoundary, resumeStreamingBoundaryChunk, routeHref, router, safeMethod, securityMiddleware, serverErrorResponse, serverMiddleware, serverOnly, sessionStorage, setAriaAttributes, setErrorReporter, setMeta, setupComponent, skipToContent, snapshot, state, stop, textResponse, throttle, trapFocus, unbindHydratedComponent, unmount, updateComponentProps, useStore, validateAccessibility, validateBody, patch$1 as vdomPatch, waitFor, watch, watchEffect, withCache, withScope };
+export { API, DependencyInjector, Fragment, HydrationMismatchError, OneKit, OneKitWebComponent, QueryClient, RouteDataTransportError, Router, ServerError, StreamingRenderer, VERSION, activate, addScript, addStorePlugin, addStyle, addToBody, addToHead, animations, announce, patch as apiPatch, applyHead, applyRouteDataPayload, assertClient, assertServer, autorun, batch, bind, bindHydratedComponent, cache, cleanup, clearDevToolsDependencies, clientOnly, compileOkjs, compileTemplate, component, composeFileRouteInfrastructure, computed, create, createApi, createApp, createElement, createErrorBoundary, createErrorReport, createFileRouteAssociations, createFileRouteManifest, createFileRoutes, createForm, createHeadManager, createHmacSha256Signer, createIndexedDBQueryStorage, createLandmarks, createLoadingBoundary, createMemoryRateLimitStore, createMemoryServerDataCache, createMongoDBAdapter, createMySQLAdapter, createNodeHandler, createPostgreSQLAdapter, createQueryBroadcastSync, createQueryClient, createRedisRateLimitStore, createRouteDataPayload, createRouteManifest, createRouter, createRouterView, createSQLiteAdapter, createSSRContext, createServerApp, createServerData, createServerError, createSkipLink, createStorage, createStore, createStoreRegistry, createStreamingBoundary, debounce, deepClone, defineComponent, defineController, defineHandler, defineLayoutRoute, defineMiddleware, defineModule, defineRoute, defineStore, del, derive, destroy, devToolsSnapshot, di, disableScopeLeakWarnings, disposeDevToolsResource, effect, effectScope, emitDevToolsEvent, enableDevTools, enableScopeLeakWarnings, errorHandler, filePathToRoutePath, findFileRouteConflicts, fireEvent, flush, generateId, get, getActiveScopeDiagnostics, getAllStores, getCurrentScope, getDependencyGraph, getDevToolsEffectId, getDevToolsScopeId, getDevToolsTargetId, getInstance, getResourceGraph, getRuntimeEnvironment, h, hotUpdateComponent, hydrate, initTemplateEngine, isClient, isClientRuntime, isDevToolsEnabled, isServer, isServerRuntime, jsonResponse, jsx$1 as jsx, jsxDEV$1 as jsxDEV, jsx as jsxRuntime, jsxDEV as jsxRuntimeDEV, jsxs, localStorage, makeFocusable, makeUnfocusable, manageTabOrder, measureDevTools, mount, nextTick, normalizeSlots, ok, okjs, onDestroyed, onDevToolsEvent, onMounted, onPropsChanged, onScopeDispose, onUpdated, parseOkjs, parseRouteDataPayload, patch$1 as patch, pluginManager, post, preloadModule, preloadScript, preloadStyle, put, reactive, recordDevToolsDependency, recordDevToolsError, register, registerDevToolsInspector, registerDevToolsResource, registerDirective, registerDisposable, registerWebComponent, removeStore, render, renderHead, renderMeta$1 as renderMeta, renderOpenGraph, renderTest, renderTitle, renderToString, request, resolveSlot, resumeStreamingBoundary, resumeStreamingBoundaryChunk, routeHref, router, safeMethod, securityMiddleware, serverErrorResponse, serverMiddleware, serverOnly, sessionStorage, setAriaAttributes, setErrorReporter, setMeta, setupComponent, skipToContent, snapshot, state, stop, textResponse, throttle, trapFocus, unbindHydratedComponent, unmount, updateComponentProps, useStore, validateAccessibility, validateBody, patch$1 as vdomPatch, waitFor, watch, watchEffect, withCache, withScope };
 //# sourceMappingURL=onekit.esm.js.map

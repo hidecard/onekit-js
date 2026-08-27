@@ -2,7 +2,7 @@
 
 OneKit JS provides two **opt-in build-time primitives** for applications that want a more framework-like project convention without changing the default runtime APIs:
 
-1. `fileRoutes` discovers route files and emits a virtual module containing ordinary `Route[]` data plus deterministic route/layout/middleware metadata.
+1. `fileRoutes` discovers route files and emits a JavaScript virtual module containing ordinary `Route[]` data plus deterministic route/layout/middleware metadata, alongside a declaration-only virtual module with literal route-path types.
 2. `componentBoundary` checks `"use client"` and `"use server"` directives and rejects a transitive static client-to-server import during the build.
 
 These features are safety and composition primitives. They are **not** a React Server Components runtime, a Flight transport, or a complete Next.js replacement.
@@ -27,7 +27,7 @@ export default defineConfig({
 });
 ```
 
-The route root is interpreted relative to the Vite project root. The generated virtual module is `virtual:onekit/routes` by default. A custom `virtualModuleId` can be supplied when an application has another virtual-module convention.
+The route root is interpreted relative to the Vite project root. The generated runtime virtual module is `virtual:onekit/routes` by default, and its declaration-only companion is `virtual:onekit/routes.d.ts`. Custom `virtualModuleId` and `typesVirtualModuleId` values can be supplied when an application has another virtual-module convention.
 
 ## Generated route module
 
@@ -45,7 +45,16 @@ import { createRouter } from 'onekit-js/router';
 const router = createRouter(routes, { mode: 'history' });
 ```
 
-The generated module imports discovered route modules and maps their default export to `component`. It also exports `fileRouteEntries`, `fileRoutePaths`, and `fileRouteAssociations` for explicit integration code. `fileRouteAssociations` links each page path to directory-scoped layout and middleware files; it does not execute or compose them. A module may also export a `route` object to override or extend the generated path:
+The generated module imports discovered route modules and maps their default export to `component`. It also exports `fileRouteEntries`, `fileRoutePaths`, and `fileRouteAssociations` for explicit integration code. The declaration-only companion exports `FileRoutePath` as a literal union and `FileRouteParams<Path>` for parameter inference:
+
+```ts
+import type { FileRouteParams, FileRoutePath } from 'virtual:onekit/routes.d.ts';
+
+const path: FileRoutePath = '/reports/:id';
+const params: FileRouteParams<typeof path> = { id: 'r-1' };
+```
+
+`fileRouteAssociations` links each page path to directory-scoped layout and middleware files; it does not execute or compose them. A module may also export a `route` object to override or extend the generated path:
 
 ```ts
 // src/app/reports/[id]/page.tsx
@@ -58,7 +67,7 @@ export default function ReportPage() {
 }
 ```
 
-The manifest exposes `routes`, `layouts`, and `middleware` entries. Duplicate page files that normalize to the same URL path fail the virtual-module build with a deterministic diagnostic. Layout and middleware entries are metadata for **explicit application composition**; the plugin does not silently inject middleware into the Router or invent a component tree. This keeps authorization, request lifecycle, and layout ownership visible in application code.
+The manifest exposes `routes`, `layouts`, and `middleware` entries. Duplicate page files that normalize to the same URL path, including ambiguous dynamic patterns such as `[id]` and `[slug]`, fail the virtual-module build with a deterministic diagnostic. For runtime module maps, `composeFileRouteInfrastructure(modules, options)` resolves the page route plus ordered directory-scoped layout and middleware values into an explicit composition record. It does not mutate the routes, inject middleware into the Router, or invent a component tree; applications retain ownership of authorization, request lifecycle, and rendering order.
 
 ## File conventions
 
@@ -104,4 +113,4 @@ The validator intentionally follows static imports only. It does not treat a run
 
 The file-route virtual module and boundary validator are **Experimental** APIs. They are intended to make project conventions and accidental import mistakes visible earlier, while the existing `createFileRoutes()`, `createFileRouteManifest()`, `Router`, and SSR contracts remain available independently.
 
-The following work is intentionally still separate: runtime layout/middleware composition, generated fully typed route modules, prerendering, streamed route payload transport, Server Functions/Actions, Flight-like serialization, automatic client code splitting, and production deployment adapters. The experimental secure route-data envelope is documented separately in `docs/V3_SSR_ROUTE_DATA.md`; it is an application-owned JSON handoff, not an RSC transport.
+The following work is intentionally still separate: automatic runtime layout/middleware injection, prerendering, streamed route payload transport, Server Functions/Actions, Flight-like serialization, automatic client code splitting, and production deployment adapters. The plugin now supplies declaration-only literal path types and an explicit composition helper, but those remain Experimental and application-owned. The secure route-data envelope is documented separately in `docs/V3_SSR_ROUTE_DATA.md`; it is an application-owned JSON handoff, not an RSC transport.

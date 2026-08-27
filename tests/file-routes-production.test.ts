@@ -1,9 +1,11 @@
 import {
+  composeFileRouteInfrastructure,
   createFileRoutes,
   createFileRouteManifest,
   defineLayoutRoute,
   defineRoute,
   filePathToRoutePath,
+  findFileRouteConflicts,
   routeHref,
   type RouteParamsFor,
 } from '../src';
@@ -74,5 +76,32 @@ describe('file route helpers', () => {
 
     expect(layout.layout).toBe('DashboardLayout');
     expect(layout.children[0].path).toBe('/settings');
+  });
+
+  it('composes infrastructure explicitly without treating layouts or middleware as pages', () => {
+    const modules = {
+      '/src/app/layout.tsx': { default: 'RootLayout' },
+      '/src/app/account/layout.tsx': { default: 'AccountLayout' },
+      '/src/app/account/middleware.ts': { middleware: 'AccountMiddleware' },
+      '/src/app/account/profile.tsx': { default: 'ProfilePage' },
+    };
+    const composed = composeFileRouteInfrastructure(modules, { root: '/src/app' });
+    expect(composed).toHaveLength(1);
+    expect(composed[0]).toMatchObject({
+      path: '/account/profile',
+      route: { path: '/account/profile', component: 'ProfilePage' },
+      layouts: ['RootLayout', 'AccountLayout'],
+      middleware: ['AccountMiddleware'],
+    });
+  });
+
+  it('reports ambiguous dynamic route patterns as conflicts', () => {
+    const manifest = createFileRouteManifest([
+      '/src/app/users/[id].tsx',
+      '/src/app/users/[slug].tsx',
+    ], { root: '/src/app' });
+    expect(findFileRouteConflicts(manifest)).toEqual([
+      { path: '/users/:id', files: ['/src/app/users/[id].tsx', '/src/app/users/[slug].tsx'] },
+    ]);
   });
 });

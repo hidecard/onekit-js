@@ -37,6 +37,18 @@ export interface FileRouteAssociation {
     layouts: readonly string[];
     middleware: readonly string[];
 }
+export interface FileRouteInfrastructureModule {
+    default?: unknown;
+    layout?: unknown;
+    middleware?: unknown;
+}
+export interface FileRouteCompositionEntry {
+    path: string;
+    route: Route;
+    layouts: readonly unknown[];
+    middleware: readonly unknown[];
+    association: FileRouteAssociation;
+}
 export interface FileRouteManifestOptions extends FileRouteOptions {
     /** Include layout and middleware convention files in the manifest. */
     includeInfrastructure?: boolean;
@@ -75,6 +87,11 @@ export declare function defineLayoutRoute<const Path extends string, const Child
 export declare function findFileRouteConflicts(manifest: FileRouteManifest): readonly FileRouteConflict[];
 /** Return explicit directory-scoped layout/middleware metadata without composing it. */
 export declare function createFileRouteAssociations(manifest: FileRouteManifest): readonly FileRouteAssociation[];
+/**
+ * Resolve file-route infrastructure explicitly for application-owned composition.
+ * This helper does not mutate routes or inject middleware into Router navigation.
+ */
+export declare function composeFileRouteInfrastructure(modules: Record<string, FileRouteModule | FileRouteInfrastructureModule | unknown>, options?: FileRouteManifestOptions): readonly FileRouteCompositionEntry[];
 export declare function createFileRouteManifest(filePaths: readonly string[], options?: FileRouteManifestOptions): FileRouteManifest;
 export declare function filePathToRoutePath(filePath: string, root?: string): string;
 /**

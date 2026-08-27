@@ -45,6 +45,20 @@ export interface FileRouteAssociation {
   middleware: readonly string[];
 }
 
+export interface FileRouteInfrastructureModule {
+  default?: unknown;
+  layout?: unknown;
+  middleware?: unknown;
+}
+
+export interface FileRouteCompositionEntry {
+  path: string;
+  route: Route;
+  layouts: readonly unknown[];
+  middleware: readonly unknown[];
+  association: FileRouteAssociation;
+}
+
 export interface FileRouteManifestOptions extends FileRouteOptions {
   /** Include layout and middleware convention files in the manifest. */
   includeInfrastructure?: boolean;
@@ -157,7 +171,7 @@ export function findFileRouteConflicts(manifest: FileRouteManifest): readonly Fi
 /** Return explicit directory-scoped layout/middleware metadata without composing it. */
 export function createFileRouteAssociations(manifest: FileRouteManifest): readonly FileRouteAssociation[] {
   const containing = (entry: FileRouteManifestEntry, kind: 'layouts' | 'middleware'): string[] => manifest[kind]
-    .filter(candidate => candidate.path === entry.path || entry.path === '/' || entry.path.startsWith(`${candidate.path}/`))
+    .filter(candidate => candidate.path === '/' || candidate.path === entry.path || entry.path === '/' || entry.path.startsWith(`${candidate.path}/`))
     .sort((left, right) => left.path.localeCompare(right.path) || left.file.localeCompare(right.file))
     .map(candidate => candidate.file);
   return manifest.routes.map(entry => ({
@@ -165,6 +179,41 @@ export function createFileRouteAssociations(manifest: FileRouteManifest): readon
     layouts: containing(entry, 'layouts'),
     middleware: containing(entry, 'middleware'),
   }));
+}
+
+function infrastructureValue(module: FileRouteInfrastructureModule | unknown): unknown {
+  if (!module || typeof module !== 'object') return module;
+  const value = module as FileRouteInfrastructureModule;
+  return value.default ?? value.layout ?? value.middleware ?? module;
+}
+
+/**
+ * Resolve file-route infrastructure explicitly for application-owned composition.
+ * This helper does not mutate routes or inject middleware into Router navigation.
+ */
+export function composeFileRouteInfrastructure(
+  modules: Record<string, FileRouteModule | FileRouteInfrastructureModule | unknown>,
+  options: FileRouteManifestOptions = {},
+): readonly FileRouteCompositionEntry[] {
+  const manifest = createFileRouteManifest(Object.keys(modules), { ...options, includeInfrastructure: true });
+  const routeModules = Object.fromEntries(manifest.routes.map(entry => [entry.file, modules[entry.file]]));
+  const routes = createFileRoutes(routeModules as Record<string, FileRouteModule>, options);
+  const associations = createFileRouteAssociations(manifest);
+  const routesByPath = new Map(routes.map(route => [route.path, route]));
+  const modulesByFile = new Map(Object.entries(modules));
+  const composed: FileRouteCompositionEntry[] = [];
+  for (const association of associations) {
+    const route = routesByPath.get(association.path);
+    if (!route) continue;
+    composed.push({
+      path: association.path,
+      route,
+      layouts: association.layouts.map(file => infrastructureValue(modulesByFile.get(file))),
+      middleware: association.middleware.map(file => infrastructureValue(modulesByFile.get(file))),
+      association,
+    });
+  }
+  return composed;
 }
 
 export function createFileRouteManifest(

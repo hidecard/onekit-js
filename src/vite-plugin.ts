@@ -15,6 +15,8 @@ export interface OneKitFileRoutesOptions {
   includeInfrastructure?: boolean;
   /** Import path exposed by the generated virtual module. */
   virtualModuleId?: string;
+  /** Declaration-only virtual module path; defaults to `<virtualModuleId>.d.ts`. */
+  typesVirtualModuleId?: string;
   /** Optional build-time callback for explicitly handling the generated manifest. */
   onManifest?: (manifest: ReturnType<typeof createFileRouteManifest>) => void;
 }
@@ -135,14 +137,35 @@ function generateFileRouteModule(
   }
   const associations = createFileRouteAssociations(manifest);
   const routeEntries = manifest.routes.map(entry => ({ entry, index: sourceFiles.indexOf(entry.file) })).filter(item => item.index >= 0);
+  const routePaths = routeEntries.map(({ entry }) => entry.path);
   const imports = routeEntries.map(({ entry, index }) => `import * as __route${index} from ${JSON.stringify(entry.file)};`).join('\n');
+  const routeBindings = routeEntries.map(({ index }) => `const __route${index}Route = Reflect.get(__route${index}, 'route');\nconst __route${index}Default = Reflect.get(__route${index}, 'default');`).join('\n');
   const routes = routeEntries.map(({ entry, index }) => `{
-    ...(typeof __route${index}.route === 'object' && __route${index}.route ? __route${index}.route : {}),
-    path: __route${index}.route?.path ?? ${JSON.stringify(entry.path)},
-    ...(__route${index}.default !== undefined ? { component: __route${index}.default } : {}),
-    ...(__route${index}.route?.component !== undefined ? { component: __route${index}.route.component } : {}),
+    ...(typeof __route${index}Route === 'object' && __route${index}Route ? __route${index}Route : {}),
+    path: __route${index}Route?.path ?? ${JSON.stringify(entry.path)},
+    ...(__route${index}Default !== undefined ? { component: __route${index}Default } : {}),
+    ...(__route${index}Route?.component !== undefined ? { component: __route${index}Route.component } : {}),
   }`).join(',\n');
-  return `${imports}\nexport const fileRouteManifest = ${JSON.stringify(manifest)};\nexport const fileRouteEntries = fileRouteManifest.routes;\nexport const fileRoutePaths = fileRouteEntries.map(entry => entry.path);\nexport const fileRouteAssociations = ${JSON.stringify(associations)};\nexport const fileRouteLayouts = fileRouteManifest.layouts;\nexport const fileRouteMiddleware = fileRouteManifest.middleware;\nexport const routes = [${routes}];\nexport default routes;\n`;
+  return `${imports}\n${routeBindings}\nexport const fileRouteManifest = ${JSON.stringify(manifest)};\nexport const fileRouteEntries = fileRouteManifest.routes;\n/** @type {readonly string[]} */\nexport const fileRoutePaths = [${routePaths.map(path => JSON.stringify(path)).join(', ')}];\nexport const fileRouteAssociations = ${JSON.stringify(associations)};\nexport const fileRouteLayouts = fileRouteManifest.layouts;\nexport const fileRouteMiddleware = fileRouteManifest.middleware;\nexport const routes = [${routes}];\nexport default routes;\n`;
+}
+
+function generateFileRouteTypes(manifest: ReturnType<typeof createFileRouteManifest>): string {
+  const routePathUnion = manifest.routes.length
+    ? manifest.routes.map(entry => JSON.stringify(entry.path)).join(' | ')
+    : 'never';
+  return `import type { FileRouteAssociation, FileRouteManifest, FileRouteManifestEntry, RouteParamsFor } from 'onekit-js';
+import type { Route } from 'onekit-js/router';
+export type FileRoutePath = ${routePathUnion};
+export type FileRouteParams<Path extends FileRoutePath> = RouteParamsFor<Path>;
+export declare const fileRouteManifest: FileRouteManifest;
+export declare const fileRouteEntries: readonly FileRouteManifestEntry[];
+export declare const fileRoutePaths: readonly FileRoutePath[];
+export declare const fileRouteAssociations: readonly FileRouteAssociation[];
+export declare const fileRouteLayouts: readonly FileRouteManifestEntry[];
+export declare const fileRouteMiddleware: readonly FileRouteManifestEntry[];
+export declare const routes: readonly Route[];
+export default routes;
+`;
 }
 
 /**
@@ -159,7 +182,9 @@ export function oneKitVitePlugin(options: OneKitVitePluginOptions = {}): OneKitV
   const strictBoundary = typeof options.componentBoundary === 'object' ? options.componentBoundary.strict !== false : true;
   const boundaryMarkers = typeof options.componentBoundary === 'object' ? options.componentBoundary.markers !== false : true;
   const virtualId = options.fileRoutes?.virtualModuleId ?? 'virtual:onekit/routes';
+  const typesVirtualId = options.fileRoutes?.typesVirtualModuleId ?? `${virtualId}.d.ts`;
   const resolvedVirtualId = `\0${virtualId}`;
+  const resolvedTypesVirtualId = `\0${typesVirtualId}`;
   const isOkjs = (id: string) => cleanId(id).endsWith('.okjs') && !exclude.test(id);
   const recordBoundary = (code: string, id: string): void => {
     if (!configuredBoundary || exclude.test(id)) return;
@@ -174,6 +199,7 @@ export function oneKitVitePlugin(options: OneKitVitePluginOptions = {}): OneKitV
     },
     resolveId(source, importer) {
       if (source === virtualId) return resolvedVirtualId;
+      if (source === typesVirtualId) return resolvedTypesVirtualId;
       if (!isOkjs(source)) return undefined;
       const cleanSource = cleanId(source);
       if (cleanSource.startsWith('/') && !cleanSource.startsWith('//')) return resolvePath(projectRoot, `.${cleanSource}`);
@@ -181,6 +207,16 @@ export function oneKitVitePlugin(options: OneKitVitePluginOptions = {}): OneKitV
       return undefined;
     },
     load(id) {
+      if (id === resolvedTypesVirtualId && options.fileRoutes) {
+        const configured = options.fileRoutes;
+        const root = configured.root.startsWith('/') ? resolvePath(projectRoot, `.${configured.root}`) : resolvePath(projectRoot, configured.root);
+        const files = discoverFiles(root, configured.include ?? extensionPattern(configured.extensions));
+        const manifest = createFileRouteManifest(files.map(file => projectSourcePath(file, projectRoot)), {
+          root: manifestRoot(configured.root),
+          includeInfrastructure: configured.includeInfrastructure,
+        });
+        return { code: generateFileRouteTypes(manifest), map: null };
+      }
       if (id === resolvedVirtualId && options.fileRoutes) {
         const configured = options.fileRoutes;
         const root = configured.root.startsWith('/') ? resolvePath(projectRoot, `.${configured.root}`) : resolvePath(projectRoot, configured.root);

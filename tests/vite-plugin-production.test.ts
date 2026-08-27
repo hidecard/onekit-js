@@ -19,11 +19,15 @@ describe('Vite plugin production contract', () => {
     const id = plugin.resolveId?.('virtual:onekit/routes');
     expect(id).toBe('\0virtual:onekit/routes');
     const generated = plugin.load?.(id!);
+    const typesId = plugin.resolveId?.('virtual:onekit/routes.d.ts');
+    const generatedTypes = plugin.load?.(typesId!);
 
     expect(generated?.code).toContain('fileRouteManifest');
     expect(generated?.code).toContain('"/docs/*?"');
     expect(generated?.code).toContain('"/dashboard"');
     expect(generated?.code).toContain('export default routes');
+    expect(generatedTypes?.code).toContain('export type FileRoutePath = "/" | "/docs/*?"');
+    expect(generatedTypes?.code).toContain('export type FileRouteParams');
   });
 
   it('rejects duplicate normalized file-route paths and exports explicit associations', () => {

@@ -4150,7 +4150,7 @@
     /** Return explicit directory-scoped layout/middleware metadata without composing it. */
     function createFileRouteAssociations(manifest) {
         const containing = (entry, kind) => manifest[kind]
-            .filter(candidate => candidate.path === entry.path || entry.path === '/' || entry.path.startsWith(`${candidate.path}/`))
+            .filter(candidate => candidate.path === '/' || candidate.path === entry.path || entry.path === '/' || entry.path.startsWith(`${candidate.path}/`))
             .sort((left, right) => left.path.localeCompare(right.path) || left.file.localeCompare(right.file))
             .map(candidate => candidate.file);
         return manifest.routes.map(entry => ({
@@ -4158,6 +4158,38 @@
             layouts: containing(entry, 'layouts'),
             middleware: containing(entry, 'middleware'),
         }));
+    }
+    function infrastructureValue(module) {
+        if (!module || typeof module !== 'object')
+            return module;
+        const value = module;
+        return value.default ?? value.layout ?? value.middleware ?? module;
+    }
+    /**
+     * Resolve file-route infrastructure explicitly for application-owned composition.
+     * This helper does not mutate routes or inject middleware into Router navigation.
+     */
+    function composeFileRouteInfrastructure(modules, options = {}) {
+        const manifest = createFileRouteManifest(Object.keys(modules), { ...options, includeInfrastructure: true });
+        const routeModules = Object.fromEntries(manifest.routes.map(entry => [entry.file, modules[entry.file]]));
+        const routes = createFileRoutes(routeModules, options);
+        const associations = createFileRouteAssociations(manifest);
+        const routesByPath = new Map(routes.map(route => [route.path, route]));
+        const modulesByFile = new Map(Object.entries(modules));
+        const composed = [];
+        for (const association of associations) {
+            const route = routesByPath.get(association.path);
+            if (!route)
+                continue;
+            composed.push({
+                path: association.path,
+                route,
+                layouts: association.layouts.map(file => infrastructureValue(modulesByFile.get(file))),
+                middleware: association.middleware.map(file => infrastructureValue(modulesByFile.get(file))),
+                association,
+            });
+        }
+        return composed;
     }
     function createFileRouteManifest(filePaths, options = {}) {
         const entries = filePaths
@@ -7523,6 +7555,7 @@ return { count, ttl }
     exports.compileOkjs = compileOkjs;
     exports.compileTemplate = compileTemplate;
     exports.component = component;
+    exports.composeFileRouteInfrastructure = composeFileRouteInfrastructure;
     exports.computed = computed;
     exports.create = create;
     exports.createApi = createApi;

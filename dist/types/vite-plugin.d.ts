@@ -10,6 +10,8 @@ export interface OneKitFileRoutesOptions {
     includeInfrastructure?: boolean;
     /** Import path exposed by the generated virtual module. */
     virtualModuleId?: string;
+    /** Declaration-only virtual module path; defaults to `<virtualModuleId>.d.ts`. */
+    typesVirtualModuleId?: string;
     /** Optional build-time callback for explicitly handling the generated manifest. */
     onManifest?: (manifest: ReturnType<typeof createFileRouteManifest>) => void;
 }
