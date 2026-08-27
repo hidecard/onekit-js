@@ -86,7 +86,7 @@ The examples in this README are written against the published V3.1.19 package su
 |---|---|---|
 | TypeScript contract | `npm run type-check` | `tsconfig.json` and the full `src/` declaration graph |
 | Production package | `npm run build` | `scripts/build-library.mjs` and `scripts/build-vite-plugin.mjs` |
-| Package exports | `onekit-js`, `onekit-js/router`, `onekit-js/query`, `onekit-js/ssr`, `onekit-js/prerender` | `package.json#exports`, `scripts/verify-api-contract.mjs`, and `scripts/verify-package.cjs` |
+| Package exports | `onekit-js`, `onekit-js/router`, `onekit-js/query`, `onekit-js/ssr`, `onekit-js/prerender`, `onekit-js/isr` | `package.json#exports`, `scripts/verify-api-contract.mjs`, and `scripts/verify-package.cjs` |
 | API stability | Stable/Experimental labels and ESM/CJS subpath contract | [API stability matrix](docs/API_STABILITY.md), `npm run verify:api-contract` |
 | CLI workflow | `onekit create`, `onekit dev`, `onekit build`, `onekit preview`, `onekit test` | `bin/onekit.js` and CLI tests |
 | Runtime validation | `npm test -- --runInBand` | Jest configuration and repository test suites |
@@ -774,6 +774,25 @@ await prerenderRoutes({
   onPage: page => writeStaticFile(page.path, page.html),
 });
 ```
+
+For request-time ISR, wrap the same application renderer with `createISRRenderer()` from `onekit-js/isr`. Fresh pages are cache hits; expired pages return stale HTML immediately while one regeneration runs in the background; missing pages render synchronously. Use the same `tags` and `revalidate` vocabulary as QueryClient, but inject a durable/distributed cache and deployment coordination only when the target platform provides them:
+
+```ts
+import { createISRRenderer, createMemoryISRCache } from "onekit-js/isr";
+
+const pages = createISRRenderer({
+  cache: createMemoryISRCache(),
+  revalidate: 60_000,
+  tags: path => path.startsWith("/docs") ? ["docs"] : ["shell"],
+  render: ({ path, signal }) => renderApplicationPath(path, { signal }),
+});
+
+const response = await pages.renderISRPage("/docs/start");
+if (response.revalidation) await response.revalidation;
+await pages.revalidateTag("docs");
+```
+
+The memory cache is a reference implementation. Applications own authorization, cache persistence, distributed locking, webhook verification, eviction, observability, response headers, and preview/ISR deployment policy.
 
 ```ts
 const queries = createQueryClient();

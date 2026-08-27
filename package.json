@@ -57,6 +57,11 @@
       "import": "./dist/onekit.esm.js",
       "require": "./dist/onekit.cjs"
     },
+    "./isr": {
+      "types": "./dist/types/modules/isr.d.ts",
+      "import": "./dist/onekit.esm.js",
+      "require": "./dist/onekit.cjs"
+    },
     "./head": {
       "types": "./dist/types/modules/head.d.ts",
       "import": "./dist/onekit.esm.js",

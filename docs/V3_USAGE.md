@@ -1091,6 +1091,27 @@ querySync.dispose();
 
 Applications that need cross-tab data transfer, authenticated coordination, or custom conflict resolution should define those messages outside this helper and validate every received value. The helper also exposes `publishInvalidateTag(tag)`; it sends only the tag, never cached data, errors, or credentials.
 
+## ISR and cache-aware revalidation
+
+`createISRRenderer()` provides a small server-side stale-while-revalidate layer for concrete rendered pages. A fresh page is a cache hit, an expired page is returned as stale while one regeneration runs in the background, and a missing page is rendered synchronously. The same `tags` and `revalidate` vocabulary can be shared with `QueryClient`; use an injected durable cache for production deployments.
+
+```ts
+import { createISRRenderer, createMemoryISRCache } from "onekit-js/isr";
+
+const pages = createISRRenderer({
+  cache: createMemoryISRCache(),
+  revalidate: 60_000,
+  tags: path => path.startsWith("/docs") ? ["docs"] : ["shell"],
+  render: ({ path, signal }) => renderApplicationPath(path, { signal }),
+});
+
+const response = await pages.renderISRPage("/docs/start");
+if (response.revalidation) await response.revalidation;
+await pages.revalidateTag("docs");
+```
+
+The memory cache is a reference implementation only. Applications own authorization, persistence, distributed locking, webhook verification, eviction, observability, response headers, and deployment policy. ISR does not create RSC/Flight payloads or replace a deployment adapter.
+
 ## Secure SSR route-data handoff
 
 `Router.dehydrate()` and `QueryClient.dehydrate()` are local snapshot APIs. For an application-owned server-to-browser handoff, use `createRouteDataPayload()` to apply strict JSON-safe filtering, size/depth/string limits, optional redaction, expiry, URL binding, and optional Web Crypto HMAC signing. Use a request-scoped signing key on the server and never embed that secret in the client bundle.

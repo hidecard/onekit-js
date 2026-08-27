@@ -62,6 +62,8 @@ The V3 branch continues production hardening after `3.1.19` without changing the
 - Add `prerenderRoutes()` for deterministic sequential rendering of application-selected concrete paths with abort handling, duplicate removal, VNode/RenderResult normalization, traversal-safe output behavior, and page callbacks.
 - Add opt-in Vite `fileRoutes.prerender` integration with safe `<path>/index.html` output and a dedicated `onekit-js/prerender` export.
 - Add generated `FileRouteModuleFor<Path>`, `FileRouteLoaderData<Path>`, and `FileRouteComponentProps<Path>` declarations mapped to discovered route modules.
+- Add `createISRRenderer()`, `ISRCache`, and `createMemoryISRCache()` with fresh-hit, stale-while-revalidate, missing-page regeneration, single-flight concurrency, failure retention, cache-entry enumeration, tag invalidation, and optional QueryClient coordination.
+- Add the dedicated `onekit-js/isr` package subpath for server-side cache-aware revalidation imports.
 - Strengthen the opt-in component boundary validator with `server-only`/`client-only` marker imports and transitive static graph checks while preserving server-to-client composition.
 - Correct the GitHub Actions Edge matrix to target the configured Playwright `edge` project, install the `msedge` channel, and record cache-backed per-browser performance history.
 

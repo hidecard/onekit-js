@@ -596,3 +596,12 @@
 - [x] Add tests for prerender ordering, abort behavior, SSR context preservation, output files, traversal rejection, and generated type inference.
 - [ ] Add ISR/background regeneration, cache-aware invalidation, asset manifest rewriting, sitemap generation, and official deployment adapters as separate design work.
 - [ ] Extend generated types to infer route-specific loader context, component props validation, and schema-backed data beyond statically declared module exports.
+
+## Continuation increment — 2026-08-27 (ISR and cache-aware revalidation)
+
+- [x] Add `ISRCache`, `createMemoryISRCache()`, and `createISRRenderer()` with fresh-hit, stale-while-revalidate, missing-page regeneration, single-flight protection, stale failure retention, and abort-aware rendering.
+- [x] Share `tags` and `revalidate` semantics with `QueryClient`, including tag invalidation and optional query-tag revalidation coordination.
+- [x] Allow cache adapters to enumerate entries so tag invalidation can discover pages loaded by another renderer instance.
+- [x] Add ISR tests for freshness, stale background refresh, concurrency, tag coordination, preloaded cache entries, failure behavior, and invalid configuration.
+- [x] Document the ISR contract, memory-cache limitations, application ownership, and non-RSC boundaries.
+- [ ] Add durable/distributed cache storage, locks, eviction, webhook authentication, ISR observability, response headers, and deployment-specific regeneration workers as separate adapter work.

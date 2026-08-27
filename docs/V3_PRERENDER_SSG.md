@@ -35,6 +35,24 @@ The Vite plugin accepts an optional `fileRoutes.prerender` configuration. Its `p
 
 The integration is intentionally opt-in and build-time only. It does not guess dynamic route values, call route loaders automatically, inject middleware, or create a deployment server. Applications must validate authorization-sensitive paths before adding them to the prerender list.
 
+## Request-time ISR
+
+For request-time incremental regeneration, use `createISRRenderer()` from `onekit-js/isr` with an injectable `ISRCache`. A fresh entry is returned as a hit; an expired entry is returned immediately as stale while one single-flight background regeneration runs; and a missing entry is rendered synchronously. Page `tags` and `revalidate` values are shared with the existing QueryClient vocabulary, and `revalidateTag()` can invalidate matching QueryClient records as well as regenerate matching pages. The memory cache is a reference implementation and does not provide distributed locking, persistence, eviction, encryption, or deployment coordination.
+
+```ts
+const pages = createISRRenderer({
+  cache: createMemoryISRCache(),
+  revalidate: 60_000,
+  tags: path => path.startsWith('/docs') ? ['docs'] : ['shell'],
+  render: ({ path, signal }) => renderApplicationPath(path, { signal }),
+});
+
+const response = await pages.renderISRPage('/docs/start');
+if (response.revalidation) await response.revalidation;
+```
+
+Applications own authentication, cache storage, distributed coordination, webhook verification, and response headers. ISR is a server/deployment adapter contract, not a browser persistence mechanism.
+
 ## Non-goals and future work
 
-This contract does not promise incremental regeneration, ISR, background revalidation, preview deployments, asset manifest rewriting, sitemap generation, route-specific cache tags, or a framework-owned deployment adapter. Those capabilities require a separate cache and deployment design. It also does not provide React Server Components, Flight payloads, Server Functions, or automatic client bundle splitting.
+This contract does not promise a distributed or persistent cache, preview deployments, asset manifest rewriting, sitemap generation, framework-owned deployment routing, or automatic deployment coordination. The ISR primitives provide single-process cache-aware regeneration; production durability, locking, eviction, observability, and platform-specific headers require an adapter. It also does not provide React Server Components, Flight payloads, Server Functions, or automatic client bundle splitting.

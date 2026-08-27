@@ -3595,8 +3595,8 @@ function createRouteManifest(routes = []) {
                 ? `${parentPath.replace(/\/$/, '')}/${route.path.replace(/^\//, '')}`
                 : route.path;
             const entry = {
-                path: normalizePath$1(path),
-                ...(parentPath ? { parentPath: normalizePath$1(parentPath) } : {}),
+                path: normalizePath$2(path),
+                ...(parentPath ? { parentPath: normalizePath$2(parentPath) } : {}),
                 hasLoader: typeof route.loader === 'function',
                 hasLazyComponent: typeof route.lazy === 'function',
                 ...(route.queryKey !== undefined && typeof route.queryKey !== 'function' ? { queryKey: route.queryKey } : {}),
@@ -3610,7 +3610,7 @@ function createRouteManifest(routes = []) {
     visit(routes);
     return { version: 1, routes: entries };
 }
-function normalizePath$1(path) {
+function normalizePath$2(path) {
     const withoutHash = path.split('#')[0];
     const withoutQuery = withoutHash.split('?')[0] || '/';
     const normalized = withoutQuery.replace(/\\+/g, '/').replace(/\/+/g, '/');
@@ -3624,7 +3624,7 @@ function parseLocation(input) {
     const beforeHash = hashIndex >= 0 ? raw.slice(0, hashIndex) : raw;
     const hash = hashIndex >= 0 ? raw.slice(hashIndex) : '';
     const queryIndex = beforeHash.indexOf('?');
-    const path = normalizePath$1(queryIndex >= 0 ? beforeHash.slice(0, queryIndex) : beforeHash);
+    const path = normalizePath$2(queryIndex >= 0 ? beforeHash.slice(0, queryIndex) : beforeHash);
     const query = {};
     if (queryIndex >= 0) {
         const params = new URLSearchParams(beforeHash.slice(queryIndex + 1));
@@ -3640,7 +3640,7 @@ function parseLocation(input) {
 }
 function compilePath$1(pattern) {
     const keys = [];
-    const segments = normalizePath$1(pattern).split('/').filter(Boolean);
+    const segments = normalizePath$2(pattern).split('/').filter(Boolean);
     const source = segments.map(segment => {
         if (segment.startsWith(':')) {
             keys.push(segment.slice(1).replace(/\\?$/, ''));
@@ -3678,8 +3678,8 @@ function matchRoute(route, location) {
     }, {});
 }
 function matchRoutePrefix(route, location) {
-    const patternSegments = normalizePath$1(route.path).split('/').filter(Boolean);
-    const locationSegments = normalizePath$1(location.path).split('/').filter(Boolean);
+    const patternSegments = normalizePath$2(route.path).split('/').filter(Boolean);
+    const locationSegments = normalizePath$2(location.path).split('/').filter(Boolean);
     if (locationSegments.length < patternSegments.length)
         return null;
     const prefixLocation = { ...location, path: `/${locationSegments.slice(0, patternSegments.length).join('/')}` };
@@ -3916,7 +3916,7 @@ class Router {
                 const prefixParams = route.children ? matchRoutePrefix(routeWithFullPath, location) : null;
                 if (prefixParams && route.children) {
                     const parentLocation = { ...location, params: { ...prefixParams } };
-                    const childMatch = search(route.children, normalizePath$1(fullPattern), [
+                    const childMatch = search(route.children, normalizePath$2(fullPattern), [
                         ...parentMatches,
                         { route, location: parentLocation },
                     ]);
@@ -4010,14 +4010,14 @@ class Router {
     }
     applyBase(path) {
         const rawBase = this.options.base?.trim() ?? '';
-        const base = rawBase ? normalizePath$1(rawBase) : '';
+        const base = rawBase ? normalizePath$2(rawBase) : '';
         if (base === '/' || path === base || path.startsWith(`${base}/`))
             return path;
         return `${base}/${path.replace(/^\//, '')}`;
     }
     removeBase(path) {
         const rawBase = this.options.base?.trim() ?? '';
-        const base = rawBase ? normalizePath$1(rawBase) : '';
+        const base = rawBase ? normalizePath$2(rawBase) : '';
         if (!base || base === '/')
             return path;
         if (path === base)
@@ -6299,14 +6299,14 @@ async function parseRouteDataPayload(input, options = {}) {
     return parsed;
 }
 
-function abortError(signal) {
+function abortError$1(signal) {
     if (signal.reason !== undefined)
         return signal.reason;
     if (typeof DOMException === 'function')
         return new DOMException('The prerender operation was aborted', 'AbortError');
     return new Error('The prerender operation was aborted');
 }
-function normalizePath(path) {
+function normalizePath$1(path) {
     if (typeof path !== 'string' || !path.startsWith('/') || path.includes('\\') || path.includes('\0')) {
         throw new TypeError(`Prerender paths must be absolute URL paths: ${String(path)}`);
     }
@@ -6316,13 +6316,13 @@ function normalizePath(path) {
     }
     return path;
 }
-function isRenderResult(value) {
+function isRenderResult$1(value) {
     return Boolean(value && typeof value === 'object' && 'html' in value && typeof value.html === 'string' && 'context' in value);
 }
-function normalizeRenderValue(value) {
+function normalizeRenderValue$1(value) {
     if (typeof value === 'string')
         return renderToString(value);
-    if (isRenderResult(value))
+    if (isRenderResult$1(value))
         return value;
     return renderToString(value);
 }
@@ -6340,15 +6340,15 @@ async function prerenderRoutes(options) {
         externalSignal?.addEventListener('abort', abort, { once: true });
     try {
         const sourcePaths = typeof options.paths === 'function' ? await options.paths() : options.paths;
-        const paths = [...new Set(sourcePaths.map(normalizePath))].sort((left, right) => left.localeCompare(right));
+        const paths = [...new Set(sourcePaths.map(normalizePath$1))].sort((left, right) => left.localeCompare(right));
         const pages = [];
         for (const path of paths) {
             if (controller.signal.aborted)
-                throw abortError(controller.signal);
+                throw abortError$1(controller.signal);
             const rendered = await options.render({ path, signal: controller.signal, manifest: options.manifest });
             if (controller.signal.aborted)
-                throw abortError(controller.signal);
-            const result = normalizeRenderValue(rendered);
+                throw abortError$1(controller.signal);
+            const result = normalizeRenderValue$1(rendered);
             const page = { path, html: result.html, context: result.context };
             pages.push(page);
             await options.onPage?.(page);
@@ -6358,6 +6358,164 @@ async function prerenderRoutes(options) {
     finally {
         externalSignal?.removeEventListener('abort', abort);
     }
+}
+
+function normalizePath(path) {
+    if (typeof path !== 'string' || !path.startsWith('/') || path.includes('\\') || path.includes('\0')) {
+        throw new TypeError(`ISR paths must be absolute URL paths: ${String(path)}`);
+    }
+    const pathname = path.split(/[?#]/, 1)[0] || '/';
+    if (pathname.split('/').some(segment => segment === '.' || segment === '..')) {
+        throw new TypeError(`ISR paths cannot contain traversal segments: ${path}`);
+    }
+    return path;
+}
+function abortError(signal) {
+    if (signal.reason !== undefined)
+        return signal.reason;
+    if (typeof DOMException === 'function')
+        return new DOMException('The ISR operation was aborted', 'AbortError');
+    return new Error('The ISR operation was aborted');
+}
+function isRenderResult(value) {
+    return Boolean(value && typeof value === 'object' && 'html' in value && typeof value.html === 'string' && 'context' in value);
+}
+function normalizeRenderValue(value) {
+    if (typeof value === 'string')
+        return renderToString(value);
+    if (isRenderResult(value))
+        return value;
+    return renderToString(value);
+}
+function boundedRevalidate(value) {
+    if (value === undefined)
+        return 0;
+    if (!Number.isFinite(value) || value < 0)
+        throw new RangeError(`ISR revalidate must be a finite non-negative number: ${value}`);
+    return value;
+}
+function resolveTags(tags, path) {
+    const values = typeof tags === 'function' ? tags(path) : tags ?? [];
+    return [...new Set(values.filter(tag => typeof tag === 'string' && tag.length > 0))];
+}
+function createMemoryISRCache() {
+    const entries = new Map();
+    return {
+        get: path => entries.get(path),
+        set: (path, entry) => { entries.set(path, entry); },
+        delete: path => { entries.delete(path); },
+        clear: () => { entries.clear(); },
+        entries: () => [...entries.values()],
+    };
+}
+/**
+ * Adapter-neutral stale-while-revalidate page renderer.
+ * The cache stores complete rendered pages; applications own persistence and distribution.
+ */
+class ISRRenderer {
+    options;
+    inFlight = new Map();
+    knownPaths = new Set();
+    constructor(options) {
+        this.options = options;
+    }
+    async get(path) {
+        const entry = await this.options.cache.get(path);
+        if (entry)
+            this.knownPaths.add(path);
+        return entry;
+    }
+    async discoverKnownPaths() {
+        const entries = await this.options.cache.entries?.();
+        for (const entry of entries ?? [])
+            this.knownPaths.add(entry.path);
+    }
+    async regenerate(path, signal) {
+        const existing = this.inFlight.get(path);
+        if (existing)
+            return existing;
+        const promise = this.renderEntry(path, signal).finally(() => this.inFlight.delete(path));
+        this.inFlight.set(path, promise);
+        return promise;
+    }
+    async renderEntry(path, signal) {
+        if (signal?.aborted)
+            throw abortError(signal);
+        const value = await this.options.render({ path, signal: signal ?? new AbortController().signal });
+        if (signal?.aborted)
+            throw abortError(signal);
+        const result = normalizeRenderValue(value);
+        const revalidate = boundedRevalidate(typeof this.options.revalidate === 'function'
+            ? this.options.revalidate(path)
+            : this.options.revalidate);
+        const entry = {
+            path,
+            html: result.html,
+            context: result.context,
+            generatedAt: Date.now(),
+            revalidate,
+            tags: resolveTags(this.options.tags, path),
+        };
+        await this.options.cache.set(path, entry);
+        this.knownPaths.add(path);
+        return entry;
+    }
+    async renderISRPage(path, options = {}) {
+        const normalized = normalizePath(path);
+        const cached = await this.get(normalized);
+        if (!cached) {
+            const entry = await this.regenerate(normalized, options.signal);
+            return { ...entry, status: 'miss' };
+        }
+        const isFresh = cached.revalidate > 0 && Date.now() - cached.generatedAt < cached.revalidate;
+        if (isFresh)
+            return { ...cached, status: 'hit' };
+        const revalidation = this.regenerate(normalized);
+        void revalidation.catch(() => undefined);
+        return { ...cached, status: 'stale', revalidation };
+    }
+    async revalidatePath(path, options = {}) {
+        return this.regenerate(normalizePath(path), options.signal);
+    }
+    async invalidateTag(tag) {
+        if (!tag)
+            return;
+        await this.discoverKnownPaths();
+        this.options.queryClient?.invalidateTag(tag);
+        for (const path of this.knownPaths) {
+            const entry = await this.get(path);
+            if (!entry || !entry.tags.includes(tag))
+                continue;
+            await this.options.cache.set(path, { ...entry, generatedAt: 0 });
+        }
+    }
+    async revalidateTag(tag) {
+        if (!tag)
+            return [];
+        await this.invalidateTag(tag);
+        await this.options.queryClient?.revalidateTag(tag);
+        const paths = [];
+        for (const path of this.knownPaths) {
+            const entry = await this.get(path);
+            if (entry?.tags.includes(tag))
+                paths.push(path);
+        }
+        return Promise.all(paths.map(path => this.revalidatePath(path)));
+    }
+    async invalidatePath(path) {
+        const normalized = normalizePath(path);
+        const entry = await this.get(normalized);
+        if (entry)
+            await this.options.cache.set(normalized, { ...entry, generatedAt: 0 });
+    }
+    async clear() {
+        await this.options.cache.clear?.();
+        this.knownPaths.clear();
+        this.inFlight.clear();
+    }
+}
+function createISRRenderer(options) {
+    return new ISRRenderer(options);
 }
 
 /** Safe, typed application error for Fetch-compatible route handlers. */
@@ -7574,5 +7732,5 @@ const jsxDEV = jsx;
 // Version info
 const VERSION = '3.1.19';
 
-export { API, DependencyInjector, Fragment, HydrationMismatchError, OneKit, OneKitWebComponent, QueryClient, RouteDataTransportError, Router, ServerError, StreamingRenderer, VERSION, activate, addScript, addStorePlugin, addStyle, addToBody, addToHead, animations, announce, patch as apiPatch, applyHead, applyRouteDataPayload, assertClient, assertServer, autorun, batch, bind, bindHydratedComponent, cache, cleanup, clearDevToolsDependencies, clientOnly, compileOkjs, compileTemplate, component, composeFileRouteInfrastructure, computed, create, createApi, createApp, createElement, createErrorBoundary, createErrorReport, createFileRouteAssociations, createFileRouteManifest, createFileRoutes, createForm, createHeadManager, createHmacSha256Signer, createIndexedDBQueryStorage, createLandmarks, createLoadingBoundary, createMemoryRateLimitStore, createMemoryServerDataCache, createMongoDBAdapter, createMySQLAdapter, createNodeHandler, createPostgreSQLAdapter, createQueryBroadcastSync, createQueryClient, createRedisRateLimitStore, createRouteDataPayload, createRouteManifest, createRouter, createRouterView, createSQLiteAdapter, createSSRContext, createServerApp, createServerData, createServerError, createSkipLink, createStorage, createStore, createStoreRegistry, createStreamingBoundary, debounce, deepClone, defineComponent, defineController, defineHandler, defineLayoutRoute, defineMiddleware, defineModule, defineRoute, defineStore, del, derive, destroy, devToolsSnapshot, di, disableScopeLeakWarnings, disposeDevToolsResource, effect, effectScope, emitDevToolsEvent, enableDevTools, enableScopeLeakWarnings, errorHandler, filePathToRoutePath, findFileRouteConflicts, fireEvent, flush, generateId, get, getActiveScopeDiagnostics, getAllStores, getCurrentScope, getDependencyGraph, getDevToolsEffectId, getDevToolsScopeId, getDevToolsTargetId, getInstance, getResourceGraph, getRuntimeEnvironment, h, hotUpdateComponent, hydrate, initTemplateEngine, isClient, isClientRuntime, isDevToolsEnabled, isServer, isServerRuntime, jsonResponse, jsx$1 as jsx, jsxDEV$1 as jsxDEV, jsx as jsxRuntime, jsxDEV as jsxRuntimeDEV, jsxs, localStorage, makeFocusable, makeUnfocusable, manageTabOrder, measureDevTools, mount, nextTick, normalizeSlots, ok, okjs, onDestroyed, onDevToolsEvent, onMounted, onPropsChanged, onScopeDispose, onUpdated, parseOkjs, parseRouteDataPayload, patch$1 as patch, pluginManager, post, preloadModule, preloadScript, preloadStyle, prerenderRoutes, put, reactive, recordDevToolsDependency, recordDevToolsError, register, registerDevToolsInspector, registerDevToolsResource, registerDirective, registerDisposable, registerWebComponent, removeStore, render, renderHead, renderMeta$1 as renderMeta, renderOpenGraph, renderTest, renderTitle, renderToString, request, resolveSlot, resumeStreamingBoundary, resumeStreamingBoundaryChunk, routeHref, router, safeMethod, securityMiddleware, serverErrorResponse, serverMiddleware, serverOnly, sessionStorage, setAriaAttributes, setErrorReporter, setMeta, setupComponent, skipToContent, snapshot, state, stop, textResponse, throttle, trapFocus, unbindHydratedComponent, unmount, updateComponentProps, useStore, validateAccessibility, validateBody, patch$1 as vdomPatch, waitFor, watch, watchEffect, withCache, withScope };
+export { API, DependencyInjector, Fragment, HydrationMismatchError, ISRRenderer, OneKit, OneKitWebComponent, QueryClient, RouteDataTransportError, Router, ServerError, StreamingRenderer, VERSION, activate, addScript, addStorePlugin, addStyle, addToBody, addToHead, animations, announce, patch as apiPatch, applyHead, applyRouteDataPayload, assertClient, assertServer, autorun, batch, bind, bindHydratedComponent, cache, cleanup, clearDevToolsDependencies, clientOnly, compileOkjs, compileTemplate, component, composeFileRouteInfrastructure, computed, create, createApi, createApp, createElement, createErrorBoundary, createErrorReport, createFileRouteAssociations, createFileRouteManifest, createFileRoutes, createForm, createHeadManager, createHmacSha256Signer, createISRRenderer, createIndexedDBQueryStorage, createLandmarks, createLoadingBoundary, createMemoryISRCache, createMemoryRateLimitStore, createMemoryServerDataCache, createMongoDBAdapter, createMySQLAdapter, createNodeHandler, createPostgreSQLAdapter, createQueryBroadcastSync, createQueryClient, createRedisRateLimitStore, createRouteDataPayload, createRouteManifest, createRouter, createRouterView, createSQLiteAdapter, createSSRContext, createServerApp, createServerData, createServerError, createSkipLink, createStorage, createStore, createStoreRegistry, createStreamingBoundary, debounce, deepClone, defineComponent, defineController, defineHandler, defineLayoutRoute, defineMiddleware, defineModule, defineRoute, defineStore, del, derive, destroy, devToolsSnapshot, di, disableScopeLeakWarnings, disposeDevToolsResource, effect, effectScope, emitDevToolsEvent, enableDevTools, enableScopeLeakWarnings, errorHandler, filePathToRoutePath, findFileRouteConflicts, fireEvent, flush, generateId, get, getActiveScopeDiagnostics, getAllStores, getCurrentScope, getDependencyGraph, getDevToolsEffectId, getDevToolsScopeId, getDevToolsTargetId, getInstance, getResourceGraph, getRuntimeEnvironment, h, hotUpdateComponent, hydrate, initTemplateEngine, isClient, isClientRuntime, isDevToolsEnabled, isServer, isServerRuntime, jsonResponse, jsx$1 as jsx, jsxDEV$1 as jsxDEV, jsx as jsxRuntime, jsxDEV as jsxRuntimeDEV, jsxs, localStorage, makeFocusable, makeUnfocusable, manageTabOrder, measureDevTools, mount, nextTick, normalizeSlots, ok, okjs, onDestroyed, onDevToolsEvent, onMounted, onPropsChanged, onScopeDispose, onUpdated, parseOkjs, parseRouteDataPayload, patch$1 as patch, pluginManager, post, preloadModule, preloadScript, preloadStyle, prerenderRoutes, put, reactive, recordDevToolsDependency, recordDevToolsError, register, registerDevToolsInspector, registerDevToolsResource, registerDirective, registerDisposable, registerWebComponent, removeStore, render, renderHead, renderMeta$1 as renderMeta, renderOpenGraph, renderTest, renderTitle, renderToString, request, resolveSlot, resumeStreamingBoundary, resumeStreamingBoundaryChunk, routeHref, router, safeMethod, securityMiddleware, serverErrorResponse, serverMiddleware, serverOnly, sessionStorage, setAriaAttributes, setErrorReporter, setMeta, setupComponent, skipToContent, snapshot, state, stop, textResponse, throttle, trapFocus, unbindHydratedComponent, unmount, updateComponentProps, useStore, validateAccessibility, validateBody, patch$1 as vdomPatch, waitFor, watch, watchEffect, withCache, withScope };
 //# sourceMappingURL=onekit.esm.js.map
