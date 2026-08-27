@@ -70,7 +70,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        browser: [chromium, firefox, webkit, msedge]
+        browser: [chromium, firefox, webkit, edge]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -85,10 +85,28 @@ jobs:
         run: npm ci
 
       - name: Install Playwright browser and OS dependencies
-        run: npx playwright install --with-deps ${{ matrix.browser }}
+        run: npx playwright install --with-deps ${{ matrix.browser == 'edge' && 'msedge' || matrix.browser }}
 
+      - name: Restore browser performance history
+        uses: actions/cache/restore@v4
+        with:
+          path: benchmark-results/browser-history
+          key: onekit-browser-history-${{ github.ref_name }}-${{ matrix.browser }}-${{ github.run_id }}
+          restore-keys: |
+            onekit-browser-history-${{ github.ref_name }}-${{ matrix.browser }}-
       - name: Run real-browser smoke tests and enforce performance budgets
         run: npm run test:browser -- --project=${{ matrix.browser }}
+      - name: Record browser performance history
+        if: always()
+        continue-on-error: true
+        run: node scripts/record-browser-history.mjs --browser ${{ matrix.browser }}
+      - name: Save browser performance history
+        if: always()
+        continue-on-error: true
+        uses: actions/cache/save@v4
+        with:
+          path: benchmark-results/browser-history
+          key: onekit-browser-history-${{ github.ref_name }}-${{ matrix.browser }}-${{ github.run_id }}
 
       - name: Upload Playwright report
         if: always()
@@ -98,6 +116,7 @@ jobs:
           path: |
             playwright-report/
             test-results/
+            benchmark-results/browser-history/
             scripts/browser-performance-budgets.json
           if-no-files-found: ignore
 

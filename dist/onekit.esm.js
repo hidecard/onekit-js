@@ -4121,7 +4121,38 @@ function routeManifestEntry(filePath, options) {
     };
     return entry;
 }
-/** Create deterministic route/layout/middleware metadata from bundler-discovered file paths. */
+/** Find page files that normalize to the same or an ambiguous URL pattern. */
+function findFileRouteConflicts(manifest) {
+    const entriesByPattern = new Map();
+    const canonicalPath = (path) => path
+        .replace(/:[^/]+/g, ':param')
+        .replace(/\*\?/g, '*?')
+        .replace(/\*/g, '*');
+    for (const entry of manifest.routes) {
+        const entries = entriesByPattern.get(canonicalPath(entry.path)) ?? [];
+        entries.push(entry);
+        entriesByPattern.set(canonicalPath(entry.path), entries);
+    }
+    return [...entriesByPattern.values()]
+        .filter(entries => entries.length > 1)
+        .map(entries => ({
+        path: entries[0].path,
+        files: entries.map(entry => entry.file).sort(),
+    }))
+        .sort((left, right) => left.path.localeCompare(right.path));
+}
+/** Return explicit directory-scoped layout/middleware metadata without composing it. */
+function createFileRouteAssociations(manifest) {
+    const containing = (entry, kind) => manifest[kind]
+        .filter(candidate => candidate.path === entry.path || entry.path === '/' || entry.path.startsWith(`${candidate.path}/`))
+        .sort((left, right) => left.path.localeCompare(right.path) || left.file.localeCompare(right.file))
+        .map(candidate => candidate.file);
+    return manifest.routes.map(entry => ({
+        path: entry.path,
+        layouts: containing(entry, 'layouts'),
+        middleware: containing(entry, 'middleware'),
+    }));
+}
 function createFileRouteManifest(filePaths, options = {}) {
     const entries = filePaths
         .filter(filePath => options.includePrivate || !filePath.split(/[\\/]/).some(segment => segment.startsWith('_') && !/^_?(?:layout|middleware)(?:\.[^.]+)?$/.test(segment)))
@@ -4956,9 +4987,14 @@ class QueryClient {
                     data: options.initialData,
                     updatedAt: options.initialData === undefined ? 0 : Date.now(),
                 },
+                tags: new Set(options.tags ?? []),
                 listeners: new Set(),
             };
             this.records.set(normalized, record);
+        }
+        else if (options.tags) {
+            for (const tag of options.tags)
+                record.tags.add(tag);
         }
         return record;
     }
@@ -4976,8 +5012,9 @@ class QueryClient {
         record.options = options;
         if (record.promise)
             return record.promise;
-        const isFresh = record.state.status === 'success' && options.staleTime !== undefined
-            && Date.now() - record.state.updatedAt < options.staleTime;
+        const freshness = options.staleTime ?? options.revalidate;
+        const isFresh = record.state.status === 'success' && freshness !== undefined
+            && Date.now() - record.state.updatedAt < freshness;
         if (isFresh)
             return record.state.data;
         const controller = createController(options.signal);
@@ -5040,6 +5077,28 @@ class QueryClient {
     }
     invalidateQueries(key) {
         this.invalidate(key);
+    }
+    invalidateTag(tag) {
+        for (const record of this.records.values()) {
+            if (!record.tags.has(tag))
+                continue;
+            record.state = { ...record.state, updatedAt: 0 };
+            this.notify(record);
+        }
+        this.schedulePersist();
+    }
+    invalidateTags(tags) {
+        for (const tag of tags)
+            this.invalidateTag(tag);
+    }
+    async revalidateTag(tag) {
+        const jobs = [];
+        for (const [key, record] of this.records.entries()) {
+            if (!record.tags.has(tag) || !record.loader || record.promise)
+                continue;
+            jobs.push(this.fetch(key, record.loader, record.options));
+        }
+        await Promise.allSettled(jobs);
     }
     cancel(key) {
         if (key === undefined) {
@@ -5133,7 +5192,11 @@ class QueryClient {
         return {
             queries: Array.from(this.records.entries())
                 .filter(([, record]) => record.state.status === 'success' || record.state.status === 'error')
-                .map(([key, record]) => ({ key, state: { ...record.state } })),
+                .map(([key, record]) => ({
+                key,
+                state: { ...record.state },
+                ...(record.tags.size ? { tags: [...record.tags] } : {}),
+            })),
         };
     }
     /** Restore dehydrated states without executing loaders or notifying listeners. */
@@ -5148,9 +5211,14 @@ class QueryClient {
                 continue;
             const record = this.records.get(entry.key) ?? {
                 state: { status: 'idle', updatedAt: 0 },
+                tags: new Set(),
                 listeners: new Set(),
             };
             record.state = { ...state };
+            if (Array.isArray(entry.tags))
+                for (const tag of entry.tags)
+                    if (typeof tag === 'string' && tag)
+                        record.tags.add(tag);
             record.promise = undefined;
             record.controller = undefined;
             this.records.set(entry.key, record);
@@ -5231,11 +5299,16 @@ function createQueryBroadcastSync(client, options = {}) {
         if (!message || typeof message !== 'object')
             return;
         const payload = message;
-        if (payload.source === source || payload.type !== 'invalidate')
+        if (payload.source === source)
             return;
-        if (payload.key !== undefined && typeof payload.key !== 'string')
-            return;
-        client.invalidate(payload.key);
+        if (payload.type === 'invalidate') {
+            if (payload.key !== undefined && typeof payload.key !== 'string')
+                return;
+            client.invalidate(payload.key);
+        }
+        else if (payload.type === 'invalidate-tag' && typeof payload.tag === 'string') {
+            client.invalidateTag(payload.tag);
+        }
     };
     channel?.addEventListener('message', onMessage);
     return {
@@ -5249,6 +5322,16 @@ function createQueryBroadcastSync(client, options = {}) {
                     type: 'invalidate',
                     key: key === undefined ? undefined : normalizeKey(key),
                 });
+            }
+            catch {
+                // Broadcast failures are isolated from application state and rendering.
+            }
+        },
+        publishInvalidateTag(tag) {
+            if (!channel || !tag)
+                return;
+            try {
+                channel.postMessage({ source, type: 'invalidate-tag', tag });
             }
             catch {
                 // Broadcast failures are isolated from application state and rendering.
@@ -5949,6 +6032,239 @@ function withCache(key, renderFn, ttl = 300000 // 5 minutes
     renderResult._timestamp = Date.now();
     ssrCache.set(key, renderResult);
     return result;
+}
+
+class RouteDataTransportError extends Error {
+    code;
+    constructor(code, message) {
+        super(message);
+        this.name = 'RouteDataTransportError';
+        this.code = code;
+    }
+}
+const DEFAULT_MAX_BYTES = 512 * 1024;
+const DEFAULT_MAX_DEPTH = 20;
+const DEFAULT_MAX_STRING_LENGTH = 100_000;
+function isRecord(value) {
+    if (value === null || typeof value !== 'object' || Array.isArray(value))
+        return false;
+    const prototype = Object.getPrototypeOf(value);
+    return prototype === Object.prototype || prototype === null;
+}
+function encodeText(value) {
+    if (typeof TextEncoder !== 'undefined')
+        return new TextEncoder().encode(value);
+    const bytes = [];
+    for (let index = 0; index < value.length; index += 1) {
+        const codePoint = value.codePointAt(index);
+        if (codePoint > 0xffff)
+            index += 1;
+        if (codePoint <= 0x7f)
+            bytes.push(codePoint);
+        else if (codePoint <= 0x7ff)
+            bytes.push(0xc0 | (codePoint >> 6), 0x80 | (codePoint & 0x3f));
+        else if (codePoint <= 0xffff)
+            bytes.push(0xe0 | (codePoint >> 12), 0x80 | ((codePoint >> 6) & 0x3f), 0x80 | (codePoint & 0x3f));
+        else
+            bytes.push(0xf0 | (codePoint >> 18), 0x80 | ((codePoint >> 12) & 0x3f), 0x80 | ((codePoint >> 6) & 0x3f), 0x80 | (codePoint & 0x3f));
+    }
+    return Uint8Array.from(bytes);
+}
+function byteLength(value) {
+    return encodeText(value).byteLength;
+}
+function stableStringify(value) {
+    if (value === null || typeof value !== 'object')
+        return JSON.stringify(value);
+    if (Array.isArray(value))
+        return `[${value.map(item => stableStringify(item)).join(',')}]`;
+    const record = value;
+    return `{${Object.keys(record).sort().map(key => `${JSON.stringify(key)}:${stableStringify(record[key])}`).join(',')}}`;
+}
+function sanitize(value, path, options, seen, depth) {
+    if (options.exclude?.(path, value))
+        return undefined;
+    if (options.redact) {
+        const replacement = options.redact(path, value);
+        if (replacement === undefined)
+            return undefined;
+        value = replacement;
+    }
+    if (value === undefined)
+        return undefined;
+    if (value === null || typeof value === 'boolean')
+        return value;
+    if (typeof value === 'string') {
+        if (value.length > (options.maxStringLength ?? DEFAULT_MAX_STRING_LENGTH)) {
+            throw new RouteDataTransportError('too-large', `String at ${path} exceeds the configured length limit`);
+        }
+        return value;
+    }
+    if (typeof value === 'number') {
+        if (!Number.isFinite(value))
+            throw new RouteDataTransportError('unsupported-value', `Non-finite number at ${path} is not JSON-safe`);
+        return value;
+    }
+    if (typeof value !== 'object')
+        throw new RouteDataTransportError('unsupported-value', `Value at ${path} is not JSON-safe`);
+    if (depth >= (options.maxDepth ?? DEFAULT_MAX_DEPTH))
+        throw new RouteDataTransportError('too-deep', `Value at ${path} exceeds the nesting limit`);
+    if (seen.has(value))
+        throw new RouteDataTransportError('unsupported-value', `Cyclic value at ${path} is not JSON-safe`);
+    seen.add(value);
+    try {
+        if (Array.isArray(value)) {
+            return value.map((item, index) => sanitize(item, `${path}[${index}]`, options, seen, depth + 1) ?? null);
+        }
+        if (!isRecord(value))
+            throw new RouteDataTransportError('unsupported-value', `Class instance at ${path} is not JSON-safe`);
+        const output = Object.create(null);
+        for (const [key, item] of Object.entries(value)) {
+            const sanitized = sanitize(item, `${path}.${key}`, options, seen, depth + 1);
+            if (sanitized !== undefined)
+                output[key] = sanitized;
+        }
+        return output;
+    }
+    finally {
+        seen.delete(value);
+    }
+}
+function validateSnapshot(value) {
+    if (!isRecord(value) || value.version !== 1 || typeof value.fullPath !== 'string' || !Array.isArray(value.routes))
+        return false;
+    return value.routes.every(route => isRecord(route) && typeof route.path === 'string' && (!('data' in route) || 'data' in route));
+}
+function validateQueryState(value) {
+    if (!isRecord(value) || !Array.isArray(value.queries))
+        return false;
+    return value.queries.every(query => isRecord(query) && typeof query.key === 'string' && isRecord(query.state)
+        && typeof query.state.status === 'string' && typeof query.state.updatedAt === 'number');
+}
+function unsignedBody(payload) {
+    const { signature: _signature, ...body } = payload;
+    return body;
+}
+function assertSize(serialized, options) {
+    if (byteLength(serialized) > (options.maxBytes ?? DEFAULT_MAX_BYTES)) {
+        throw new RouteDataTransportError('too-large', 'SSR route-data payload exceeds the configured byte limit');
+    }
+}
+function bytesToBase64Url(bytes) {
+    let binary = '';
+    for (const byte of bytes)
+        binary += String.fromCharCode(byte);
+    const base64 = typeof btoa === 'function' ? btoa(binary) : binary;
+    return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+function base64UrlToBytes(value) {
+    const base64 = value.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((value.length + 3) % 4);
+    if (typeof atob !== 'function')
+        throw new Error('Base64 decoding is unavailable');
+    const binary = atob(base64);
+    return Uint8Array.from(binary, character => character.charCodeAt(0));
+}
+function constantTimeEqual(left, right) {
+    if (left.length !== right.length)
+        return false;
+    let difference = 0;
+    for (let index = 0; index < left.length; index += 1)
+        difference |= left[index] ^ right[index];
+    return difference === 0;
+}
+/** Create a standards-based HMAC-SHA-256 adapter using Web Crypto. */
+async function createHmacSha256Signer(secret) {
+    const cryptoObject = globalThis.crypto;
+    if (!cryptoObject?.subtle)
+        throw new Error('Web Crypto SubtleCrypto is required for HMAC signing');
+    const key = typeof CryptoKey !== 'undefined' && secret instanceof CryptoKey
+        ? secret
+        : await cryptoObject.subtle.importKey('raw', (typeof secret === 'string' ? encodeText(secret) : secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign', 'verify']);
+    return {
+        async sign(payload) {
+            const signature = await cryptoObject.subtle.sign('HMAC', key, encodeText(payload));
+            return bytesToBase64Url(new Uint8Array(signature));
+        },
+        async verify(payload, signature) {
+            try {
+                const expected = new Uint8Array(await cryptoObject.subtle.sign('HMAC', key, encodeText(payload)));
+                return constantTimeEqual(expected, base64UrlToBytes(signature));
+            }
+            catch {
+                return false;
+            }
+        },
+    };
+}
+/** Serialize a route/query handoff into a bounded, optionally signed envelope. */
+async function createRouteDataPayload(snapshot, options = {}, query) {
+    const now = options.now?.() ?? Date.now();
+    const sanitizedSnapshot = sanitize(snapshot, '$.snapshot', options, new Set(), 0);
+    const sanitizedQuery = query === undefined ? undefined : sanitize(query, '$.query', options, new Set(), 0);
+    if (!validateSnapshot(sanitizedSnapshot))
+        throw new RouteDataTransportError('invalid-input', 'Route snapshot is not valid');
+    if (sanitizedQuery !== undefined && !validateQueryState(sanitizedQuery))
+        throw new RouteDataTransportError('invalid-input', 'Query snapshot is not valid');
+    const payload = {
+        version: 1,
+        kind: 'onekit-route-data',
+        issuedAt: now,
+        ...(options.ttl !== undefined ? { expiresAt: now + Math.max(0, options.ttl) } : {}),
+        snapshot: sanitizedSnapshot,
+        ...(sanitizedQuery !== undefined ? { query: sanitizedQuery } : {}),
+    };
+    const body = stableStringify(unsignedBody(payload));
+    assertSize(body, options);
+    if (options.signer)
+        payload.signature = await options.signer.sign(body);
+    const serialized = stableStringify(payload);
+    assertSize(serialized, options);
+    return serialized;
+}
+/** Apply a previously validated payload to the existing router/query hydration APIs. */
+function applyRouteDataPayload(payload, router, queryClient) {
+    router.hydrate(payload.snapshot);
+    if (payload.query)
+        queryClient?.hydrate(payload.query);
+}
+/** Parse and validate a route/query handoff. Invalid data is rejected with no usable payload. */
+async function parseRouteDataPayload(input, options = {}) {
+    if (typeof input !== 'string' || byteLength(input) > (options.maxBytes ?? DEFAULT_MAX_BYTES))
+        return null;
+    let parsed;
+    try {
+        parsed = JSON.parse(input);
+    }
+    catch {
+        return null;
+    }
+    try {
+        parsed = sanitize(parsed, '$', { ...options, exclude: undefined, redact: undefined }, new Set(), 0);
+    }
+    catch {
+        return null;
+    }
+    if (!isRecord(parsed) || parsed.version !== 1 || parsed.kind !== 'onekit-route-data' || typeof parsed.issuedAt !== 'number')
+        return null;
+    if (!validateSnapshot(parsed.snapshot) || (parsed.query !== undefined && !validateQueryState(parsed.query)))
+        return null;
+    if (options.expectedFullPath !== undefined && parsed.snapshot.fullPath !== options.expectedFullPath)
+        return null;
+    const now = options.now?.() ?? Date.now();
+    if (parsed.expiresAt !== undefined && (typeof parsed.expiresAt !== 'number' || now > parsed.expiresAt))
+        return null;
+    if (options.maxAge !== undefined && now - parsed.issuedAt > options.maxAge)
+        return null;
+    const body = stableStringify(unsignedBody(parsed));
+    if (options.requireSignature && typeof parsed.signature !== 'string')
+        return null;
+    if (parsed.signature !== undefined) {
+        if (!options.signer || typeof parsed.signature !== 'string')
+            return null;
+        if (!(await options.signer.verify(body, parsed.signature)))
+            return null;
+    }
+    return parsed;
 }
 
 /** Safe, typed application error for Fetch-compatible route handlers. */
@@ -7165,5 +7481,5 @@ const jsxDEV = jsx;
 // Version info
 const VERSION = '3.1.19';
 
-export { API, DependencyInjector, Fragment, HydrationMismatchError, OneKit, OneKitWebComponent, QueryClient, Router, ServerError, StreamingRenderer, VERSION, activate, addScript, addStorePlugin, addStyle, addToBody, addToHead, animations, announce, patch as apiPatch, applyHead, assertClient, assertServer, autorun, batch, bind, bindHydratedComponent, cache, cleanup, clearDevToolsDependencies, clientOnly, compileOkjs, compileTemplate, component, computed, create, createApi, createApp, createElement, createErrorBoundary, createErrorReport, createFileRouteManifest, createFileRoutes, createForm, createHeadManager, createIndexedDBQueryStorage, createLandmarks, createLoadingBoundary, createMemoryRateLimitStore, createMemoryServerDataCache, createMongoDBAdapter, createMySQLAdapter, createNodeHandler, createPostgreSQLAdapter, createQueryBroadcastSync, createQueryClient, createRedisRateLimitStore, createRouteManifest, createRouter, createRouterView, createSQLiteAdapter, createSSRContext, createServerApp, createServerData, createServerError, createSkipLink, createStorage, createStore, createStoreRegistry, createStreamingBoundary, debounce, deepClone, defineComponent, defineController, defineHandler, defineLayoutRoute, defineMiddleware, defineModule, defineRoute, defineStore, del, derive, destroy, devToolsSnapshot, di, disableScopeLeakWarnings, disposeDevToolsResource, effect, effectScope, emitDevToolsEvent, enableDevTools, enableScopeLeakWarnings, errorHandler, filePathToRoutePath, fireEvent, flush, generateId, get, getActiveScopeDiagnostics, getAllStores, getCurrentScope, getDependencyGraph, getDevToolsEffectId, getDevToolsScopeId, getDevToolsTargetId, getInstance, getResourceGraph, getRuntimeEnvironment, h, hotUpdateComponent, hydrate, initTemplateEngine, isClient, isClientRuntime, isDevToolsEnabled, isServer, isServerRuntime, jsonResponse, jsx$1 as jsx, jsxDEV$1 as jsxDEV, jsx as jsxRuntime, jsxDEV as jsxRuntimeDEV, jsxs, localStorage, makeFocusable, makeUnfocusable, manageTabOrder, measureDevTools, mount, nextTick, normalizeSlots, ok, okjs, onDestroyed, onDevToolsEvent, onMounted, onPropsChanged, onScopeDispose, onUpdated, parseOkjs, patch$1 as patch, pluginManager, post, preloadModule, preloadScript, preloadStyle, put, reactive, recordDevToolsDependency, recordDevToolsError, register, registerDevToolsInspector, registerDevToolsResource, registerDirective, registerDisposable, registerWebComponent, removeStore, render, renderHead, renderMeta$1 as renderMeta, renderOpenGraph, renderTest, renderTitle, renderToString, request, resolveSlot, resumeStreamingBoundary, resumeStreamingBoundaryChunk, routeHref, router, safeMethod, securityMiddleware, serverErrorResponse, serverMiddleware, serverOnly, sessionStorage, setAriaAttributes, setErrorReporter, setMeta, setupComponent, skipToContent, snapshot, state, stop, textResponse, throttle, trapFocus, unbindHydratedComponent, unmount, updateComponentProps, useStore, validateAccessibility, validateBody, patch$1 as vdomPatch, waitFor, watch, watchEffect, withCache, withScope };
+export { API, DependencyInjector, Fragment, HydrationMismatchError, OneKit, OneKitWebComponent, QueryClient, RouteDataTransportError, Router, ServerError, StreamingRenderer, VERSION, activate, addScript, addStorePlugin, addStyle, addToBody, addToHead, animations, announce, patch as apiPatch, applyHead, applyRouteDataPayload, assertClient, assertServer, autorun, batch, bind, bindHydratedComponent, cache, cleanup, clearDevToolsDependencies, clientOnly, compileOkjs, compileTemplate, component, computed, create, createApi, createApp, createElement, createErrorBoundary, createErrorReport, createFileRouteAssociations, createFileRouteManifest, createFileRoutes, createForm, createHeadManager, createHmacSha256Signer, createIndexedDBQueryStorage, createLandmarks, createLoadingBoundary, createMemoryRateLimitStore, createMemoryServerDataCache, createMongoDBAdapter, createMySQLAdapter, createNodeHandler, createPostgreSQLAdapter, createQueryBroadcastSync, createQueryClient, createRedisRateLimitStore, createRouteDataPayload, createRouteManifest, createRouter, createRouterView, createSQLiteAdapter, createSSRContext, createServerApp, createServerData, createServerError, createSkipLink, createStorage, createStore, createStoreRegistry, createStreamingBoundary, debounce, deepClone, defineComponent, defineController, defineHandler, defineLayoutRoute, defineMiddleware, defineModule, defineRoute, defineStore, del, derive, destroy, devToolsSnapshot, di, disableScopeLeakWarnings, disposeDevToolsResource, effect, effectScope, emitDevToolsEvent, enableDevTools, enableScopeLeakWarnings, errorHandler, filePathToRoutePath, findFileRouteConflicts, fireEvent, flush, generateId, get, getActiveScopeDiagnostics, getAllStores, getCurrentScope, getDependencyGraph, getDevToolsEffectId, getDevToolsScopeId, getDevToolsTargetId, getInstance, getResourceGraph, getRuntimeEnvironment, h, hotUpdateComponent, hydrate, initTemplateEngine, isClient, isClientRuntime, isDevToolsEnabled, isServer, isServerRuntime, jsonResponse, jsx$1 as jsx, jsxDEV$1 as jsxDEV, jsx as jsxRuntime, jsxDEV as jsxRuntimeDEV, jsxs, localStorage, makeFocusable, makeUnfocusable, manageTabOrder, measureDevTools, mount, nextTick, normalizeSlots, ok, okjs, onDestroyed, onDevToolsEvent, onMounted, onPropsChanged, onScopeDispose, onUpdated, parseOkjs, parseRouteDataPayload, patch$1 as patch, pluginManager, post, preloadModule, preloadScript, preloadStyle, put, reactive, recordDevToolsDependency, recordDevToolsError, register, registerDevToolsInspector, registerDevToolsResource, registerDirective, registerDisposable, registerWebComponent, removeStore, render, renderHead, renderMeta$1 as renderMeta, renderOpenGraph, renderTest, renderTitle, renderToString, request, resolveSlot, resumeStreamingBoundary, resumeStreamingBoundaryChunk, routeHref, router, safeMethod, securityMiddleware, serverErrorResponse, serverMiddleware, serverOnly, sessionStorage, setAriaAttributes, setErrorReporter, setMeta, setupComponent, skipToContent, snapshot, state, stop, textResponse, throttle, trapFocus, unbindHydratedComponent, unmount, updateComponentProps, useStore, validateAccessibility, validateBody, patch$1 as vdomPatch, waitFor, watch, watchEffect, withCache, withScope };
 //# sourceMappingURL=onekit.esm.js.map

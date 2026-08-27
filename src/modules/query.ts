@@ -12,7 +12,12 @@ export interface QueryLoaderContext {
 }
 
 export interface QueryOptions<T> {
+  /** Freshness window in milliseconds. */
   staleTime?: number;
+  /** Alias for staleTime used by route/cache policies. */
+  revalidate?: number;
+  /** Stable application-owned invalidation tags shared by routes and queries. */
+  tags?: readonly string[];
   initialData?: T;
   retry?: number | ((attempt: number, error: unknown) => boolean);
   retryDelay?: number | ((attempt: number, error: unknown) => number);
@@ -22,6 +27,7 @@ export interface QueryOptions<T> {
 export interface DehydratedQuery {
   key: string;
   state: QueryState<unknown>;
+  tags?: readonly string[];
 }
 
 export interface DehydratedQueryState {
@@ -140,6 +146,7 @@ export interface QueryBroadcastSyncOptions {
 export interface QueryBroadcastSync {
   readonly available: boolean;
   publishInvalidate(key?: QueryKey): void;
+  publishInvalidateTag(tag: string): void;
   dispose(): void;
 }
 
@@ -179,6 +186,7 @@ interface QueryRecord<T> {
   controller?: AbortController;
   loader?: (context?: QueryLoaderContext) => Promise<T> | T;
   options?: QueryOptions<T>;
+  tags: Set<string>;
   listeners: Set<(state: QueryState<T>) => void>;
 }
 
@@ -242,9 +250,12 @@ export class QueryClient {
           data: options.initialData,
           updatedAt: options.initialData === undefined ? 0 : Date.now(),
         },
+        tags: new Set(options.tags ?? []),
         listeners: new Set(),
       };
       this.records.set(normalized, record as QueryRecord<unknown>);
+    } else if (options.tags) {
+      for (const tag of options.tags) record.tags.add(tag);
     }
     return record;
   }
@@ -264,8 +275,9 @@ export class QueryClient {
     record.loader = loader;
     record.options = options;
     if (record.promise) return record.promise;
-    const isFresh = record.state.status === 'success' && options.staleTime !== undefined
-      && Date.now() - record.state.updatedAt < options.staleTime;
+    const freshness = options.staleTime ?? options.revalidate;
+    const isFresh = record.state.status === 'success' && freshness !== undefined
+      && Date.now() - record.state.updatedAt < freshness;
     if (isFresh) return record.state.data as T;
 
     const controller = createController(options.signal);
@@ -330,6 +342,28 @@ export class QueryClient {
 
   invalidateQueries(key?: QueryKey): void {
     this.invalidate(key);
+  }
+
+  invalidateTag(tag: string): void {
+    for (const record of this.records.values()) {
+      if (!record.tags.has(tag)) continue;
+      record.state = { ...record.state, updatedAt: 0 };
+      this.notify(record);
+    }
+    this.schedulePersist();
+  }
+
+  invalidateTags(tags: readonly string[]): void {
+    for (const tag of tags) this.invalidateTag(tag);
+  }
+
+  async revalidateTag(tag: string): Promise<void> {
+    const jobs: Promise<unknown>[] = [];
+    for (const [key, record] of this.records.entries()) {
+      if (!record.tags.has(tag) || !record.loader || record.promise) continue;
+      jobs.push(this.fetch(key, record.loader, record.options));
+    }
+    await Promise.allSettled(jobs);
   }
 
   cancel(key?: QueryKey): void {
@@ -425,7 +459,11 @@ export class QueryClient {
     return {
       queries: Array.from(this.records.entries())
         .filter(([, record]) => record.state.status === 'success' || record.state.status === 'error')
-        .map(([key, record]) => ({ key, state: { ...record.state } })),
+        .map(([key, record]) => ({
+          key,
+          state: { ...record.state },
+          ...(record.tags.size ? { tags: [...record.tags] } : {}),
+        })),
     };
   }
 
@@ -438,9 +476,11 @@ export class QueryClient {
       if (!['idle', 'pending', 'success', 'error'].includes(state.status)) continue;
       const record = this.records.get(entry.key) ?? {
         state: { status: 'idle', updatedAt: 0 } as QueryState<unknown>,
+        tags: new Set<string>(),
         listeners: new Set<(state: QueryState<unknown>) => void>(),
       };
       record.state = { ...state };
+      if (Array.isArray(entry.tags)) for (const tag of entry.tags) if (typeof tag === 'string' && tag) record.tags.add(tag);
       record.promise = undefined;
       record.controller = undefined;
       this.records.set(entry.key, record);
@@ -517,10 +557,15 @@ export function createQueryBroadcastSync(client: QueryClient, options: QueryBroa
   const onMessage = (event: MessageEvent<unknown>) => {
     const message = event.data;
     if (!message || typeof message !== 'object') return;
-    const payload = message as { source?: unknown; type?: unknown; key?: unknown };
-    if (payload.source === source || payload.type !== 'invalidate') return;
-    if (payload.key !== undefined && typeof payload.key !== 'string') return;
-    client.invalidate(payload.key as string | undefined);
+    const payload = message as {       source?: unknown; type?: unknown; key?: unknown; tag?: unknown };
+    if (payload.source === source) return;
+    if (payload.type === 'invalidate') {
+      if (payload.key !== undefined && typeof payload.key !== 'string') return;
+      client.invalidate(payload.key as string | undefined);
+    } else if (payload.type === 'invalidate-tag' && typeof payload.tag === 'string') {
+      client.invalidateTag(payload.tag);
+    }
+
   };
 
   channel?.addEventListener('message', onMessage);
@@ -535,6 +580,14 @@ export function createQueryBroadcastSync(client: QueryClient, options: QueryBroa
           type: 'invalidate',
           key: key === undefined ? undefined : normalizeKey(key),
         });
+      } catch {
+        // Broadcast failures are isolated from application state and rendering.
+      }
+    },
+    publishInvalidateTag(tag: string): void {
+      if (!channel || !tag) return;
+      try {
+        channel.postMessage({ source, type: 'invalidate-tag', tag });
       } catch {
         // Broadcast failures are isolated from application state and rendering.
       }

@@ -95,7 +95,38 @@ function routeManifestEntry(filePath, options) {
     };
     return entry;
 }
-/** Create deterministic route/layout/middleware metadata from bundler-discovered file paths. */
+/** Find page files that normalize to the same or an ambiguous URL pattern. */
+function findFileRouteConflicts(manifest) {
+    const entriesByPattern = new Map();
+    const canonicalPath = (path) => path
+        .replace(/:[^/]+/g, ':param')
+        .replace(/\*\?/g, '*?')
+        .replace(/\*/g, '*');
+    for (const entry of manifest.routes) {
+        const entries = entriesByPattern.get(canonicalPath(entry.path)) ?? [];
+        entries.push(entry);
+        entriesByPattern.set(canonicalPath(entry.path), entries);
+    }
+    return [...entriesByPattern.values()]
+        .filter(entries => entries.length > 1)
+        .map(entries => ({
+        path: entries[0].path,
+        files: entries.map(entry => entry.file).sort(),
+    }))
+        .sort((left, right) => left.path.localeCompare(right.path));
+}
+/** Return explicit directory-scoped layout/middleware metadata without composing it. */
+function createFileRouteAssociations(manifest) {
+    const containing = (entry, kind) => manifest[kind]
+        .filter(candidate => candidate.path === entry.path || entry.path === '/' || entry.path.startsWith(`${candidate.path}/`))
+        .sort((left, right) => left.path.localeCompare(right.path) || left.file.localeCompare(right.file))
+        .map(candidate => candidate.file);
+    return manifest.routes.map(entry => ({
+        path: entry.path,
+        layouts: containing(entry, 'layouts'),
+        middleware: containing(entry, 'middleware'),
+    }));
+}
 function createFileRouteManifest(filePaths, options = {}) {
     const entries = filePaths
         .filter(filePath => options.includePrivate || !filePath.split(/[\\/]/).some(segment => segment.startsWith('_') && !/^_?(?:layout|middleware)(?:\.[^.]+)?$/.test(segment)))
@@ -154,10 +185,17 @@ function compileOkjsForVite(source, id) {
     return { code: transpiled.outputText, map: null };
 }
 function cleanId(id) { return id.split('?')[0]; }
-function detectComponentBoundary(code) {
+function detectComponentBoundary(code, markers = true) {
     const header = code.slice(0, 4096).replace(/^(?:\s|\/\/[^\n]*\n|\/\*[\s\S]*?\*\/)+/, '');
-    const directives = header.match(/^["']use (client|server)["'];?/);
-    return directives?.[1] === 'client' ? 'client' : directives?.[1] === 'server' ? 'server' : 'shared';
+    const hasClientDirective = /^["']use client["'];?/.test(header);
+    const hasServerDirective = /^["']use server["'];?/.test(header);
+    const hasClientMarker = markers && /import\s+(?:['"]client-only['"]|[^;]*from\s+['"]client-only['"])/.test(header);
+    const hasServerMarker = markers && /import\s+(?:['"]server-only['"]|[^;]*from\s+['"]server-only['"])/.test(header);
+    const isClient = hasClientDirective || hasClientMarker;
+    const isServer = hasServerDirective || hasServerMarker;
+    if (isClient && isServer)
+        throw new Error('OneKit component boundary violation: a module cannot declare both client and server boundaries');
+    return isClient ? 'client' : isServer ? 'server' : 'shared';
 }
 function discoverFiles(root, include) {
     if (!statSafe(root)?.isDirectory())
@@ -187,12 +225,27 @@ function projectSourcePath(file, projectRoot) {
     const value = relative(projectRoot, file).replace(/\\/g, '/');
     return `/${value}`;
 }
+function manifestRoot(root) {
+    const normalized = root.replace(/\\/g, '/').replace(/\/$/, '');
+    return normalized.startsWith('/') ? normalized : `/${normalized}`;
+}
+function extensionPattern(extensions) {
+    const values = (extensions?.length ? extensions : ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'okjs'])
+        .map(extension => extension.replace(/^\./, '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    return new RegExp(`\\.(?:${values.join('|')})$`, 'i');
+}
 function generateFileRouteModule(files, options, projectRoot) {
     const sourceFiles = files.map(file => projectSourcePath(file, projectRoot));
     const manifest = createFileRouteManifest(sourceFiles, {
-        root: options.root,
+        root: manifestRoot(options.root),
         includeInfrastructure: options.includeInfrastructure,
     });
+    const conflicts = findFileRouteConflicts(manifest);
+    if (conflicts.length) {
+        const details = conflicts.map(conflict => `${conflict.path}: ${conflict.files.join(', ')}`).join('; ');
+        throw new Error(`OneKit file-route conflict: multiple route files normalize to the same path (${details})`);
+    }
+    const associations = createFileRouteAssociations(manifest);
     const routeEntries = manifest.routes.map(entry => ({ entry, index: sourceFiles.indexOf(entry.file) })).filter(item => item.index >= 0);
     const imports = routeEntries.map(({ entry, index }) => `import * as __route${index} from ${JSON.stringify(entry.file)};`).join('\n');
     const routes = routeEntries.map(({ entry, index }) => `{
@@ -201,7 +254,7 @@ function generateFileRouteModule(files, options, projectRoot) {
     ...(__route${index}.default !== undefined ? { component: __route${index}.default } : {}),
     ...(__route${index}.route?.component !== undefined ? { component: __route${index}.route.component } : {}),
   }`).join(',\n');
-    return `${imports}\nexport const fileRouteManifest = ${JSON.stringify(manifest)};\nexport const fileRouteLayouts = fileRouteManifest.layouts;\nexport const fileRouteMiddleware = fileRouteManifest.middleware;\nexport const routes = [${routes}];\nexport default routes;\n`;
+    return `${imports}\nexport const fileRouteManifest = ${JSON.stringify(manifest)};\nexport const fileRouteEntries = fileRouteManifest.routes;\nexport const fileRoutePaths = fileRouteEntries.map(entry => entry.path);\nexport const fileRouteAssociations = ${JSON.stringify(associations)};\nexport const fileRouteLayouts = fileRouteManifest.layouts;\nexport const fileRouteMiddleware = fileRouteManifest.middleware;\nexport const routes = [${routes}];\nexport default routes;\n`;
 }
 /**
  * Vite plugin for OKJS/HMR plus opt-in file-route generation and component-boundary checks.
@@ -215,13 +268,14 @@ function oneKitVitePlugin(options = {}) {
     const importsById = new Map();
     const configuredBoundary = options.componentBoundary !== undefined;
     const strictBoundary = typeof options.componentBoundary === 'object' ? options.componentBoundary.strict !== false : true;
+    const boundaryMarkers = typeof options.componentBoundary === 'object' ? options.componentBoundary.markers !== false : true;
     const virtualId = options.fileRoutes?.virtualModuleId ?? 'virtual:onekit/routes';
     const resolvedVirtualId = `\0${virtualId}`;
     const isOkjs = (id) => cleanId(id).endsWith('.okjs') && !exclude.test(id);
     const recordBoundary = (code, id) => {
         if (!configuredBoundary || exclude.test(id))
             return;
-        boundaryById.set(cleanId(id), detectComponentBoundary(code));
+        boundaryById.set(cleanId(id), detectComponentBoundary(code, boundaryMarkers));
     };
     return {
         name: 'onekit-v3-hmr',
@@ -245,7 +299,12 @@ function oneKitVitePlugin(options = {}) {
             if (id === resolvedVirtualId && options.fileRoutes) {
                 const configured = options.fileRoutes;
                 const root = configured.root.startsWith('/') ? resolve(projectRoot, `.${configured.root}`) : resolve(projectRoot, configured.root);
-                const files = discoverFiles(root, configured.include ?? /\.(?:[cm]?[jt]sx?|vue|svelte|okjs)$/i);
+                const files = discoverFiles(root, configured.include ?? extensionPattern(configured.extensions));
+                const manifest = createFileRouteManifest(files.map(file => projectSourcePath(file, projectRoot)), {
+                    root: manifestRoot(configured.root),
+                    includeInfrastructure: configured.includeInfrastructure,
+                });
+                configured.onManifest?.(manifest);
                 return { code: generateFileRouteModule(files, configured, projectRoot), map: null };
             }
             if (!isOkjs(id))
@@ -263,7 +322,7 @@ function oneKitVitePlugin(options = {}) {
                 return;
             const id = cleanId(module.id);
             const imported = new Set();
-            for (const child of [...(module.importedModules ?? []), ...(module.dynamicallyImportedModules ?? [])]) {
+            for (const child of module.importedModules ?? []) {
                 if (child?.id)
                     imported.add(cleanId(child.id));
             }
@@ -272,12 +331,26 @@ function oneKitVitePlugin(options = {}) {
         buildEnd() {
             if (!configuredBoundary || !strictBoundary)
                 return;
+            const reachesServer = (id, visiting) => {
+                if (boundaryById.get(id) === 'server')
+                    return id;
+                if (visiting.has(id))
+                    return undefined;
+                const next = new Set(visiting).add(id);
+                for (const imported of importsById.get(id) ?? []) {
+                    const server = reachesServer(imported, next);
+                    if (server)
+                        return server;
+                }
+                return undefined;
+            };
             for (const [id, boundary] of boundaryById) {
                 if (boundary !== 'client')
                     continue;
                 for (const imported of importsById.get(id) ?? []) {
-                    if (boundaryById.get(imported) === 'server') {
-                        throw new Error(`OneKit component boundary violation: client module ${id} statically imports server module ${imported}. Move the import behind a server-owned boundary or mark the shared module explicitly.`);
+                    const server = reachesServer(imported, new Set([id]));
+                    if (server) {
+                        throw new Error(`OneKit component boundary violation: client module ${id} statically imports server module ${server} (reaches server module through a transitive static path). Move the import behind a server-owned boundary or mark the shared module explicitly.`);
                     }
                 }
             }

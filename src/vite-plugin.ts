@@ -2,22 +2,28 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, relative, resolve as resolvePath } from 'node:path';
 import * as typescript from 'typescript';
 import { compileOkjs } from './okjs';
-import { createFileRouteManifest } from './modules/file-routes';
+import { createFileRouteAssociations, createFileRouteManifest, findFileRouteConflicts } from './modules/file-routes';
 
 export interface OneKitFileRoutesOptions {
   /** Project-relative route directory, for example `/src/app` or `src/pages`. */
   root: string;
   /** File extensions included in route discovery. */
   include?: RegExp;
+  /** File extensions used when include is not supplied. */
+  extensions?: readonly string[];
   /** Include `_layout`, `layout`, `_middleware`, and `middleware` metadata entries. */
   includeInfrastructure?: boolean;
   /** Import path exposed by the generated virtual module. */
   virtualModuleId?: string;
+  /** Optional build-time callback for explicitly handling the generated manifest. */
+  onManifest?: (manifest: ReturnType<typeof createFileRouteManifest>) => void;
 }
 
 export interface OneKitComponentBoundaryOptions {
-  /** Throw on client-to-server static imports during the build. Defaults to true. */
+  /** Throw on client-to-server transitive static imports during the build. Defaults to true. */
   strict?: boolean;
+  /** Recognize explicit `server-only`/`client-only` side-effect marker imports. */
+  markers?: boolean;
 }
 
 export interface OneKitVitePluginOptions {
@@ -66,10 +72,16 @@ function compileOkjsForVite(source: string, id: string): { code: string; map: nu
 
 function cleanId(id: string): string { return id.split('?')[0]; }
 
-function detectComponentBoundary(code: string): ComponentBoundary {
+function detectComponentBoundary(code: string, markers = true): ComponentBoundary {
   const header = code.slice(0, 4096).replace(/^(?:\s|\/\/[^\n]*\n|\/\*[\s\S]*?\*\/)+/, '');
-  const directives = header.match(/^["']use (client|server)["'];?/);
-  return directives?.[1] === 'client' ? 'client' : directives?.[1] === 'server' ? 'server' : 'shared';
+  const hasClientDirective = /^["']use client["'];?/.test(header);
+  const hasServerDirective = /^["']use server["'];?/.test(header);
+  const hasClientMarker = markers && /import\s+(?:['"]client-only['"]|[^;]*from\s+['"]client-only['"])/.test(header);
+  const hasServerMarker = markers && /import\s+(?:['"]server-only['"]|[^;]*from\s+['"]server-only['"])/.test(header);
+  const isClient = hasClientDirective || hasClientMarker;
+  const isServer = hasServerDirective || hasServerMarker;
+  if (isClient && isServer) throw new Error('OneKit component boundary violation: a module cannot declare both client and server boundaries');
+  return isClient ? 'client' : isServer ? 'server' : 'shared';
 }
 
 function discoverFiles(root: string, include: RegExp): string[] {
@@ -95,6 +107,17 @@ function projectSourcePath(file: string, projectRoot: string): string {
   return `/${value}`;
 }
 
+function manifestRoot(root: string): string {
+  const normalized = root.replace(/\\/g, '/').replace(/\/$/, '');
+  return normalized.startsWith('/') ? normalized : `/${normalized}`;
+}
+
+function extensionPattern(extensions: readonly string[] | undefined): RegExp {
+  const values = (extensions?.length ? extensions : ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'okjs'])
+    .map(extension => extension.replace(/^\./, '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  return new RegExp(`\\.(?:${values.join('|')})$`, 'i');
+}
+
 function generateFileRouteModule(
   files: readonly string[],
   options: OneKitFileRoutesOptions,
@@ -102,9 +125,15 @@ function generateFileRouteModule(
 ): string {
   const sourceFiles = files.map(file => projectSourcePath(file, projectRoot));
   const manifest = createFileRouteManifest(sourceFiles, {
-    root: options.root,
+    root: manifestRoot(options.root),
     includeInfrastructure: options.includeInfrastructure,
   });
+  const conflicts = findFileRouteConflicts(manifest);
+  if (conflicts.length) {
+    const details = conflicts.map(conflict => `${conflict.path}: ${conflict.files.join(', ')}`).join('; ');
+    throw new Error(`OneKit file-route conflict: multiple route files normalize to the same path (${details})`);
+  }
+  const associations = createFileRouteAssociations(manifest);
   const routeEntries = manifest.routes.map(entry => ({ entry, index: sourceFiles.indexOf(entry.file) })).filter(item => item.index >= 0);
   const imports = routeEntries.map(({ entry, index }) => `import * as __route${index} from ${JSON.stringify(entry.file)};`).join('\n');
   const routes = routeEntries.map(({ entry, index }) => `{
@@ -113,7 +142,7 @@ function generateFileRouteModule(
     ...(__route${index}.default !== undefined ? { component: __route${index}.default } : {}),
     ...(__route${index}.route?.component !== undefined ? { component: __route${index}.route.component } : {}),
   }`).join(',\n');
-  return `${imports}\nexport const fileRouteManifest = ${JSON.stringify(manifest)};\nexport const fileRouteLayouts = fileRouteManifest.layouts;\nexport const fileRouteMiddleware = fileRouteManifest.middleware;\nexport const routes = [${routes}];\nexport default routes;\n`;
+  return `${imports}\nexport const fileRouteManifest = ${JSON.stringify(manifest)};\nexport const fileRouteEntries = fileRouteManifest.routes;\nexport const fileRoutePaths = fileRouteEntries.map(entry => entry.path);\nexport const fileRouteAssociations = ${JSON.stringify(associations)};\nexport const fileRouteLayouts = fileRouteManifest.layouts;\nexport const fileRouteMiddleware = fileRouteManifest.middleware;\nexport const routes = [${routes}];\nexport default routes;\n`;
 }
 
 /**
@@ -128,12 +157,13 @@ export function oneKitVitePlugin(options: OneKitVitePluginOptions = {}): OneKitV
   const importsById = new Map<string, Set<string>>();
   const configuredBoundary = options.componentBoundary !== undefined;
   const strictBoundary = typeof options.componentBoundary === 'object' ? options.componentBoundary.strict !== false : true;
+  const boundaryMarkers = typeof options.componentBoundary === 'object' ? options.componentBoundary.markers !== false : true;
   const virtualId = options.fileRoutes?.virtualModuleId ?? 'virtual:onekit/routes';
   const resolvedVirtualId = `\0${virtualId}`;
   const isOkjs = (id: string) => cleanId(id).endsWith('.okjs') && !exclude.test(id);
   const recordBoundary = (code: string, id: string): void => {
     if (!configuredBoundary || exclude.test(id)) return;
-    boundaryById.set(cleanId(id), detectComponentBoundary(code));
+    boundaryById.set(cleanId(id), detectComponentBoundary(code, boundaryMarkers));
   };
 
   return {
@@ -154,7 +184,12 @@ export function oneKitVitePlugin(options: OneKitVitePluginOptions = {}): OneKitV
       if (id === resolvedVirtualId && options.fileRoutes) {
         const configured = options.fileRoutes;
         const root = configured.root.startsWith('/') ? resolvePath(projectRoot, `.${configured.root}`) : resolvePath(projectRoot, configured.root);
-        const files = discoverFiles(root, configured.include ?? /\.(?:[cm]?[jt]sx?|vue|svelte|okjs)$/i);
+        const files = discoverFiles(root, configured.include ?? extensionPattern(configured.extensions));
+        const manifest = createFileRouteManifest(files.map(file => projectSourcePath(file, projectRoot)), {
+          root: manifestRoot(configured.root),
+          includeInfrastructure: configured.includeInfrastructure,
+        });
+        configured.onManifest?.(manifest);
         return { code: generateFileRouteModule(files, configured, projectRoot), map: null };
       }
       if (!isOkjs(id)) return undefined;
@@ -169,18 +204,29 @@ export function oneKitVitePlugin(options: OneKitVitePluginOptions = {}): OneKitV
       if (!configuredBoundary) return;
       const id = cleanId(module.id);
       const imported = new Set<string>();
-      for (const child of [...(module.importedModules ?? []), ...(module.dynamicallyImportedModules ?? [])]) {
+      for (const child of module.importedModules ?? []) {
         if (child?.id) imported.add(cleanId(child.id));
       }
       importsById.set(id, imported);
     },
     buildEnd() {
       if (!configuredBoundary || !strictBoundary) return;
+      const reachesServer = (id: string, visiting: Set<string>): string | undefined => {
+        if (boundaryById.get(id) === 'server') return id;
+        if (visiting.has(id)) return undefined;
+        const next = new Set(visiting).add(id);
+        for (const imported of importsById.get(id) ?? []) {
+          const server = reachesServer(imported, next);
+          if (server) return server;
+        }
+        return undefined;
+      };
       for (const [id, boundary] of boundaryById) {
         if (boundary !== 'client') continue;
         for (const imported of importsById.get(id) ?? []) {
-          if (boundaryById.get(imported) === 'server') {
-            throw new Error(`OneKit component boundary violation: client module ${id} statically imports server module ${imported}. Move the import behind a server-owned boundary or mark the shared module explicitly.`);
+          const server = reachesServer(imported, new Set([id]));
+          if (server) {
+            throw new Error(`OneKit component boundary violation: client module ${id} statically imports server module ${server} (reaches server module through a transitive static path). Move the import behind a server-owned boundary or mark the shared module explicitly.`);
           }
         }
       }

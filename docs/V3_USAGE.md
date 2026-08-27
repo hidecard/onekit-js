@@ -979,7 +979,7 @@ view.unmount();
 cleanup();
 ```
 
-The `onekit-js/query` entry point provides a framework-neutral `QueryClient` with request deduplication, stale-time reads, subscribers, manual `setData()`, invalidation, removal, cache clearing, retry, cancellation, and mutation lifecycle hooks. It is intentionally a small primitive rather than a replacement for a server-state ecosystem.
+The `onekit-js/query` entry point provides a framework-neutral `QueryClient` with request deduplication, stale-time reads, subscribers, manual `setData()`, invalidation, removal, cache clearing, retry, cancellation, mutation lifecycle hooks, and shared cache tags. It is intentionally a small primitive rather than a replacement for a server-state ecosystem.
 
 ```ts
 const queries = createQueryClient();
@@ -990,6 +990,10 @@ const todos = await queries.fetch(["todos", userId], ({ signal }) => api.listTod
 });
 queries.invalidateQueries(["todos", userId]);
 queries.cancel(["todos", userId]);
+
+// Tags let route loaders and direct queries share one invalidation policy.
+queries.invalidateTag(`user:${userId}`);
+await queries.revalidateTag(`user:${userId}`);
 ```
 
 Mutations support success/error/settled callbacks and optional optimistic updates. If the mutation fails, the previous cached value is restored unless a custom rollback function is supplied:
@@ -1028,7 +1032,7 @@ const queries = createQueryClient({
   revalidateOnReconnect: true,
 });
 
-await queries.fetch(["account"], loadAccount, { staleTime: 30_000 });
+await queries.fetch(["account"], loadAccount, { tags: ["account"], revalidate: 30_000 });
 // The remembered loader is re-run after focus/reconnect.
 await queries.revalidate("manual");
 // Call queries.dispose() when the application scope is destroyed.
@@ -1050,7 +1054,39 @@ querySync.publishInvalidate(["account"]);
 querySync.dispose();
 ```
 
-Applications that need cross-tab data transfer, authenticated coordination, or custom conflict resolution should define those messages outside this helper and validate every received value.
+Applications that need cross-tab data transfer, authenticated coordination, or custom conflict resolution should define those messages outside this helper and validate every received value. The helper also exposes `publishInvalidateTag(tag)`; it sends only the tag, never cached data, errors, or credentials.
+
+## Secure SSR route-data handoff
+
+`Router.dehydrate()` and `QueryClient.dehydrate()` are local snapshot APIs. For an application-owned server-to-browser handoff, use `createRouteDataPayload()` to apply strict JSON-safe filtering, size/depth/string limits, optional redaction, expiry, URL binding, and optional Web Crypto HMAC signing. Use a request-scoped signing key on the server and never embed that secret in the client bundle.
+
+```ts
+import {
+  applyRouteDataPayload,
+  createHmacSha256Signer,
+  createRouteDataPayload,
+  parseRouteDataPayload,
+} from "onekit-js";
+
+// Server adapter: emit this string in a safe data script or response body.
+const signer = await createHmacSha256Signer(process.env.ROUTE_DATA_SECRET!);
+const routeData = await createRouteDataPayload(router.dehydrate()!, {
+  signer,
+  ttl: 30_000,
+  redact: (path, value) => path.endsWith(".token") ? undefined : value,
+}, queries.dehydrate());
+
+// Browser adapter: validate before touching Router or QueryClient.
+const payload = await parseRouteDataPayload(serializedRouteData, {
+  signer,
+  requireSignature: true,
+  expectedFullPath: window.location.pathname + window.location.search,
+  maxAge: 30_000,
+});
+if (payload) applyRouteDataPayload(payload, router, queries);
+```
+
+A parser rejection returns `null` and must be treated as an untrusted or stale handoff; the application can continue with a normal navigation or query load. The transport is not a React Server Components or Flight runtime: it carries explicitly selected JSON-safe route/query data and does not serialize components, create client references, or implement Server Functions. See [`V3_SSR_ROUTE_DATA.md`](./V3_SSR_ROUTE_DATA.md) for limits and adapter responsibilities.
 
 The `onekit-js/forms` entry point provides typed values, touched state, synchronous or asynchronous validation, guarded submit, reset, and subscriptions. Application-specific schema adapters can be layered on top without coupling the framework to a validation library.
 

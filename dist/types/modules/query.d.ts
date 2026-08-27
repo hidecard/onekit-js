@@ -9,7 +9,12 @@ export interface QueryLoaderContext {
     signal: AbortSignal;
 }
 export interface QueryOptions<T> {
+    /** Freshness window in milliseconds. */
     staleTime?: number;
+    /** Alias for staleTime used by route/cache policies. */
+    revalidate?: number;
+    /** Stable application-owned invalidation tags shared by routes and queries. */
+    tags?: readonly string[];
     initialData?: T;
     retry?: number | ((attempt: number, error: unknown) => boolean);
     retryDelay?: number | ((attempt: number, error: unknown) => number);
@@ -18,6 +23,7 @@ export interface QueryOptions<T> {
 export interface DehydratedQuery {
     key: string;
     state: QueryState<unknown>;
+    tags?: readonly string[];
 }
 export interface DehydratedQueryState {
     queries: readonly DehydratedQuery[];
@@ -53,6 +59,7 @@ export interface QueryBroadcastSyncOptions {
 export interface QueryBroadcastSync {
     readonly available: boolean;
     publishInvalidate(key?: QueryKey): void;
+    publishInvalidateTag(tag: string): void;
     dispose(): void;
 }
 export interface QueryPersistenceOptions {
@@ -96,6 +103,9 @@ export declare class QueryClient {
     getData<T>(key: QueryKey): T | undefined;
     invalidate(key?: QueryKey): void;
     invalidateQueries(key?: QueryKey): void;
+    invalidateTag(tag: string): void;
+    invalidateTags(tags: readonly string[]): void;
+    revalidateTag(tag: string): Promise<void>;
     cancel(key?: QueryKey): void;
     mutate<TData, TVariables, TContext = unknown>(variables: TVariables, options: MutationOptions<TData, TVariables, TContext>): Promise<TData>;
     remove(key: QueryKey): void;

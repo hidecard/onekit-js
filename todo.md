@@ -570,3 +570,15 @@
 - [ ] Run the complete Firefox/WebKit/Microsoft Edge matrix on CI runners with those browser executables installed before the next release.
 - [ ] Decide whether store persistence and SSR request isolation belong in the next public contract before implementation.
 - [ ] Continue SSR streamed-route integration, browser performance trend storage, cross-browser heap collection, and framework adapter/deployment examples.
+
+## Continuation increment — 2026-08-27
+
+- [x] Define and document the bounded SSR route-data envelope contract with JSON-safe filtering, size/depth/string limits, redaction/exclusion hooks, expiry, URL binding, optional Web Crypto HMAC signing, fail-closed parsing, and explicit Router/QueryClient hydration application.
+- [x] Add shared QueryClient `tags`, `revalidate`, tag invalidation/revalidation, tag-preserving dehydration, and tag-only cross-tab invalidation coverage.
+- [x] Extend the opt-in Vite file-route plugin with configurable extensions, relative-root normalization, deterministic duplicate normalized-path diagnostics, generated route entry/path metadata, and explicit layout/middleware associations.
+- [x] Strengthen the opt-in Server/Client boundary validator with `server-only`/`client-only` markers and transitive static import checks while preserving server-to-client composition.
+- [x] Fix the GitHub Actions browser matrix to target the configured `edge` Playwright project, install the `msedge` channel, and record per-browser cache-backed performance history.
+- [x] Update README, V3 usage, API stability, production readiness, parity, roadmap, changelog, and dedicated SSR route-data documentation.
+- [ ] Execute the full Firefox/WebKit/Edge matrix on CI and verify the Edge channel installation on the hosted runner.
+- [ ] Integrate route-data transport with official streaming/deployment adapters and decide replay/key-rotation policy.
+- [ ] Add generated fully typed route declarations, runtime layout/middleware composition, prerendering, RSC/Flight, Server Functions, and cross-browser heap collection only as separate reviewed milestones.

@@ -641,7 +641,7 @@ Use stores for shared application state with explicit actions and subscriptions.
 
 ### Query client
 
-`onekit-js/query` provides a compact query foundation with deduplication, stale-time behavior, invalidation, retries, cancellation, mutations, optimistic updates, and SSR dehydrate/hydrate handoff:
+`onekit-js/query` provides a compact query foundation with deduplication, stale-time behavior, invalidation, retries, cancellation, mutations, optimistic updates, shared cache tags, and SSR dehydrate/hydrate handoff:
 
 ```ts
 import { QueryClient } from "onekit-js/query";
@@ -652,6 +652,8 @@ const result = await queries.fetch(["projects"], () =>
 );
 
 queries.invalidate(["projects"]);
+queries.invalidateTag("projects");
+await queries.revalidateTag("projects");
 declare function createProject(input: { name: string }): Promise<{ id: string; name: string }>;
 const mutation = await queries.mutate(
   { name: "New project" },
@@ -741,7 +743,7 @@ A production SSR checklist should include:
 - Hydration tests for attributes, events, booleans, styles, fragments, and nested components.
 - Error boundaries that preserve the original error and do not allow stale async work to overwrite a newer result.
 
-For server-to-client data handoff, create one `QueryClient` per SSR request, await the route queries, call `dehydrate()`, transport the resulting snapshot through your trusted escaped serialization layer, and call `hydrate()` on a fresh browser client before mounting the app. Only settled success/error states are exported; pending promises are never serialized and hydration does not run loaders.
+For server-to-client data handoff, create one `QueryClient` per SSR request, await the route queries, and use `createRouteDataPayload()` when the snapshot crosses an application transport. The envelope applies JSON-safe filtering, bounded size/depth/string checks, optional redaction, expiry, URL binding, and optional Web Crypto HMAC signing. Parse it with `parseRouteDataPayload()` and call `applyRouteDataPayload()` only when validation succeeds. Only settled success/error states are exported; pending promises are never serialized and hydration does not run loaders.
 
 ```ts
 // server request
@@ -751,14 +753,15 @@ import { createRouter } from "onekit-js/router";
 declare function loadDashboard(context?: { signal: AbortSignal }): Promise<{ total: number }>;
 const serverQueries = createQueryClient();
 await serverQueries.fetch(['dashboard', 'summary'], loadDashboard);
-const payload = JSON.stringify(serverQueries.dehydrate());
+const payload = await createRouteDataPayload({ version: 1, fullPath: "/", routes: [] }, {}, serverQueries.dehydrate());
 
 // browser bootstrap
 const clientQueries = createQueryClient();
-clientQueries.hydrate(JSON.parse(payload));
+const parsed = await parseRouteDataPayload(payload, { expectedFullPath: "/" });
+if (parsed) applyRouteDataPayload(parsed, createRouter([]), clientQueries);
 ```
 
-With a router, give data-owning routes a stable `queryKey` and pass the same client to the router. The loader is then deduplicated and can reuse hydrated data on the client; set `queryOptions.staleTime` according to the freshness policy of that resource. For routes that do not use `QueryClient`, a trusted SSR request may call `router.dehydrate()` after the committed navigation and pass the versioned snapshot to a fresh client router with `router.hydrate(snapshot)`. The snapshot is reused only when `fullPath` and matched route paths agree, and only for the next matching `start()` call. Route guards and loaders can use `RouteContext.signal`, which is aborted when a newer navigation supersedes the current one or the router stops.
+With a router, give data-owning routes a stable `queryKey` and pass the same client to the router. The loader is then deduplicated and can reuse hydrated data on the client; set `queryOptions.staleTime` or `queryOptions.revalidate` according to the freshness policy of that resource, and use `queryOptions.tags` for shared invalidation. For routes that do not use `QueryClient`, a trusted SSR request may call `router.dehydrate()` after the committed navigation and pass the versioned snapshot through the same validated route-data transport to a fresh client router with `router.hydrate(snapshot)`. The snapshot is reused only when `fullPath` and matched route paths agree, and only for the next matching `start()` call. Route guards and loaders can use `RouteContext.signal`, which is aborted when a newer navigation supersedes the current one or the router stops.
 
 ```ts
 const queries = createQueryClient();
@@ -786,7 +789,7 @@ if (isServerRuntime()) {
 }
 ```
 
-See the [V3 Usage Guide](docs/V3_USAGE.md), [Migration Guide](MIGRATION_GUIDE.md), and [V3 Release Notes](docs/V3_RELEASE_NOTES.md) for streaming examples, typed loader contracts, and advanced SSR guidance.
+See the [V3 Usage Guide](docs/V3_USAGE.md), [SSR route-data guide](docs/V3_SSR_ROUTE_DATA.md), [Migration Guide](MIGRATION_GUIDE.md), and [V3 Release Notes](docs/V3_RELEASE_NOTES.md) for streaming examples, typed loader contracts, and advanced SSR guidance.
 
 ## Metadata, SEO, and document head
 
@@ -857,7 +860,7 @@ OneKit includes filtering and regression coverage for common renderer and SSR at
 | Event injection | Never turn user-provided strings into event handler code. |
 | CSS injection | Validate style values and avoid interpolating untrusted CSS declarations. |
 | Prototype pollution | Use guarded object merges and reject attacker-controlled prototype keys. |
-| SSR leakage | Keep secrets and request-specific values on the server; serialize only safe data. |
+| SSR leakage | Keep secrets and request-specific values on the server; use route-data redaction/exclusion hooks, bounded parsing, expiry, and optional signing before hydration. |
 | Supply-chain risk | Pin and audit dependencies, review lockfile changes, and run package verification before release. |
 
 Security hardening in the framework reduces risk; it does not make unsafe application input safe automatically.
@@ -875,6 +878,7 @@ npm run build
 npm run verify:declarations
 npm run verify:package
 npm run verify:hmr
+npm run test:browser -- --project=chromium
 git diff --check
 npm audit --audit-level=moderate
 ```
@@ -982,6 +986,7 @@ npm run build
 npm run verify:declarations
 npm run verify:package
 npm run verify:hmr
+npm run test:browser -- --project=chromium
 git diff --check
 ```
 

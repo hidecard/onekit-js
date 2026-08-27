@@ -34,6 +34,17 @@ export interface FileRouteManifest {
   middleware: readonly FileRouteManifestEntry[];
 }
 
+export interface FileRouteConflict {
+  path: string;
+  files: readonly string[];
+}
+
+export interface FileRouteAssociation {
+  path: string;
+  layouts: readonly string[];
+  middleware: readonly string[];
+}
+
 export interface FileRouteManifestOptions extends FileRouteOptions {
   /** Include layout and middleware convention files in the manifest. */
   includeInfrastructure?: boolean;
@@ -122,7 +133,40 @@ function routeManifestEntry(filePath: string, options: FileRouteManifestOptions)
   return entry;
 }
 
-/** Create deterministic route/layout/middleware metadata from bundler-discovered file paths. */
+/** Find page files that normalize to the same or an ambiguous URL pattern. */
+export function findFileRouteConflicts(manifest: FileRouteManifest): readonly FileRouteConflict[] {
+  const entriesByPattern = new Map<string, FileRouteManifestEntry[]>();
+  const canonicalPath = (path: string): string => path
+    .replace(/:[^/]+/g, ':param')
+    .replace(/\*\?/g, '*?')
+    .replace(/\*/g, '*');
+  for (const entry of manifest.routes) {
+    const entries = entriesByPattern.get(canonicalPath(entry.path)) ?? [];
+    entries.push(entry);
+    entriesByPattern.set(canonicalPath(entry.path), entries);
+  }
+  return [...entriesByPattern.values()]
+    .filter(entries => entries.length > 1)
+    .map(entries => ({
+      path: entries[0].path,
+      files: entries.map(entry => entry.file).sort(),
+    }))
+    .sort((left, right) => left.path.localeCompare(right.path));
+}
+
+/** Return explicit directory-scoped layout/middleware metadata without composing it. */
+export function createFileRouteAssociations(manifest: FileRouteManifest): readonly FileRouteAssociation[] {
+  const containing = (entry: FileRouteManifestEntry, kind: 'layouts' | 'middleware'): string[] => manifest[kind]
+    .filter(candidate => candidate.path === entry.path || entry.path === '/' || entry.path.startsWith(`${candidate.path}/`))
+    .sort((left, right) => left.path.localeCompare(right.path) || left.file.localeCompare(right.file))
+    .map(candidate => candidate.file);
+  return manifest.routes.map(entry => ({
+    path: entry.path,
+    layouts: containing(entry, 'layouts'),
+    middleware: containing(entry, 'middleware'),
+  }));
+}
+
 export function createFileRouteManifest(
   filePaths: readonly string[],
   options: FileRouteManifestOptions = {},

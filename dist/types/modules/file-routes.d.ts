@@ -28,6 +28,15 @@ export interface FileRouteManifest {
     layouts: readonly FileRouteManifestEntry[];
     middleware: readonly FileRouteManifestEntry[];
 }
+export interface FileRouteConflict {
+    path: string;
+    files: readonly string[];
+}
+export interface FileRouteAssociation {
+    path: string;
+    layouts: readonly string[];
+    middleware: readonly string[];
+}
 export interface FileRouteManifestOptions extends FileRouteOptions {
     /** Include layout and middleware convention files in the manifest. */
     includeInfrastructure?: boolean;
@@ -62,7 +71,10 @@ export type LayoutRoute<Path extends string, Children extends readonly Route[]> 
 export declare function defineRoute<const Path extends string, const Definition extends Omit<Route<RouteParamsFor<Path>, any, unknown>, 'path'>>(path: Path, route?: Definition): TypedRoute<Path, LoaderDataForDefinition<Definition>>;
 /** Define a parent route whose component is composed around its child matches. */
 export declare function defineLayoutRoute<const Path extends string, const Children extends readonly Route[], AppContext = unknown>(path: Path, layout: unknown, children: Children, route?: Omit<Route<RouteParamsFor<Path>, any, AppContext>, 'path' | 'layout' | 'children'>): LayoutRoute<Path, Children>;
-/** Create deterministic route/layout/middleware metadata from bundler-discovered file paths. */
+/** Find page files that normalize to the same or an ambiguous URL pattern. */
+export declare function findFileRouteConflicts(manifest: FileRouteManifest): readonly FileRouteConflict[];
+/** Return explicit directory-scoped layout/middleware metadata without composing it. */
+export declare function createFileRouteAssociations(manifest: FileRouteManifest): readonly FileRouteAssociation[];
 export declare function createFileRouteManifest(filePaths: readonly string[], options?: FileRouteManifestOptions): FileRouteManifest;
 export declare function filePathToRoutePath(filePath: string, root?: string): string;
 /**
