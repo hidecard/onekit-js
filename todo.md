@@ -108,7 +108,9 @@
   - [ ] Complete the application transport, sensitive-data policy, stream integration, cache/revalidation unification, and cancellation contract.
 - [ ] Add file-based route conventions and generated typed route parameters/data.
   - [x] Extend the bundler-safe helper with route groups, optional catch-all segments, optional dynamic URL generation, and runtime matching coverage.
-  - [ ] Add the full project-level file convention/plugin, generated typed route metadata, middleware/layout discovery, and prerender integration.
+  - [x] Add the opt-in Vite virtual route module with deterministic route/layout/middleware metadata and generated ordinary `Route[]` imports.
+  - [x] Add the opt-in `"use client"`/`"use server"` static-import boundary validator with client-to-server rejection tests.
+  - [ ] Complete runtime middleware/layout composition, fully typed generated route modules, prerender integration, and automatic project wiring.
 
 ## Production-readiness audit
 
@@ -441,7 +443,7 @@
 
 ## React/Vue Ecosystem Parity Assessment
 
-- [ ] Compare OneKit V3 against React/Vue across runtime, SSR, hydration, router, data fetching, forms, testing, DevTools, accessibility, compiler, mobile, ecosystem, and release infrastructure.
+- [x] Compare OneKit V3 against React/Next.js/Express across runtime, SSR, hydration, router, data fetching, APIs, compiler boundaries, ecosystem, and release infrastructure.
 - [ ] Separate existing capabilities, partial implementations, and confirmed gaps.
 - [ ] Prioritize remaining gaps by production impact and implementation cost.
 - [ ] Prepare a roadmap for the next parity milestones without changing code until the user selects the scope.
@@ -561,7 +563,10 @@
 - [x] Add `createStoreRegistry()` for per-request store isolation and explicit registry disposal.
 - [x] Add `app.head()`/`app.options()` helpers, enforce empty response bodies for HEAD requests, and return 405 with aggregated Allow headers for unsupported methods.
 - [x] Add the React/Next.js/Express parity audit at `docs/REACT_NEXT_EXPRESS_PARITY.md`.
-- [x] Validate the continuation working tree with **35 Jest suites / 207 tests**, strict TypeScript, docs build, production build, declaration/package/API/HMR checks, dependency audit, and Chromium browser coverage.
+- [x] Add the opt-in Vite virtual route module with deterministic route/layout/middleware metadata and generated ordinary `Route[]` imports.
+- [x] Add the opt-in `"use client"`/`"use server"` static-import boundary validator with client-to-server rejection tests.
+- [x] Add navigation-scoped `AbortSignal` propagation and silent superseded-loader cancellation.
+- [x] Validate the continuation working tree with **36 Jest suites / 211 tests**, strict TypeScript, docs build, production build, declaration/package/API/HMR checks, dependency audit, and Chromium browser coverage.
 - [ ] Run the complete Firefox/WebKit/Microsoft Edge matrix on CI runners with those browser executables installed before the next release.
 - [ ] Decide whether store persistence and SSR request isolation belong in the next public contract before implementation.
 - [ ] Continue SSR streamed-route integration, browser performance trend storage, cross-browser heap collection, and framework adapter/deployment examples.

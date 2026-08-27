@@ -14,6 +14,31 @@ export interface FileRouteOptions {
   includePrivate?: boolean;
 }
 
+export type FileRouteKind = 'route' | 'layout' | 'middleware';
+
+export interface FileRouteManifestEntry {
+  path: string;
+  file: string;
+  kind: FileRouteKind;
+  parentPath?: string;
+  dynamic?: boolean;
+  catchAll?: boolean;
+  optional?: boolean;
+}
+
+export interface FileRouteManifest {
+  version: 1;
+  root: string;
+  routes: readonly FileRouteManifestEntry[];
+  layouts: readonly FileRouteManifestEntry[];
+  middleware: readonly FileRouteManifestEntry[];
+}
+
+export interface FileRouteManifestOptions extends FileRouteOptions {
+  /** Include layout and middleware convention files in the manifest. */
+  includeInfrastructure?: boolean;
+}
+
 export type TypedRoute<Path extends string, Data = unknown, AppContext = unknown> = Omit<Route<RouteParamsFor<Path>, Data, AppContext>, 'path'> & { path: Path };
 
 export type RouteDataFor<R extends Route> = R extends Route<RouteParams, infer Data, unknown> ? Data : unknown;
@@ -71,11 +96,57 @@ export function defineLayoutRoute<const Path extends string, const Children exte
 }
 
 /** Convert a file-system-like module key into a router path. */
+function fileRouteKind(filePath: string): FileRouteKind {
+  const name = filePath.replace(/\\/g, '/').split('/').pop()?.replace(/\.[^.]+$/, '') ?? '';
+  if (name === 'middleware' || name === '_middleware') return 'middleware';
+  if (name === 'layout' || name === '_layout') return 'layout';
+  return 'route';
+}
+
+function routeManifestEntry(filePath: string, options: FileRouteManifestOptions): FileRouteManifestEntry {
+  const kind = fileRouteKind(filePath);
+  const conventionPath = kind === 'route' ? filePath : filePath.replace(/[\\/]([^\\/]+)$/, '');
+  const path = filePathToRoutePath(conventionPath, options.root ?? '');
+  const relative = path.replace(/^\//, '');
+  const segments = relative.split('/').filter(Boolean);
+  const dynamicSegments = segments.filter(segment => segment.startsWith(':') || segment === '*' || segment === '*?');
+  const entry: FileRouteManifestEntry = {
+    path,
+    file: filePath,
+    kind,
+    ...(segments.length > 1 ? { parentPath: `/${segments.slice(0, -1).join('/')}` } : {}),
+    ...(dynamicSegments.length ? { dynamic: true } : {}),
+    ...(dynamicSegments.some(segment => segment === '*' || segment === '*?') ? { catchAll: true } : {}),
+    ...(dynamicSegments.some(segment => segment === '*?') ? { optional: true } : {}),
+  };
+  return entry;
+}
+
+/** Create deterministic route/layout/middleware metadata from bundler-discovered file paths. */
+export function createFileRouteManifest(
+  filePaths: readonly string[],
+  options: FileRouteManifestOptions = {},
+): FileRouteManifest {
+  const entries = filePaths
+    .filter(filePath => options.includePrivate || !filePath.split(/[\\/]/).some(segment => segment.startsWith('_') && !/^_?(?:layout|middleware)(?:\.[^.]+)?$/.test(segment)))
+    .map(filePath => routeManifestEntry(filePath, options))
+    .filter(entry => options.includeInfrastructure || entry.kind === 'route')
+    .sort((left, right) => left.path.localeCompare(right.path) || left.kind.localeCompare(right.kind) || left.file.localeCompare(right.file));
+  return {
+    version: 1,
+    root: options.root ?? '',
+    routes: entries.filter(entry => entry.kind === 'route'),
+    layouts: entries.filter(entry => entry.kind === 'layout'),
+    middleware: entries.filter(entry => entry.kind === 'middleware'),
+  };
+}
+
 export function filePathToRoutePath(filePath: string, root = ''): string {
   let value = filePath.replace(/\\/g, '/');
   if (root) {
     const normalizedRoot = root.replace(/\\/g, '/').replace(/\/$/, '');
-    if (value.startsWith(`${normalizedRoot}/`)) value = value.slice(normalizedRoot.length + 1);
+    if (value === normalizedRoot) value = '';
+    else if (value.startsWith(`${normalizedRoot}/`)) value = value.slice(normalizedRoot.length + 1);
   }
   value = value.replace(/^\.\//, '').replace(/\.(?:[cm]?[jt]sx?|vue|svelte)$/i, '');
   const segments = value.split('/').filter(Boolean);

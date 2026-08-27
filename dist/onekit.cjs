@@ -4097,11 +4097,54 @@ function defineLayoutRoute(path, layout, children, route = {}) {
     return { ...route, path, layout, children: [...children] };
 }
 /** Convert a file-system-like module key into a router path. */
+function fileRouteKind(filePath) {
+    const name = filePath.replace(/\\/g, '/').split('/').pop()?.replace(/\.[^.]+$/, '') ?? '';
+    if (name === 'middleware' || name === '_middleware')
+        return 'middleware';
+    if (name === 'layout' || name === '_layout')
+        return 'layout';
+    return 'route';
+}
+function routeManifestEntry(filePath, options) {
+    const kind = fileRouteKind(filePath);
+    const conventionPath = kind === 'route' ? filePath : filePath.replace(/[\\/]([^\\/]+)$/, '');
+    const path = filePathToRoutePath(conventionPath, options.root ?? '');
+    const relative = path.replace(/^\//, '');
+    const segments = relative.split('/').filter(Boolean);
+    const dynamicSegments = segments.filter(segment => segment.startsWith(':') || segment === '*' || segment === '*?');
+    const entry = {
+        path,
+        file: filePath,
+        kind,
+        ...(segments.length > 1 ? { parentPath: `/${segments.slice(0, -1).join('/')}` } : {}),
+        ...(dynamicSegments.length ? { dynamic: true } : {}),
+        ...(dynamicSegments.some(segment => segment === '*' || segment === '*?') ? { catchAll: true } : {}),
+        ...(dynamicSegments.some(segment => segment === '*?') ? { optional: true } : {}),
+    };
+    return entry;
+}
+/** Create deterministic route/layout/middleware metadata from bundler-discovered file paths. */
+function createFileRouteManifest(filePaths, options = {}) {
+    const entries = filePaths
+        .filter(filePath => options.includePrivate || !filePath.split(/[\\/]/).some(segment => segment.startsWith('_') && !/^_?(?:layout|middleware)(?:\.[^.]+)?$/.test(segment)))
+        .map(filePath => routeManifestEntry(filePath, options))
+        .filter(entry => options.includeInfrastructure || entry.kind === 'route')
+        .sort((left, right) => left.path.localeCompare(right.path) || left.kind.localeCompare(right.kind) || left.file.localeCompare(right.file));
+    return {
+        version: 1,
+        root: options.root ?? '',
+        routes: entries.filter(entry => entry.kind === 'route'),
+        layouts: entries.filter(entry => entry.kind === 'layout'),
+        middleware: entries.filter(entry => entry.kind === 'middleware'),
+    };
+}
 function filePathToRoutePath(filePath, root = '') {
     let value = filePath.replace(/\\/g, '/');
     if (root) {
         const normalizedRoot = root.replace(/\\/g, '/').replace(/\/$/, '');
-        if (value.startsWith(`${normalizedRoot}/`))
+        if (value === normalizedRoot)
+            value = '';
+        else if (value.startsWith(`${normalizedRoot}/`))
             value = value.slice(normalizedRoot.length + 1);
     }
     value = value.replace(/^\.\//, '').replace(/\.(?:[cm]?[jt]sx?|vue|svelte)$/i, '');
@@ -7165,6 +7208,7 @@ exports.createApp = createApp;
 exports.createElement = createElement;
 exports.createErrorBoundary = createErrorBoundary;
 exports.createErrorReport = createErrorReport;
+exports.createFileRouteManifest = createFileRouteManifest;
 exports.createFileRoutes = createFileRoutes;
 exports.createForm = createForm;
 exports.createHeadManager = createHeadManager;

@@ -11,6 +11,27 @@ export interface FileRouteOptions {
     /** Keep route-module files whose names begin with an underscore. */
     includePrivate?: boolean;
 }
+export type FileRouteKind = 'route' | 'layout' | 'middleware';
+export interface FileRouteManifestEntry {
+    path: string;
+    file: string;
+    kind: FileRouteKind;
+    parentPath?: string;
+    dynamic?: boolean;
+    catchAll?: boolean;
+    optional?: boolean;
+}
+export interface FileRouteManifest {
+    version: 1;
+    root: string;
+    routes: readonly FileRouteManifestEntry[];
+    layouts: readonly FileRouteManifestEntry[];
+    middleware: readonly FileRouteManifestEntry[];
+}
+export interface FileRouteManifestOptions extends FileRouteOptions {
+    /** Include layout and middleware convention files in the manifest. */
+    includeInfrastructure?: boolean;
+}
 export type TypedRoute<Path extends string, Data = unknown, AppContext = unknown> = Omit<Route<RouteParamsFor<Path>, Data, AppContext>, 'path'> & {
     path: Path;
 };
@@ -41,7 +62,8 @@ export type LayoutRoute<Path extends string, Children extends readonly Route[]> 
 export declare function defineRoute<const Path extends string, const Definition extends Omit<Route<RouteParamsFor<Path>, any, unknown>, 'path'>>(path: Path, route?: Definition): TypedRoute<Path, LoaderDataForDefinition<Definition>>;
 /** Define a parent route whose component is composed around its child matches. */
 export declare function defineLayoutRoute<const Path extends string, const Children extends readonly Route[], AppContext = unknown>(path: Path, layout: unknown, children: Children, route?: Omit<Route<RouteParamsFor<Path>, any, AppContext>, 'path' | 'layout' | 'children'>): LayoutRoute<Path, Children>;
-/** Convert a file-system-like module key into a router path. */
+/** Create deterministic route/layout/middleware metadata from bundler-discovered file paths. */
+export declare function createFileRouteManifest(filePaths: readonly string[], options?: FileRouteManifestOptions): FileRouteManifest;
 export declare function filePathToRoutePath(filePath: string, root?: string): string;
 /**
  * Convert an import.meta.glob-style module map into ordinary OneKit routes.

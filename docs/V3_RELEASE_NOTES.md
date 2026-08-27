@@ -62,7 +62,9 @@ const router = createRouter([userRoute], {
 
 ### File-based routes and layout metadata
 
-`createFileRoutes()` converts bundler module maps into ordinary `Route[]` values without accessing the filesystem at runtime. `RouteParamsFor<Path>` and `routeHref()` provide typed parameter and URL helpers. `defineLayoutRoute()` keeps a parent layout and its child route literals together for nested composition.
+`createFileRoutes()` converts bundler module maps into ordinary `Route[]` values without accessing the filesystem at runtime. `RouteParamsFor<Path>` and `routeHref()` provide typed parameter and URL helpers. `defineLayoutRoute()` keeps a parent layout and its child route literals together for nested composition. The helper also understands route groups, required/optional catch-all segments, and optional dynamic URL segments.
+
+The experimental `onekit-js/vite` plugin can additionally generate a `virtual:onekit/routes` module from a project route directory. It exposes deterministic route/layout/middleware metadata and ordinary `Route[]` imports for explicit application composition. With `componentBoundary: true`, the plugin detects leading `"use client"`/`"use server"` directives and rejects client-to-server static imports at build end. It does not implement a Server Components transport, automatic code splitting, or hidden middleware wiring; see [`VITE_ROUTE_COMPONENT_BOUNDARY.md`](VITE_ROUTE_COMPONENT_BOUNDARY.md).
 
 ```ts
 import {
@@ -86,7 +88,7 @@ const dashboard = defineLayoutRoute("/dashboard", DashboardLayout, routes);
 
 ### SSR manifests and hydration diagnostics
 
-`createRouteManifest(routes)` and `router.getManifest()` emit JSON-safe route metadata for preload planning and client hydration preparation. Function-valued loaders, guards, dynamic query keys, and component implementations are intentionally not serialized.
+`createRouteManifest(routes)` and `router.getManifest()` emit JSON-safe route metadata for preload planning and client hydration preparation. `router.dehydrate()` and `router.hydrate(snapshot)` provide a separate one-shot trusted route-loader data handoff for matching client startup. Function-valued loaders, guards, dynamic query keys, and component implementations are intentionally not serialized; the application still owns transport, sensitive-data filtering, and signing.
 
 Hydration diagnostics can report mismatches through a callback and can be configured to throw when an application treats mismatches as deployment failures. Streaming renderers can hand errors to an `onError` callback so the server can record, format, or terminate the stream according to its policy.
 

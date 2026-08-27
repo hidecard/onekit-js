@@ -1,5 +1,6 @@
 import {
   createFileRoutes,
+  createFileRouteManifest,
   defineLayoutRoute,
   defineRoute,
   filePathToRoutePath,
@@ -32,6 +33,28 @@ describe('file route helpers', () => {
       { path: '/', component: 'HomePage' },
       { path: '/users/:id', component: 'UserPage' },
     ]);
+  });
+
+  it('creates deterministic route, layout, and middleware metadata', () => {
+    const manifest = createFileRouteManifest([
+      '/src/app/(marketing)/page.tsx',
+      '/src/app/docs/[[...slug]]/page.tsx',
+      '/src/app/dashboard/layout.tsx',
+      '/src/app/middleware.ts',
+    ], { root: '/src/app', includeInfrastructure: true });
+
+    expect(manifest.version).toBe(1);
+    expect(manifest.routes).toEqual([
+      expect.objectContaining({ path: '/', file: '/src/app/(marketing)/page.tsx', kind: 'route' }),
+      expect.objectContaining({ path: '/docs/*?', optional: true, catchAll: true }),
+    ]);
+    expect(manifest.layouts).toEqual([
+      expect.objectContaining({ path: '/dashboard', kind: 'layout' }),
+    ]);
+    expect(manifest.middleware).toEqual([
+      expect.objectContaining({ path: '/', kind: 'middleware' }),
+    ]);
+    expect(JSON.parse(JSON.stringify(manifest))).toEqual(manifest);
   });
 
   it('preserves explicit route definitions and builds hrefs', () => {

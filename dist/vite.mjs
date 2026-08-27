@@ -1,5 +1,5 @@
-import { readFileSync } from 'node:fs';
-import { resolve, dirname } from 'node:path';
+import { readFileSync, statSync, readdirSync } from 'node:fs';
+import { resolve, dirname, relative } from 'node:path';
 import * as typescript from 'typescript';
 
 function readBlock(source, tag) {
@@ -64,6 +64,83 @@ function compileOkjs(source, id = 'component.okjs') {
     return { code, map: null };
 }
 
+/**
+ * Preserve a route literal so TypeScript can retain its path type in generated
+ * route tables while keeping the runtime representation compatible with Route.
+ */
+/** Convert a file-system-like module key into a router path. */
+function fileRouteKind(filePath) {
+    const name = filePath.replace(/\\/g, '/').split('/').pop()?.replace(/\.[^.]+$/, '') ?? '';
+    if (name === 'middleware' || name === '_middleware')
+        return 'middleware';
+    if (name === 'layout' || name === '_layout')
+        return 'layout';
+    return 'route';
+}
+function routeManifestEntry(filePath, options) {
+    const kind = fileRouteKind(filePath);
+    const conventionPath = kind === 'route' ? filePath : filePath.replace(/[\\/]([^\\/]+)$/, '');
+    const path = filePathToRoutePath(conventionPath, options.root ?? '');
+    const relative = path.replace(/^\//, '');
+    const segments = relative.split('/').filter(Boolean);
+    const dynamicSegments = segments.filter(segment => segment.startsWith(':') || segment === '*' || segment === '*?');
+    const entry = {
+        path,
+        file: filePath,
+        kind,
+        ...(segments.length > 1 ? { parentPath: `/${segments.slice(0, -1).join('/')}` } : {}),
+        ...(dynamicSegments.length ? { dynamic: true } : {}),
+        ...(dynamicSegments.some(segment => segment === '*' || segment === '*?') ? { catchAll: true } : {}),
+        ...(dynamicSegments.some(segment => segment === '*?') ? { optional: true } : {}),
+    };
+    return entry;
+}
+/** Create deterministic route/layout/middleware metadata from bundler-discovered file paths. */
+function createFileRouteManifest(filePaths, options = {}) {
+    const entries = filePaths
+        .filter(filePath => options.includePrivate || !filePath.split(/[\\/]/).some(segment => segment.startsWith('_') && !/^_?(?:layout|middleware)(?:\.[^.]+)?$/.test(segment)))
+        .map(filePath => routeManifestEntry(filePath, options))
+        .filter(entry => options.includeInfrastructure || entry.kind === 'route')
+        .sort((left, right) => left.path.localeCompare(right.path) || left.kind.localeCompare(right.kind) || left.file.localeCompare(right.file));
+    return {
+        version: 1,
+        root: options.root ?? '',
+        routes: entries.filter(entry => entry.kind === 'route'),
+        layouts: entries.filter(entry => entry.kind === 'layout'),
+        middleware: entries.filter(entry => entry.kind === 'middleware'),
+    };
+}
+function filePathToRoutePath(filePath, root = '') {
+    let value = filePath.replace(/\\/g, '/');
+    if (root) {
+        const normalizedRoot = root.replace(/\\/g, '/').replace(/\/$/, '');
+        if (value === normalizedRoot)
+            value = '';
+        else if (value.startsWith(`${normalizedRoot}/`))
+            value = value.slice(normalizedRoot.length + 1);
+    }
+    value = value.replace(/^\.\//, '').replace(/\.(?:[cm]?[jt]sx?|vue|svelte)$/i, '');
+    const segments = value.split('/').filter(Boolean);
+    const routeSegments = [];
+    for (const segment of segments) {
+        if (/^(?:index|page)$/.test(segment))
+            continue;
+        if (segment === '_layout' || segment === 'layout' || /^\(.+\)$/.test(segment))
+            continue;
+        if (/^\[\[\.\.\.(.+)\]\]$/.test(segment)) {
+            routeSegments.push('*?');
+            continue;
+        }
+        if (/^\[\.\.\.(.+)\]$/.test(segment)) {
+            routeSegments.push('*');
+            continue;
+        }
+        const dynamic = segment.match(/^\[(.+)\]$/);
+        routeSegments.push(dynamic ? `:${dynamic[1]}` : segment);
+    }
+    return routeSegments.length ? `/${routeSegments.join('/')}` : '/';
+}
+
 function compileOkjsForVite(source, id) {
     const compiled = compileOkjs(source, id);
     const transpiled = typescript.transpileModule(compiled.code, {
@@ -76,15 +153,76 @@ function compileOkjsForVite(source, id) {
     });
     return { code: transpiled.outputText, map: null };
 }
+function cleanId(id) { return id.split('?')[0]; }
+function detectComponentBoundary(code) {
+    const header = code.slice(0, 4096).replace(/^(?:\s|\/\/[^\n]*\n|\/\*[\s\S]*?\*\/)+/, '');
+    const directives = header.match(/^["']use (client|server)["'];?/);
+    return directives?.[1] === 'client' ? 'client' : directives?.[1] === 'server' ? 'server' : 'shared';
+}
+function discoverFiles(root, include) {
+    if (!statSafe(root)?.isDirectory())
+        return [];
+    const result = [];
+    const visit = (directory) => {
+        for (const entry of readdirSync(directory, { withFileTypes: true })) {
+            const file = resolve(directory, entry.name);
+            if (entry.isDirectory())
+                visit(file);
+            else if (entry.isFile() && include.test(file))
+                result.push(file);
+        }
+    };
+    visit(root);
+    return result.sort((left, right) => left.localeCompare(right));
+}
+function statSafe(file) {
+    try {
+        return statSync(file);
+    }
+    catch {
+        return undefined;
+    }
+}
+function projectSourcePath(file, projectRoot) {
+    const value = relative(projectRoot, file).replace(/\\/g, '/');
+    return `/${value}`;
+}
+function generateFileRouteModule(files, options, projectRoot) {
+    const sourceFiles = files.map(file => projectSourcePath(file, projectRoot));
+    const manifest = createFileRouteManifest(sourceFiles, {
+        root: options.root,
+        includeInfrastructure: options.includeInfrastructure,
+    });
+    const routeEntries = manifest.routes.map(entry => ({ entry, index: sourceFiles.indexOf(entry.file) })).filter(item => item.index >= 0);
+    const imports = routeEntries.map(({ entry, index }) => `import * as __route${index} from ${JSON.stringify(entry.file)};`).join('\n');
+    const routes = routeEntries.map(({ entry, index }) => `{
+    ...(typeof __route${index}.route === 'object' && __route${index}.route ? __route${index}.route : {}),
+    path: __route${index}.route?.path ?? ${JSON.stringify(entry.path)},
+    ...(__route${index}.default !== undefined ? { component: __route${index}.default } : {}),
+    ...(__route${index}.route?.component !== undefined ? { component: __route${index}.route.component } : {}),
+  }`).join(',\n');
+    return `${imports}\nexport const fileRouteManifest = ${JSON.stringify(manifest)};\nexport const fileRouteLayouts = fileRouteManifest.layouts;\nexport const fileRouteMiddleware = fileRouteManifest.middleware;\nexport const routes = [${routes}];\nexport default routes;\n`;
+}
 /**
- * Vite plugin that announces OneKit module changes to the DevTools bridge and
- * keeps Vite's normal module graph/HMR behavior intact.
+ * Vite plugin for OKJS/HMR plus opt-in file-route generation and component-boundary checks.
+ * The advanced capabilities are explicit so existing users retain the original plugin behavior.
  */
 function oneKitVitePlugin(options = {}) {
-    const include = options.include ?? /\.(ts|tsx|js|jsx|vue|okjs|html)$/;
+    const include = options.include ?? /\.(ts|tsx|js|jsx|vue|svelte|okjs|html)$/;
     const exclude = options.exclude ?? /node_modules/;
     let projectRoot = process.cwd();
-    const isOkjs = (id) => id.split('?')[0].endsWith('.okjs') && !exclude.test(id);
+    const boundaryById = new Map();
+    const importsById = new Map();
+    const configuredBoundary = options.componentBoundary !== undefined;
+    const strictBoundary = typeof options.componentBoundary === 'object' ? options.componentBoundary.strict !== false : true;
+    const virtualId = options.fileRoutes?.virtualModuleId ?? 'virtual:onekit/routes';
+    const resolvedVirtualId = `\0${virtualId}`;
+    const isOkjs = (id) => cleanId(id).endsWith('.okjs') && !exclude.test(id);
+    const recordBoundary = (code, id) => {
+        if (!configuredBoundary || exclude.test(id))
+            return;
+        boundaryById.set(cleanId(id), detectComponentBoundary(code));
+    };
     return {
         name: 'onekit-v3-hmr',
         enforce: 'pre',
@@ -92,24 +230,57 @@ function oneKitVitePlugin(options = {}) {
             projectRoot = config.root;
         },
         resolveId(source, importer) {
+            if (source === virtualId)
+                return resolvedVirtualId;
             if (!isOkjs(source))
                 return undefined;
-            const cleanSource = source.split('?')[0];
+            const cleanSource = cleanId(source);
             if (cleanSource.startsWith('/') && !cleanSource.startsWith('//'))
                 return resolve(projectRoot, `.${cleanSource}`);
             if (cleanSource.startsWith('.') && importer)
-                return resolve(dirname(importer.split('?')[0]), cleanSource);
+                return resolve(dirname(cleanId(importer)), cleanSource);
             return undefined;
         },
         load(id) {
+            if (id === resolvedVirtualId && options.fileRoutes) {
+                const configured = options.fileRoutes;
+                const root = configured.root.startsWith('/') ? resolve(projectRoot, `.${configured.root}`) : resolve(projectRoot, configured.root);
+                const files = discoverFiles(root, configured.include ?? /\.(?:[cm]?[jt]sx?|vue|svelte|okjs)$/i);
+                return { code: generateFileRouteModule(files, configured, projectRoot), map: null };
+            }
             if (!isOkjs(id))
                 return undefined;
-            return compileOkjsForVite(readFileSync(id.split('?')[0], 'utf8'), id);
+            return compileOkjsForVite(readFileSync(cleanId(id), 'utf8'), id);
         },
         transform(code, id) {
+            recordBoundary(code, id);
             if (!isOkjs(id) || code.includes('const __okjsComponent = __okjsDefineComponent'))
                 return undefined;
             return compileOkjsForVite(code, id);
+        },
+        moduleParsed(module) {
+            if (!configuredBoundary)
+                return;
+            const id = cleanId(module.id);
+            const imported = new Set();
+            for (const child of [...(module.importedModules ?? []), ...(module.dynamicallyImportedModules ?? [])]) {
+                if (child?.id)
+                    imported.add(cleanId(child.id));
+            }
+            importsById.set(id, imported);
+        },
+        buildEnd() {
+            if (!configuredBoundary || !strictBoundary)
+                return;
+            for (const [id, boundary] of boundaryById) {
+                if (boundary !== 'client')
+                    continue;
+                for (const imported of importsById.get(id) ?? []) {
+                    if (boundaryById.get(imported) === 'server') {
+                        throw new Error(`OneKit component boundary violation: client module ${id} statically imports server module ${imported}. Move the import behind a server-owned boundary or mark the shared module explicitly.`);
+                    }
+                }
+            }
         },
         handleHotUpdate({ file, modules, server }) {
             if (!include.test(file) || exclude.test(file))
@@ -129,11 +300,8 @@ function oneKitVitePlugin(options = {}) {
         },
     };
 }
-/**
- * Store a reactive module's state in Vite's hot data object. This keeps state
- * across accepted module updates without making production bundles depend on
- * Vite globals.
- */
+
+/** Store a reactive module's state in Vite's hot data object. */
 function preserveHMRState(key, initial, hot = getHotModule()) {
     if (!hot)
         return initial;
