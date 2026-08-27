@@ -1,0 +1,94 @@
+name: Publish OneKit integrations
+
+on:
+  push:
+    tags:
+      - 'onekit-redis-v*'
+      - 'onekit-deno-kv-v*'
+      - 'onekit-vercel-global-config-v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: publish-integration-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Validate and publish integration package
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 22.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          registry-url: https://registry.npmjs.org
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install workspace dependencies
+        run: npm ci
+
+      - name: Resolve package from tag
+        id: package
+        shell: bash
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          case "$TAG_NAME" in
+            onekit-redis-v*) PACKAGE_NAME='@onekit-js/redis'; PACKAGE_DIR='packages/redis';;
+            onekit-deno-kv-v*) PACKAGE_NAME='@onekit-js/deno-kv'; PACKAGE_DIR='packages/deno-kv';;
+            onekit-vercel-global-config-v*) PACKAGE_NAME='@onekit-js/vercel-global-config'; PACKAGE_DIR='packages/vercel-global-config';;
+            *) echo "Unsupported integration tag: $TAG_NAME" >&2; exit 1;;
+          esac
+          TAG_VERSION="${TAG_NAME##*-v}"
+          PACKAGE_VERSION="$(node -e "console.log(require('./${PACKAGE_DIR}/package.json').version)")"
+          if [[ "$PACKAGE_VERSION" != "$TAG_VERSION" ]]; then
+            echo "Package version $PACKAGE_VERSION does not match tag $TAG_NAME" >&2
+            exit 1
+          fi
+          {
+            echo "name=$PACKAGE_NAME"
+            echo "dir=$PACKAGE_DIR"
+            echo "version=$PACKAGE_VERSION"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build integration package
+        run: npm --prefix "${{ steps.package.outputs.dir }}" run build
+
+      - name: Inspect package contents
+        run: npm pack --workspace "${{ steps.package.outputs.name }}" --dry-run
+
+      - name: Publish package with provenance
+        if: startsWith(github.ref, 'refs/tags/onekit-')
+        run: npm publish --workspace "${{ steps.package.outputs.name }}" --access public --provenance
+
+      - name: Verify published version
+        if: startsWith(github.ref, 'refs/tags/onekit-')
+        env:
+          PACKAGE_NAME: ${{ steps.package.outputs.name }}
+          PACKAGE_VERSION: ${{ steps.package.outputs.version }}
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3 4 5; do
+            if [[ "$(npm view "$PACKAGE_NAME@$PACKAGE_VERSION" version 2>/dev/null || true)" == "$PACKAGE_VERSION" ]]; then
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Published $PACKAGE_NAME@$PACKAGE_VERSION was not visible in the npm registry." >&2
+          exit 1
+
+      - name: Explain manual dispatch
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          echo 'Manual dispatch validates the package only.'
+          echo 'Create and push a matching onekit-<package>-v<version> tag to publish.'
